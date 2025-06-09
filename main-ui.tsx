@@ -49,6 +49,18 @@ type Model = {
   id: string
   name: string
   icon: string
+  apiKey?: string
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter"
+  isCustom?: boolean
+  customModelName?: string
+}
+
+type UserSettings = {
+  temperature: number
+  models: Model[]
+  openrouterEnabled: boolean
+  openrouterApiKey: string
+  openrouterModelName: string
 }
 
 type MainUIProps = {
@@ -70,11 +82,7 @@ type MainUIProps = {
 export default function MainUI({
   conversations = [],
   projects = [],
-  models = [
-    { id: "gpt-4", name: "GPT-4", icon: "G4" },
-    { id: "claude", name: "Claude", icon: "C" },
-    { id: "gemini", name: "Gemini", icon: "GM" },
-  ],
+  models = [],
   currentConversation = {
     id: "default",
     title: "New Conversation",
@@ -92,6 +100,60 @@ export default function MainUI({
   onLogout = () => {},
   onSaveSettings = () => {},
 }: MainUIProps) {
+  // Local Storage Keys
+  const USER_SETTINGS_KEY = "t3-chat-user-settings"
+  
+  // Initialize default models
+  const defaultModels: Model[] = [
+    { id: "openai-gpt4", name: "GPT-4", icon: "G4", provider: "openai" },
+    { id: "openai-gpt35", name: "GPT-3.5", icon: "G3", provider: "openai" },
+    { id: "claude-3", name: "Claude 3", icon: "C3", provider: "claude" },
+    { id: "gemini-2.5", name: "Gemini 2.5", icon: "G2", provider: "gemini" },
+    { id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" },
+    { id: "grok", name: "Grok", icon: "GK", provider: "grok" },
+  ]
+
+  // Load settings from localStorage
+  const loadSettings = (): UserSettings => {
+    if (typeof window === "undefined") {
+      return {
+        temperature: 0.7,
+        models: [],
+        openrouterEnabled: false,
+        openrouterApiKey: "",
+        openrouterModelName: "",
+      }
+    }
+    
+    try {
+      const saved = localStorage.getItem(USER_SETTINGS_KEY)
+      if (saved) {
+        return JSON.parse(saved)
+      }
+    } catch (error) {
+      console.error("Failed to load settings:", error)
+    }
+    
+    return {
+      temperature: 0.7,
+      models: [],
+      openrouterEnabled: false,
+      openrouterApiKey: "",
+      openrouterModelName: "",
+    }
+  }
+
+  // Save settings to localStorage
+  const saveSettings = (settings: UserSettings) => {
+    if (typeof window === "undefined") return
+    
+    try {
+      localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(settings))
+    } catch (error) {
+      console.error("Failed to save settings:", error)
+    }
+  }
+
   // State
   const [theme, setTheme] = useState<"dark" | "light">("dark")
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -99,11 +161,19 @@ export default function MainUI({
   const [inputValue, setInputValue] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [apiKey, setApiKey] = useState("")
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [temperature, setTemperature] = useState(0.7)
+  const [userSettings, setUserSettings] = useState<UserSettings>(loadSettings)
+  const [settingsTab, setSettingsTab] = useState<"general" | "models">("general")
+  const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter">("openai")
+  const [newModelApiKey, setNewModelApiKey] = useState("")
+  const [newModelCustomName, setNewModelCustomName] = useState("")
+  const [showNewModelApiKey, setShowNewModelApiKey] = useState(false)
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
+
+  // Get available models (user configured + defaults without API keys)
+  const availableModels = userSettings.openrouterEnabled 
+    ? [{ id: "openrouter", name: userSettings.openrouterModelName || "OpenRouter", icon: "OR", provider: "openrouter" as const }]
+    : [...userSettings.models, ...defaultModels.filter(m => !userSettings.models.some(um => um.id === m.id))]
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
@@ -159,15 +229,96 @@ export default function MainUI({
     }))
   }
 
-  // Save settings
-  const handleSaveSettings = () => {
-    onSaveSettings({ apiKey, temperature, theme })
-    setSettingsOpen(false)
-    // Simulate error for demonstration
-    if (apiKey === "invalid") {
-      setError("Invalid API key. Please check and try again.")
-      setTimeout(() => setError(null), 5000)
+  // Add new model
+  const handleAddModel = () => {
+    if (!newModelApiKey.trim()) {
+      setError("API key is required")
+      setTimeout(() => setError(null), 3000)
+      return
     }
+
+    if (newModelProvider === "openrouter" && !newModelCustomName.trim()) {
+      setError("Model name is required for OpenRouter")
+      setTimeout(() => setError(null), 3000)
+      return
+    }
+
+    const newModel: Model = {
+      id: `${newModelProvider}-${Date.now()}`,
+      name: newModelProvider === "openrouter" ? newModelCustomName : 
+             newModelProvider === "openai" ? "GPT-4" :
+             newModelProvider === "claude" ? "Claude 3" :
+             newModelProvider === "gemini" ? "Gemini 2.5" :
+             newModelProvider === "deepseek" ? "DeepSeek" :
+             newModelProvider === "grok" ? "Grok" : "Custom Model",
+      icon: newModelProvider === "openrouter" ? "OR" :
+            newModelProvider === "openai" ? "AI" :
+            newModelProvider === "claude" ? "C" :
+            newModelProvider === "gemini" ? "G" :
+            newModelProvider === "deepseek" ? "DS" :
+            newModelProvider === "grok" ? "GK" : "CM",
+      provider: newModelProvider,
+      apiKey: newModelApiKey,
+      isCustom: true,
+      customModelName: newModelProvider === "openrouter" ? newModelCustomName : undefined
+    }
+
+    if (newModelProvider === "openrouter") {
+      const updatedSettings = {
+        ...userSettings,
+        openrouterEnabled: true,
+        openrouterApiKey: newModelApiKey,
+        openrouterModelName: newModelCustomName,
+        models: [] // Clear other models when OpenRouter is enabled
+      }
+      setUserSettings(updatedSettings)
+      saveSettings(updatedSettings)
+    } else {
+      const updatedSettings = {
+        ...userSettings,
+        models: [...userSettings.models, newModel],
+        openrouterEnabled: false
+      }
+      setUserSettings(updatedSettings)
+      saveSettings(updatedSettings)
+    }
+
+    // Reset form
+    setNewModelApiKey("")
+    setNewModelCustomName("")
+    setNewModelProvider("openai")
+  }
+
+  // Remove model
+  const handleRemoveModel = (modelId: string) => {
+    const updatedSettings = {
+      ...userSettings,
+      models: userSettings.models.filter(m => m.id !== modelId)
+    }
+    setUserSettings(updatedSettings)
+    saveSettings(updatedSettings)
+  }
+
+  // Toggle OpenRouter
+  const handleToggleOpenRouter = (enabled: boolean) => {
+    const updatedSettings = {
+      ...userSettings,
+      openrouterEnabled: enabled,
+      models: enabled ? [] : userSettings.models
+    }
+    setUserSettings(updatedSettings)
+    saveSettings(updatedSettings)
+  }
+
+  // Save general settings
+  const handleSaveSettings = () => {
+    const updatedSettings = {
+      ...userSettings,
+      temperature: userSettings.temperature
+    }
+    setUserSettings(updatedSettings)
+    saveSettings(updatedSettings)
+    setSettingsOpen(false)
   }
 
   // Toggle theme
@@ -289,7 +440,7 @@ export default function MainUI({
                             {new Date(conversation.timestamp).toLocaleDateString()}
                           </span>
                           <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
-                            {models.find((m) => m.id === conversation.model)?.name || conversation.model}
+                            {availableModels.find((m) => m.id === conversation.model)?.name || conversation.model}
                           </span>
                         </div>
                       </button>
@@ -397,7 +548,7 @@ export default function MainUI({
               <h2 className="font-medium text-gray-800 dark:text-gray-200">{currentConversation.title}</h2>
 
               <div className="ml-3 px-2 py-1 text-xs rounded-full bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
-                {models.find((m) => m.id === currentConversation.model)?.name || currentConversation.model}
+                {availableModels.find((m) => m.id === currentConversation.model)?.name || currentConversation.model}
               </div>
             </div>
           </div>
@@ -490,7 +641,7 @@ export default function MainUI({
                     className="h-[48px] w-36 px-3 pr-8 rounded-xl bg-white/20 dark:bg-gray-800/40 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                     aria-label="Select AI model"
                   >
-                    {models.map((model) => (
+                    {availableModels.map((model) => (
                       <option key={model.id} value={model.id}>
                         {model.name}
                       </option>
@@ -562,97 +713,233 @@ export default function MainUI({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-md bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden"
+              className="w-full max-w-2xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden max-h-[80vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Header */}
               <div className="p-5 border-b border-gray-200/20 dark:border-gray-700/20">
                 <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200">Settings</h3>
-              </div>
-
-              <div className="p-5 space-y-6">
-                {/* API Key */}
-                <div className="space-y-2">
-                  <label htmlFor="api-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    API Key
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="api-key"
-                      type={showApiKey ? "text" : "password"}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      className="w-full p-2 pr-10 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                      placeholder="Enter your API key"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                      aria-label={showApiKey ? "Hide API key" : "Show API key"}
-                    >
-                      {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Your API key is stored locally and never sent to our servers.
-                  </p>
-                </div>
-
-                {/* Temperature */}
-                <div className="space-y-2">
-                  <label htmlFor="temperature" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Temperature: {temperature.toFixed(1)}
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Deterministic</span>
-                    <input
-                      id="temperature"
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={temperature}
-                      onChange={(e) => setTemperature(Number.parseFloat(e.target.value))}
-                      className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500"
-                    />
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Creative</span>
-                  </div>
-                </div>
-
-                {/* Theme */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Theme</label>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setTheme("light")}
-                      className={`
-                        flex-1 p-3 rounded-lg border transition-all duration-200
-                        ${
-                          theme === "light"
-                            ? "border-purple-500 bg-purple-500/10 text-purple-700 dark:text-purple-300"
-                            : "border-gray-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300"
-                        }
-                      `}
-                    >
-                      Light
-                    </button>
-                    <button
-                      onClick={() => setTheme("dark")}
-                      className={`
-                        flex-1 p-3 rounded-lg border transition-all duration-200
-                        ${
-                          theme === "dark"
-                            ? "border-purple-500 bg-purple-500/10 text-purple-700 dark:text-purple-300"
-                            : "border-gray-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300"
-                        }
-                      `}
-                    >
-                      Dark
-                    </button>
-                  </div>
+                
+                {/* Tabs */}
+                <div className="flex gap-1 mt-4 bg-gray-100/50 dark:bg-gray-900/50 rounded-lg p-1">
+                  <button
+                    onClick={() => setSettingsTab("general")}
+                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                      settingsTab === "general"
+                        ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                    }`}
+                  >
+                    General
+                  </button>
+                  <button
+                    onClick={() => setSettingsTab("models")}
+                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                      settingsTab === "models"
+                        ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                    }`}
+                  >
+                    Models
+                  </button>
                 </div>
               </div>
 
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-5">
+                {settingsTab === "general" && (
+                  <div className="space-y-6">
+                    {/* Temperature */}
+                    <div className="space-y-2">
+                      <label htmlFor="temperature" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Temperature: {userSettings.temperature.toFixed(1)}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Deterministic</span>
+                        <input
+                          id="temperature"
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.1"
+                          value={userSettings.temperature}
+                          onChange={(e) => setUserSettings(prev => ({ ...prev, temperature: Number.parseFloat(e.target.value) }))}
+                          className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500"
+                        />
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Creative</span>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Controls randomness in AI responses. Lower values are more focused, higher values are more creative.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {settingsTab === "models" && (
+                  <div className="space-y-6">
+                    {/* OpenRouter Toggle */}
+                    <div className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100">OpenRouter Mode</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Use OpenRouter to access multiple models with one API key</p>
+                        </div>
+                        <button
+                          onClick={() => handleToggleOpenRouter(!userSettings.openrouterEnabled)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            userSettings.openrouterEnabled ? "bg-purple-500" : "bg-gray-200 dark:bg-gray-700"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              userSettings.openrouterEnabled ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                      
+                      {userSettings.openrouterEnabled && (
+                        <div className="space-y-3 pt-3 border-t border-gray-200/50 dark:border-gray-700/50">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              OpenRouter API Key
+                            </label>
+                            <input
+                              type="password"
+                              value={userSettings.openrouterApiKey}
+                              onChange={(e) => setUserSettings(prev => ({ ...prev, openrouterApiKey: e.target.value }))}
+                              className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                              placeholder="sk-or-..."
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Model Name
+                            </label>
+                            <input
+                              type="text"
+                              value={userSettings.openrouterModelName}
+                              onChange={(e) => setUserSettings(prev => ({ ...prev, openrouterModelName: e.target.value }))}
+                              className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                              placeholder="anthropic/claude-3-opus"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {!userSettings.openrouterEnabled && (
+                      <>
+                        {/* Add New Model */}
+                        <div className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-lg">
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Add New Model</h4>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Provider
+                              </label>
+                              <select
+                                value={newModelProvider}
+                                onChange={(e) => setNewModelProvider(e.target.value as any)}
+                                className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                              >
+                                <option value="openai">OpenAI</option>
+                                <option value="claude">Anthropic (Claude)</option>
+                                <option value="gemini">Google (Gemini)</option>
+                                <option value="deepseek">DeepSeek</option>
+                                <option value="grok">Grok (xAI)</option>
+                                <option value="openrouter">OpenRouter</option>
+                              </select>
+                            </div>
+
+                            {newModelProvider === "openrouter" && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                  Model Name
+                                </label>
+                                <input
+                                  type="text"
+                                  value={newModelCustomName}
+                                  onChange={(e) => setNewModelCustomName(e.target.value)}
+                                  className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                                  placeholder="anthropic/claude-3-opus"
+                                />
+                              </div>
+                            )}
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                API Key
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type={showNewModelApiKey ? "text" : "password"}
+                                  value={newModelApiKey}
+                                  onChange={(e) => setNewModelApiKey(e.target.value)}
+                                  className="w-full p-2 pr-10 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                                  placeholder="Enter API key"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowNewModelApiKey(!showNewModelApiKey)}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                >
+                                  {showNewModelApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={handleAddModel}
+                              className="w-full px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                            >
+                              Add Model
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Configured Models */}
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Your Models</h4>
+                          <div className="space-y-2">
+                            {userSettings.models.length === 0 ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                                No models configured yet. Add your first model above.
+                              </p>
+                            ) : (
+                              userSettings.models.map((model) => (
+                                <div
+                                  key={model.id}
+                                  className="flex items-center justify-between p-3 bg-white/50 dark:bg-gray-900/50 rounded-lg border border-gray-200/50 dark:border-gray-700/50"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                                      {model.icon}
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-gray-900 dark:text-gray-100">{model.name}</div>
+                                      <div className="text-sm text-gray-500 dark:text-gray-400 capitalize">{model.provider}</div>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => handleRemoveModel(model.id)}
+                                    className="text-red-500 hover:text-red-600 transition-colors"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
               <div className="p-5 border-t border-gray-200/20 dark:border-gray-700/20 flex justify-end gap-3">
                 <button
                   onClick={() => setSettingsOpen(false)}
