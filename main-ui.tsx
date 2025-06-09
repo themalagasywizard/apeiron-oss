@@ -529,10 +529,6 @@ export default function MainUI({
                     {theme === "dark" ? <Sun className="w-4 h-4 text-gray-200" /> : <Moon className="w-4 h-4 text-gray-700" />}
                   </button>
 
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-medium">
-                    U
-                  </div>
-
                   <button
                     onClick={onLogout}
                     className="p-1.5 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
@@ -701,11 +697,17 @@ export default function MainUI({
                 </div>
               </div>
 
-              {/* Settings Button */}
-              <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 h-[72px] flex items-center">
+              {/* Profile and Settings Section */}
+              <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 h-[72px] flex items-center gap-3">
+                {/* Profile Button */}
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium shadow-lg">
+                  U
+                </div>
+                
+                {/* Settings Button */}
                 <button
                   onClick={() => setSettingsOpen(true)}
-                  className="w-full h-[48px] flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
+                  className="flex-1 h-[48px] flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
                   aria-label="Open settings"
                 >
                   <Settings className="w-4 h-4" />
@@ -1057,7 +1059,7 @@ export default function MainUI({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center pt-16 p-4"
             onClick={() => setSettingsOpen(false)}
           >
             <motion.div
