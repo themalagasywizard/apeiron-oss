@@ -557,13 +557,13 @@ export default function MainUI({
                   AI Chat
                 </h1>
                 <div className="flex items-center gap-1">
-                  <button
+                <button
                     onClick={toggleTheme}
                     className="p-1.5 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
                     aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
                   >
                     {theme === "dark" ? <Sun className="w-4 h-4 text-gray-200" /> : <Moon className="w-4 h-4 text-gray-700" />}
-                  </button>
+                </button>
 
                   {/* Toggle Sidebar Button */}
                   <button
@@ -625,8 +625,8 @@ export default function MainUI({
                               handleStartRename(conversation.id, conversation.title);
                             }}
                           >
-                            {conversation.title}
-                          </div>
+                          {conversation.title}
+                        </div>
                         )}
                         <div className="mt-1">
                           <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -711,8 +711,8 @@ export default function MainUI({
                                         handleStartRename(conv.id, conv.title);
                                       }}
                                     >
-                                      {conv.title}
-                                    </div>
+                                    {conv.title}
+                                  </div>
                                   )}
                                 </div>
                               )
@@ -730,9 +730,9 @@ export default function MainUI({
                 {/* Profile Button */}
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium shadow-lg">
                   U
-                </div>
-                
-                {/* Settings Button */}
+              </div>
+
+              {/* Settings Button */}
                 <button
                   onClick={() => setSettingsOpen(true)}
                   className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
@@ -747,15 +747,15 @@ export default function MainUI({
         </AnimatePresence>
 
         {/* Desktop Sidebar Toggle (only visible when sidebar is closed on desktop) */}
-        {!isMobile && !sidebarOpen && (
-          <button
-            onClick={() => setSidebarOpen(true)}
+              {!isMobile && !sidebarOpen && (
+                <button
+                  onClick={() => setSidebarOpen(true)}
             className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-gray-800/90 transition-colors shadow-lg"
-            aria-label="Open sidebar"
-          >
+                  aria-label="Open sidebar"
+                >
             <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
-          </button>
-        )}
+                </button>
+              )}
 
         {/* Main Chat Panel */}
         <main className="flex-1 flex flex-col overflow-hidden">
@@ -1011,21 +1011,21 @@ export default function MainUI({
                     
                     {/* Typing Animation */}
                     <div className="flex items-center space-x-1">
-                      <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0 }}
-                        className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0.2 }}
-                        className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
-                      />
-                      <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0.4 }}
-                        className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
-                      />
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0 }}
+                      className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0.2 }}
+                      className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0.4 }}
+                      className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
+                    />
                     </div>
                     
                     {/* Model Name */}
@@ -1205,7 +1205,7 @@ export default function MainUI({
                 
                 {/* Tabs */}
                 <div className="flex gap-1 mt-4 bg-gray-100/50 dark:bg-gray-900/50 rounded-lg p-1">
-                  <button
+                    <button
                     onClick={() => setSettingsTab("general")}
                     className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${
                       settingsTab === "general"
@@ -1224,40 +1224,40 @@ export default function MainUI({
                     }`}
                   >
                     Models
-                  </button>
+                    </button>
+                  </div>
                 </div>
-              </div>
 
               {/* Content */}
               <div className="flex-1 overflow-y-auto p-5">
                 {settingsTab === "general" && (
                   <div className="space-y-6">
-                    {/* Temperature */}
-                    <div className="space-y-2">
-                      <label htmlFor="temperature" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {/* Temperature */}
+                <div className="space-y-2">
+                  <label htmlFor="temperature" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Temperature: {userSettings.temperature.toFixed(1)}
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">Deterministic</span>
-                        <input
-                          id="temperature"
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.1"
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Deterministic</span>
+                    <input
+                      id="temperature"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
                           value={userSettings.temperature}
                           onChange={(e) => {
                             const updatedSettings = { ...userSettings, temperature: Number.parseFloat(e.target.value) }
                             onSaveSettings(updatedSettings)
                           }}
-                          className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500"
-                        />
-                        <span className="text-xs text-gray-500 dark:text-gray-400">Creative</span>
-                      </div>
+                      className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500"
+                    />
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Creative</span>
+                  </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         Controls randomness in AI responses. Lower values are more focused, higher values are more creative.
                       </p>
-                    </div>
+                </div>
                   </div>
                 )}
 
@@ -1270,7 +1270,7 @@ export default function MainUI({
                           <h4 className="font-medium text-gray-900 dark:text-gray-100">OpenRouter Mode</h4>
                           <p className="text-sm text-gray-600 dark:text-gray-400">Use OpenRouter to access multiple models with one API key</p>
                         </div>
-                        <button
+                    <button
                           onClick={() => handleToggleOpenRouter(!userSettings.openrouterEnabled)}
                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                             userSettings.openrouterEnabled ? "bg-purple-500" : "bg-gray-200 dark:bg-gray-700"
@@ -1281,7 +1281,7 @@ export default function MainUI({
                               userSettings.openrouterEnabled ? "translate-x-6" : "translate-x-1"
                             }`}
                           />
-                        </button>
+                    </button>
                       </div>
                       
                       {userSettings.openrouterEnabled && (
@@ -1373,7 +1373,7 @@ export default function MainUI({
                                   className="w-full p-2 pr-10 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                                   placeholder="Enter API key"
                                 />
-                                <button
+                    <button
                                   type="button"
                                   onClick={() => setShowNewModelApiKey(!showNewModelApiKey)}
                                   className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -1443,12 +1443,12 @@ export default function MainUI({
                                       className="text-red-500 hover:text-red-600 transition-colors"
                                     >
                                       <X className="w-4 h-4" />
-                                    </button>
-                                  </div>
+                    </button>
+                  </div>
                                 ))
                               )
                             })()}
-                          </div>
+                </div>
                         </div>
                       </>
                     )}

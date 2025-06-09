@@ -49,33 +49,65 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
 
   // Poll operation status for real VEO 2 operations
   const pollOperationStatus = async () => {
-    if (!operationName || !apiKey || isPolling) return
+    if (!operationName || !apiKey) {
+      console.log("Polling skipped: missing operationName or apiKey");
+      return
+    }
 
-    setIsPolling(true)
+    if (isPolling) {
+      console.log("Polling already in progress, skipping");
+      return;
+    }
+
+    setIsPolling(true);
+    console.log("=== Starting VEO 2 Status Poll ===");
+    console.log("Operation Name:", operationName);
+    console.log("API Key:", apiKey ? `${apiKey.substring(0, 10)}...` : "not provided");
+    console.log("Current Video URL:", currentVideoUrl);
+    console.log("Current Error:", error);
 
     try {
-      const response = await fetch(`/api/veo2?operationName=${encodeURIComponent(operationName)}&apiKey=${encodeURIComponent(apiKey)}`)
+      const url = `/api/veo2?operationName=${encodeURIComponent(operationName)}&apiKey=${encodeURIComponent(apiKey)}`
+      console.log("Making status request to:", url);
+      
+      const response = await fetch(url)
       const result = await response.json()
 
+      console.log("Status poll response status:", response.status);
+      console.log("Status poll result:", JSON.stringify(result, null, 2));
+
       if (!response.ok) {
+        console.error("Status poll failed:", response.status, result);
         throw new Error(result.error || `Failed to check status: ${response.status}`)
       }
 
       if (result.success && result.data) {
         const status = result.data as OperationStatus
+        console.log("Setting operation status:", status);
         setOperationStatus(status)
 
         if (status.status === "completed" && status.videoUrl) {
+          console.log("Video generation completed! URL:", status.videoUrl);
           setCurrentVideoUrl(status.videoUrl)
           setIsPolling(false)
         } else if (status.status === "failed") {
+          console.log("Video generation failed:", status.error);
           setError(status.error || "Video generation failed")
           setIsPolling(false)
           onError?.(status.error || "Video generation failed")
         } else if (status.status === "processing") {
+          console.log("Video still processing, progress:", status.progress, "%. Continuing to poll...");
           // Continue polling
-          setTimeout(pollOperationStatus, 5000) // Poll every 5 seconds
+          setIsPolling(false); // Reset polling state so next poll can start
+          setTimeout(() => {
+            console.log("Scheduling next poll in 5 seconds...");
+            pollOperationStatus();
+          }, 5000) // Poll every 5 seconds
         }
+      } else {
+        console.error("Invalid response format:", result);
+        setIsPolling(false);
+        throw new Error("Invalid response format from status endpoint");
       }
     } catch (err) {
       console.error("Error polling operation status:", err)
@@ -83,14 +115,26 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       setIsPolling(false)
       onError?.(err instanceof Error ? err.message : "Failed to check video status")
     }
+    
+    console.log("=== End Status Poll ===");
   }
 
   // Start polling when operationName is provided
   useEffect(() => {
-    if (operationName && apiKey && !currentVideoUrl && !error) {
+    console.log("useEffect triggered - checking if should start polling");
+    console.log("operationName:", operationName);
+    console.log("apiKey:", apiKey ? "present" : "missing");
+    console.log("currentVideoUrl:", currentVideoUrl);
+    console.log("error:", error);
+    console.log("isPolling:", isPolling);
+
+    if (operationName && apiKey && !currentVideoUrl && !error && !isPolling) {
+      console.log("Starting initial poll...");
       pollOperationStatus()
+    } else {
+      console.log("Polling conditions not met, skipping");
     }
-  }, [operationName, apiKey])
+  }, [operationName, apiKey, currentVideoUrl, error])
 
   const handlePlayPause = () => {
     if (videoRef) {
@@ -235,6 +279,21 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
             <p className="text-xs font-mono text-gray-800 dark:text-gray-200 break-all">
               {operationName.split('/').pop()}
             </p>
+          </div>
+        )}
+
+        {/* Manual status check button for debugging */}
+        {isRealOperation && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => {
+                console.log("Manual status check triggered");
+                pollOperationStatus();
+              }}
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
+            >
+              Check Status Now
+            </button>
           </div>
         )}
       </motion.div>

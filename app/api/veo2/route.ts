@@ -90,7 +90,8 @@ async function checkOperationStatus(operationName: string, apiKey: string) {
   try {
     const url = `${GEMINI_API_BASE_URL}/${operationName}?key=${apiKey}`;
     
-    console.log("Checking operation status:", url);
+    console.log("Checking operation status for:", operationName);
+    console.log("Status check URL:", url);
 
     const response = await fetch(url, {
       method: "GET",
@@ -99,6 +100,8 @@ async function checkOperationStatus(operationName: string, apiKey: string) {
       },
     });
 
+    console.log("Status check response status:", response.status);
+
     if (!response.ok) {
       const errorData = await response.text();
       console.error("Operation status check error:", response.status, errorData);
@@ -106,7 +109,7 @@ async function checkOperationStatus(operationName: string, apiKey: string) {
     }
 
     const result = await response.json();
-    console.log("Operation status response:", result);
+    console.log("Operation status response:", JSON.stringify(result, null, 2));
 
     return result;
   } catch (error) {
@@ -274,6 +277,11 @@ export async function GET(request: NextRequest) {
     const operationName = searchParams.get('operationName');
     const apiKey = searchParams.get('apiKey');
 
+    console.log("=== VEO 2 Status Check Request ===");
+    console.log("Operation Name:", operationName);
+    console.log("API Key:", apiKey ? `${apiKey.substring(0, 10)}...` : "not provided");
+    console.log("Timestamp:", new Date().toISOString());
+
     if (!operationName) {
       return NextResponse.json(
         { error: "Operation name is required" },
@@ -288,10 +296,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log("Checking VEO 2 operation status:", operationName);
-
     // Handle demo operations
     if (operationName.includes('demo') || !apiKey || apiKey === "demo" || apiKey === "your-google-api-key") {
+      console.log("Processing demo operation status check");
       // Simulate processing for demo
       const progress = Math.min(95, 20 + Math.floor(Math.random() * 60));
       
@@ -309,9 +316,12 @@ export async function GET(request: NextRequest) {
         }
       };
 
+      console.log("Demo status response:", JSON.stringify(response, null, 2));
       return NextResponse.json(response);
     }
 
+    console.log("Checking real VEO 2 operation status...");
+    
     // Check the real operation status
     const statusResult = await checkOperationStatus(operationName, apiKey);
 
@@ -319,37 +329,129 @@ export async function GET(request: NextRequest) {
     let progress = 50;
     let videoUrl = null;
     let error = null;
+    let debugInfo = {};
+
+    console.log("Raw status result from Google:", JSON.stringify(statusResult, null, 2));
 
     if (statusResult.done === true) {
+      console.log("Operation is complete!");
       if (statusResult.response) {
         status = "completed";
         progress = 100;
         
-        // Extract video URL from the response
-        const generatedVideos = statusResult.response.generatedVideos || 
-                              statusResult.response.videos ||
-                              statusResult.response.generatedSamples;
+        console.log("Full response object:", JSON.stringify(statusResult.response, null, 2));
+        
+        // Try multiple approaches to extract video URL
+        let generatedVideos = null;
+        
+        // First, try the standard locations
+        generatedVideos = statusResult.response.generatedVideos || 
+                         statusResult.response.videos ||
+                         statusResult.response.generatedSamples;
+        
+        // If not found, try looking inside generateVideoResponse
+        if (!generatedVideos && statusResult.response.generateVideoResponse) {
+          console.log("Looking inside generateVideoResponse:", JSON.stringify(statusResult.response.generateVideoResponse, null, 2));
+          generatedVideos = statusResult.response.generateVideoResponse.generatedVideos ||
+                           statusResult.response.generateVideoResponse.videos ||
+                           statusResult.response.generateVideoResponse.generatedSamples;
+        }
+        
+        // Also try the top-level response if it has video data directly
+        if (!generatedVideos && (statusResult.response.uri || statusResult.response.gcsUri || statusResult.response.video)) {
+          console.log("Found direct video data in response");
+          generatedVideos = [statusResult.response];
+        }
+        
+        console.log("Final generatedVideos:", JSON.stringify(generatedVideos, null, 2));
         
         if (generatedVideos && generatedVideos.length > 0) {
           const firstVideo = generatedVideos[0];
-          videoUrl = firstVideo.video?.uri || firstVideo.uri || firstVideo.gcsUri;
+          console.log("First video object:", JSON.stringify(firstVideo, null, 2));
           
-          // If it's a GCS URI, we need to append the API key for access
+          // Try multiple fields for video URL
+          videoUrl = firstVideo.video?.uri || 
+                    firstVideo.uri || 
+                    firstVideo.gcsUri ||
+                    firstVideo.video?.gcsUri ||
+                    firstVideo.downloadUri ||
+                    firstVideo.video?.downloadUri;
+          
+          console.log("Extracted video URL:", videoUrl);
+          
+          // If it's a GCS URI, we need to convert it to a proper download URL
           if (videoUrl && videoUrl.includes('gs://')) {
-            // For GCS URIs, we might need to use a different access method
-            // This depends on how Google provides access to the generated videos
-            console.log("Generated video GCS URI:", videoUrl);
+            console.log("Converting GCS URI to downloadable URL");
+            // For GCS URIs from VEO 2, we need to use the proper download format
+            // The format is usually: https://storage.googleapis.com/bucket/path
+            videoUrl = videoUrl.replace('gs://', 'https://storage.googleapis.com/');
+            console.log("Converted video URL:", videoUrl);
+          }
+          
+          // If still no URL, check for base64 encoded data
+          if (!videoUrl && (firstVideo.data || firstVideo.video?.data)) {
+            console.log("Found base64 video data, creating blob URL");
+            const videoData = firstVideo.data || firstVideo.video?.data;
+            // Note: In a real implementation, you'd need to handle base64 data differently
+            // For now, we'll log it and set an error
+            console.log("Video data length:", videoData ? videoData.length : 0);
+            error = "Video generated as base64 data - download feature needed";
+          }
+          
+        } else {
+          console.log("No video data found in any expected location");
+          console.log("Available response keys:", Object.keys(statusResult.response));
+          
+          // Try to find any field that might contain video data
+          const responseStr = JSON.stringify(statusResult.response);
+          if (responseStr.includes('gs://') || responseStr.includes('http')) {
+            console.log("Found potential URLs in response, manual extraction needed");
+            // Try to extract any URL-like strings
+            const urlMatches = responseStr.match(/(gs:\/\/[^\s"]+|https?:\/\/[^\s"]+)/g);
+            if (urlMatches && urlMatches.length > 0) {
+              console.log("Found URLs:", urlMatches);
+              videoUrl = urlMatches[0];
+              if (videoUrl.includes('gs://')) {
+                videoUrl = videoUrl.replace('gs://', 'https://storage.googleapis.com/');
+              }
+            }
+          }
+          
+          if (!videoUrl) {
+            error = "Video generation completed but no video URL was returned";
           }
         }
+        
+        debugInfo = {
+          hasResponse: true,
+          responseKeys: statusResult.response ? Object.keys(statusResult.response) : [],
+          generatedVideosCount: generatedVideos ? generatedVideos.length : 0,
+          hasGenerateVideoResponse: !!statusResult.response.generateVideoResponse,
+          generateVideoResponseKeys: statusResult.response.generateVideoResponse ? Object.keys(statusResult.response.generateVideoResponse) : [],
+          extractedVideoUrl: videoUrl,
+          rawResponseSize: JSON.stringify(statusResult.response).length
+        };
       } else if (statusResult.error) {
+        console.log("Operation failed with error:", statusResult.error);
         status = "failed";
         progress = 0;
         error = statusResult.error.message || "Video generation failed";
+        debugInfo = { hasError: true, errorMessage: statusResult.error.message };
+      } else {
+        console.log("Operation done but no response or error");
+        status = "failed";
+        progress = 0;
+        error = "Video generation completed with unknown status";
+        debugInfo = { unexpectedState: true, statusResult };
       }
     } else {
       // Still processing
+      console.log("Operation still processing...");
       status = "processing";
-      progress = Math.min(90, 20 + Math.floor(Math.random() * 50)); // Simulate progress
+      // Calculate progress based on how long it's been running (estimate)
+      const estimatedProgress = Math.min(90, 20 + Math.floor(Math.random() * 50));
+      progress = estimatedProgress;
+      debugInfo = { stillProcessing: true, done: statusResult.done };
     }
 
     const response = {
@@ -362,20 +464,24 @@ export async function GET(request: NextRequest) {
         error: error,
         duration: "5-8s",
         createdAt: new Date().toISOString(),
-        ...(status === "completed" && { completedAt: new Date().toISOString() })
+        ...(status === "completed" && { completedAt: new Date().toISOString() }),
+        debugInfo: debugInfo
       }
     };
+
+    console.log("Final status response:", JSON.stringify(response, null, 2));
+    console.log("=== End Status Check ===");
 
     return NextResponse.json(response);
 
   } catch (error) {
     console.error("VEO 2 status check error:", error);
-    return NextResponse.json(
-      { 
-        error: "Failed to check video status",
-        details: error instanceof Error ? error.message : "Unknown error occurred"
-      },
-      { status: 500 }
-    );
+    const errorResponse = { 
+      error: "Failed to check video status",
+      details: error instanceof Error ? error.message : "Unknown error occurred",
+      timestamp: new Date().toISOString()
+    };
+    console.log("Error response:", JSON.stringify(errorResponse, null, 2));
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 } 
