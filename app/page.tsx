@@ -202,149 +202,30 @@ export default function Home() {
     ? [{ id: "openrouter", name: userSettings.openrouterModelName || "OpenRouter", icon: "OR", provider: "openrouter" as const }]
     : [...userSettings.models, ...defaultModels.filter(m => !userSettings.models.some(um => um.id === m.id))]
 
-  // API calling functions
-  const callOpenAI = async (messages: Message[], apiKey: string, model: string = "gpt-4") => {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: model.includes("gpt-3.5") ? "gpt-3.5-turbo" : "gpt-4",
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-        temperature: userSettings.temperature,
-        stream: false
-      })
-    })
-    
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`)
-    }
-    
-    const data = await response.json()
-    return data.choices[0]?.message?.content || "No response"
-  }
-
-  const callClaude = async (messages: Message[], apiKey: string) => {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-3-opus-20240229",
-        max_tokens: 4000,
-        temperature: userSettings.temperature,
-        messages: messages.map(m => ({ role: m.role, content: m.content }))
-      })
-    })
-    
-    if (!response.ok) {
-      throw new Error(`Claude API error: ${response.statusText}`)
-    }
-    
-    const data = await response.json()
-    return data.content[0]?.text || "No response"
-  }
-
-  const callGemini = async (messages: Message[], apiKey: string) => {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+  // Unified API calling function that uses our server-side route
+  const callAI = async (messages: Message[], provider: string, apiKey: string, model?: string, customModelName?: string) => {
+    const response = await fetch("/api/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        contents: messages.map(m => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }]
-        })),
-        generationConfig: {
-          temperature: userSettings.temperature,
-          maxOutputTokens: 4000
-        }
-      })
-    })
-    
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`)
-    }
-    
-    const data = await response.json()
-    return data.candidates[0]?.content?.parts[0]?.text || "No response"
-  }
-
-  const callDeepSeek = async (messages: Message[], apiKey: string) => {
-    const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
         messages: messages.map(m => ({ role: m.role, content: m.content })),
+        provider,
+        apiKey,
+        model,
         temperature: userSettings.temperature,
-        stream: false
+        customModelName
       })
     })
     
     if (!response.ok) {
-      throw new Error(`DeepSeek API error: ${response.statusText}`)
+      const errorData = await response.json()
+      throw new Error(errorData.error || `API error: ${response.statusText}`)
     }
     
     const data = await response.json()
-    return data.choices[0]?.message?.content || "No response"
-  }
-
-  const callGrok = async (messages: Message[], apiKey: string) => {
-    const response = await fetch("https://api.x.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "grok-beta",
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-        temperature: userSettings.temperature,
-        stream: false
-      })
-    })
-    
-    if (!response.ok) {
-      throw new Error(`Grok API error: ${response.statusText}`)
-    }
-    
-    const data = await response.json()
-    return data.choices[0]?.message?.content || "No response"
-  }
-
-  const callOpenRouter = async (messages: Message[], apiKey: string, modelName: string) => {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "",
-        "X-Title": "T3 Chat"
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-        temperature: userSettings.temperature,
-        stream: false
-      })
-    })
-    
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.statusText}`)
-    }
-    
-    const data = await response.json()
-    return data.choices[0]?.message?.content || "No response"
+    return data.response || "No response"
   }
 
   // Find current conversation
@@ -407,59 +288,60 @@ export default function Home() {
       const allMessages = conversationForApi.messages
 
       // Determine which API to call based on the model provider
+      let apiKey = ""
+      let modelName = selectedModelData.id
+      let customModelName = ""
+
       switch (selectedModelData.provider) {
         case "openai":
-          const openaiKey = userSettings.openaiApiKey || ""
-          if (!openaiKey) {
+          apiKey = userSettings.openaiApiKey || ""
+          if (!apiKey) {
             throw new Error("OpenAI API key not configured. Please add it in Settings > Models.")
           }
-          aiResponse = await callOpenAI(allMessages, openaiKey, selectedModelData.id)
           break
 
         case "claude":
-          const claudeKey = userSettings.claudeApiKey || ""
-          if (!claudeKey) {
+          apiKey = userSettings.claudeApiKey || ""
+          if (!apiKey) {
             throw new Error("Claude API key not configured. Please add it in Settings > Models.")
           }
-          aiResponse = await callClaude(allMessages, claudeKey)
           break
 
         case "gemini":
-          const geminiKey = userSettings.geminiApiKey || ""
-          if (!geminiKey) {
+          apiKey = userSettings.geminiApiKey || ""
+          if (!apiKey) {
             throw new Error("Gemini API key not configured. Please add it in Settings > Models.")
           }
-          aiResponse = await callGemini(allMessages, geminiKey)
           break
 
         case "deepseek":
-          const deepseekKey = userSettings.deepseekApiKey || ""
-          if (!deepseekKey) {
+          apiKey = userSettings.deepseekApiKey || ""
+          if (!apiKey) {
             throw new Error("DeepSeek API key not configured. Please add it in Settings > Models.")
           }
-          aiResponse = await callDeepSeek(allMessages, deepseekKey)
           break
 
         case "grok":
-          const grokKey = userSettings.grokApiKey || ""
-          if (!grokKey) {
+          apiKey = userSettings.grokApiKey || ""
+          if (!apiKey) {
             throw new Error("Grok API key not configured. Please add it in Settings > Models.")
           }
-          aiResponse = await callGrok(allMessages, grokKey)
           break
 
         case "openrouter":
-          const openrouterKey = userSettings.openrouterApiKey || ""
-          const openrouterModel = userSettings.openrouterModelName || "meta-llama/llama-3.1-8b-instruct:free"
-          if (!openrouterKey) {
+          apiKey = userSettings.openrouterApiKey || ""
+          customModelName = userSettings.openrouterModelName || "meta-llama/llama-3.1-8b-instruct:free"
+          if (!apiKey) {
             throw new Error("OpenRouter API key not configured. Please add it in Settings > Models.")
           }
-          aiResponse = await callOpenRouter(allMessages, openrouterKey, openrouterModel)
           break
 
         default:
           throw new Error(`API key required. Please configure ${selectedModelData.provider} in Settings > Models.`)
       }
+
+      // Call the unified AI API
+      aiResponse = await callAI(allMessages, selectedModelData.provider, apiKey, modelName, customModelName)
 
       // 5. Add the AI response message
       const newAiMessage = {
