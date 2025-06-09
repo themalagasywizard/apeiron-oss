@@ -61,6 +61,11 @@ type UserSettings = {
   openrouterEnabled: boolean
   openrouterApiKey: string
   openrouterModelName: string
+  openaiApiKey: string
+  claudeApiKey: string
+  geminiApiKey: string
+  deepseekApiKey: string
+  grokApiKey: string
 }
 
 type MainUIProps = {
@@ -69,6 +74,7 @@ type MainUIProps = {
   models?: Model[]
   currentConversation?: Conversation
   currentModel?: string
+  userSettings?: UserSettings
   onSendMessage?: (message: string) => void
   onSelectConversation?: (id: string) => void
   onSelectModel?: (id: string) => void
@@ -91,6 +97,18 @@ export default function MainUI({
     messages: [],
   },
   currentModel = "gpt-4",
+  userSettings = {
+    temperature: 0.7,
+    models: [],
+    openrouterEnabled: false,
+    openrouterApiKey: "",
+    openrouterModelName: "",
+    openaiApiKey: "",
+    claudeApiKey: "",
+    geminiApiKey: "",
+    deepseekApiKey: "",
+    grokApiKey: ""
+  },
   onSendMessage = () => {},
   onSelectConversation = () => {},
   onSelectModel = () => {},
@@ -122,6 +140,11 @@ export default function MainUI({
         openrouterEnabled: false,
         openrouterApiKey: "",
         openrouterModelName: "",
+        openaiApiKey: "",
+        claudeApiKey: "",
+        geminiApiKey: "",
+        deepseekApiKey: "",
+        grokApiKey: ""
       }
     }
     
@@ -140,6 +163,11 @@ export default function MainUI({
       openrouterEnabled: false,
       openrouterApiKey: "",
       openrouterModelName: "",
+      openaiApiKey: "",
+      claudeApiKey: "",
+      geminiApiKey: "",
+      deepseekApiKey: "",
+      grokApiKey: ""
     }
   }
 
@@ -161,7 +189,7 @@ export default function MainUI({
   const [inputValue, setInputValue] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [userSettings, setUserSettings] = useState<UserSettings>(loadSettings)
+
   const [settingsTab, setSettingsTab] = useState<"general" | "models">("general")
   const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter">("openai")
   const [newModelApiKey, setNewModelApiKey] = useState("")
@@ -174,6 +202,8 @@ export default function MainUI({
   const availableModels = userSettings.openrouterEnabled 
     ? [{ id: "openrouter", name: userSettings.openrouterModelName || "OpenRouter", icon: "OR", provider: "openrouter" as const }]
     : [...userSettings.models, ...defaultModels.filter(m => !userSettings.models.some(um => um.id === m.id))]
+
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
