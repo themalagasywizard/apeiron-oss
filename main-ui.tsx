@@ -102,7 +102,6 @@ export default function MainUI({
   const [apiKey, setApiKey] = useState("")
   const [showApiKey, setShowApiKey] = useState(false)
   const [temperature, setTemperature] = useState(0.7)
-  const [deepResearch, setDeepResearch] = useState(false)
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
 
@@ -243,9 +242,7 @@ export default function MainUI({
               `}
             >
               <div className="flex items-center justify-between p-4 border-b border-gray-200/20 dark:border-gray-700/20">
-                <h1 className="text-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
-                  AI Chat
-                </h1>
+                <div></div>
                 <button
                   onClick={() => setSidebarOpen(false)}
                   className="p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
@@ -253,26 +250,6 @@ export default function MainUI({
                 >
                   <X className="w-5 h-5 text-gray-700 dark:text-gray-200" />
                 </button>
-              </div>
-
-              {/* Model Selector */}
-              <div className="p-4 border-b border-gray-200/20 dark:border-gray-700/20">
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">AI Model</label>
-                <div className="relative">
-                  <select
-                    value={currentModel}
-                    onChange={(e) => onSelectModel(e.target.value)}
-                    className="w-full p-2 pl-3 pr-10 rounded-lg bg-white/20 dark:bg-gray-800/40 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                    aria-label="Select AI model"
-                  >
-                    {models.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400 pointer-events-none" />
-                </div>
               </div>
 
               {/* Conversation History */}
@@ -423,24 +400,6 @@ export default function MainUI({
                 {models.find((m) => m.id === currentConversation.model)?.name || currentConversation.model}
               </div>
             </div>
-
-            <div className="flex items-center">
-              <button
-                onClick={() => setDeepResearch(!deepResearch)}
-                className={`
-                  flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
-                  ${
-                    deepResearch
-                      ? "bg-purple-500/20 text-purple-700 dark:text-purple-300"
-                      : "bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300"
-                  }
-                `}
-                aria-label="Toggle deep research mode"
-              >
-                <span>Deep Research</span>
-                {deepResearch && <Check className="w-3 h-3" />}
-              </button>
-            </div>
           </div>
 
           {/* Error Alert */}
@@ -523,6 +482,25 @@ export default function MainUI({
           {/* Input Area */}
           <div className="p-4 border-t border-gray-200/20 dark:border-gray-700/20 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30">
             <div className="flex items-end gap-2">
+              <div className="flex-shrink-0">
+                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Model</label>
+                <div className="relative">
+                  <select
+                    value={currentModel}
+                    onChange={(e) => onSelectModel(e.target.value)}
+                    className="w-32 p-2 pl-3 pr-8 rounded-lg bg-white/20 dark:bg-gray-800/40 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    aria-label="Select AI model"
+                  >
+                    {models.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 dark:text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+
               <div className="flex-1 bg-white/20 dark:bg-gray-800/40 rounded-xl border border-gray-200/20 dark:border-gray-700/20 overflow-hidden focus-within:ring-2 focus-within:ring-purple-500/50">
                 <textarea
                   ref={chatInputRef}
