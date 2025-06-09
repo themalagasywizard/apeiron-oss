@@ -259,7 +259,7 @@ export default function MainUI({
     }))
   }
 
-  // Add new model
+  // Add new model (save API keys directly to userSettings)
   const handleAddModel = () => {
     if (!newModelApiKey.trim()) {
       setError("API key is required")
@@ -273,45 +273,40 @@ export default function MainUI({
       return
     }
 
-    const newModel: Model = {
-      id: `${newModelProvider}-${Date.now()}`,
-      name: newModelProvider === "openrouter" ? newModelCustomName : 
-             newModelProvider === "openai" ? "GPT-4" :
-             newModelProvider === "claude" ? "Claude 3" :
-             newModelProvider === "gemini" ? "Gemini 2.5" :
-             newModelProvider === "deepseek" ? "DeepSeek" :
-             newModelProvider === "grok" ? "Grok" : "Custom Model",
-      icon: newModelProvider === "openrouter" ? "OR" :
-            newModelProvider === "openai" ? "AI" :
-            newModelProvider === "claude" ? "C" :
-            newModelProvider === "gemini" ? "G" :
-            newModelProvider === "deepseek" ? "DS" :
-            newModelProvider === "grok" ? "GK" : "CM",
-      provider: newModelProvider,
-      apiKey: newModelApiKey,
-      isCustom: true,
-      customModelName: newModelProvider === "openrouter" ? newModelCustomName : undefined
-    }
+    // Save API keys directly to userSettings based on provider
+    let updatedSettings = { ...userSettings }
 
     if (newModelProvider === "openrouter") {
-      const updatedSettings = {
+      updatedSettings = {
         ...userSettings,
         openrouterEnabled: true,
         openrouterApiKey: newModelApiKey,
         openrouterModelName: newModelCustomName,
         models: [] // Clear other models when OpenRouter is enabled
       }
-      setUserSettings(updatedSettings)
-      saveSettings(updatedSettings)
     } else {
-      const updatedSettings = {
-        ...userSettings,
-        models: [...userSettings.models, newModel],
-        openrouterEnabled: false
+      // Store API keys in the correct field based on provider
+      switch (newModelProvider) {
+        case "openai":
+          updatedSettings.openaiApiKey = newModelApiKey
+          break
+        case "claude":
+          updatedSettings.claudeApiKey = newModelApiKey
+          break
+        case "gemini":
+          updatedSettings.geminiApiKey = newModelApiKey
+          break
+        case "deepseek":
+          updatedSettings.deepseekApiKey = newModelApiKey
+          break
+        case "grok":
+          updatedSettings.grokApiKey = newModelApiKey
+          break
       }
-      setUserSettings(updatedSettings)
-      saveSettings(updatedSettings)
+      updatedSettings.openrouterEnabled = false
     }
+
+    onSaveSettings(updatedSettings)
 
     // Reset form
     setNewModelApiKey("")
@@ -319,14 +314,27 @@ export default function MainUI({
     setNewModelProvider("openai")
   }
 
-  // Remove model
+  // Remove model (clear API keys)
   const handleRemoveModel = (modelId: string) => {
-    const updatedSettings = {
-      ...userSettings,
-      models: userSettings.models.filter(m => m.id !== modelId)
+    let updatedSettings = { ...userSettings }
+    
+    // If it's a default model, clear the API key
+    if (modelId === "deepseek") {
+      updatedSettings.deepseekApiKey = ""
+    } else if (modelId === "openai-gpt4" || modelId === "openai-gpt35") {
+      updatedSettings.openaiApiKey = ""
+    } else if (modelId === "claude-3") {
+      updatedSettings.claudeApiKey = ""
+    } else if (modelId === "gemini-2.5") {
+      updatedSettings.geminiApiKey = ""
+    } else if (modelId === "grok") {
+      updatedSettings.grokApiKey = ""
+    } else {
+      // Custom model - remove from models array
+      updatedSettings.models = userSettings.models.filter(m => m.id !== modelId)
     }
-    setUserSettings(updatedSettings)
-    saveSettings(updatedSettings)
+    
+    onSaveSettings(updatedSettings)
   }
 
   // Toggle OpenRouter
@@ -336,18 +344,16 @@ export default function MainUI({
       openrouterEnabled: enabled,
       models: enabled ? [] : userSettings.models
     }
-    setUserSettings(updatedSettings)
-    saveSettings(updatedSettings)
+    onSaveSettings(updatedSettings)
   }
 
   // Save general settings
-  const handleSaveSettings = () => {
+  const handleSaveGeneralSettings = () => {
     const updatedSettings = {
       ...userSettings,
       temperature: userSettings.temperature
     }
-    setUserSettings(updatedSettings)
-    saveSettings(updatedSettings)
+    onSaveSettings(updatedSettings)
     setSettingsOpen(false)
   }
 
@@ -793,7 +799,10 @@ export default function MainUI({
                           max="1"
                           step="0.1"
                           value={userSettings.temperature}
-                          onChange={(e) => setUserSettings(prev => ({ ...prev, temperature: Number.parseFloat(e.target.value) }))}
+                          onChange={(e) => {
+                            const updatedSettings = { ...userSettings, temperature: Number.parseFloat(e.target.value) }
+                            onSaveSettings(updatedSettings)
+                          }}
                           className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500"
                         />
                         <span className="text-xs text-gray-500 dark:text-gray-400">Creative</span>
@@ -837,7 +846,10 @@ export default function MainUI({
                             <input
                               type="password"
                               value={userSettings.openrouterApiKey}
-                              onChange={(e) => setUserSettings(prev => ({ ...prev, openrouterApiKey: e.target.value }))}
+                              onChange={(e) => {
+                                const updatedSettings = { ...userSettings, openrouterApiKey: e.target.value }
+                                onSaveSettings(updatedSettings)
+                              }}
                               className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                               placeholder="sk-or-..."
                             />
@@ -849,7 +861,10 @@ export default function MainUI({
                             <input
                               type="text"
                               value={userSettings.openrouterModelName}
-                              onChange={(e) => setUserSettings(prev => ({ ...prev, openrouterModelName: e.target.value }))}
+                              onChange={(e) => {
+                                const updatedSettings = { ...userSettings, openrouterModelName: e.target.value }
+                                onSaveSettings(updatedSettings)
+                              }}
                               className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                               placeholder="anthropic/claude-3-opus"
                             />
@@ -978,7 +993,7 @@ export default function MainUI({
                   Cancel
                 </button>
                 <button
-                  onClick={handleSaveSettings}
+                  onClick={handleSaveGeneralSettings}
                   className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium shadow-lg hover:shadow-purple-500/25 transition-all"
                 >
                   Save
