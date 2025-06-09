@@ -21,7 +21,7 @@ function getFileCategory(mimeType: string): 'image' | 'pdf' | 'document' | 'othe
   return 'other';
 }
 
-// Helper function to extract text from PDF with proper OCR fallback
+// Helper function to extract text from PDF with dual-approach processing
 async function extractTextFromPDF(buffer: Buffer, filename: string): Promise<string> {
   try {
     console.log('Starting PDF processing for:', filename);
@@ -30,31 +30,132 @@ async function extractTextFromPDF(buffer: Buffer, filename: string): Promise<str
     const isCV = /\b(cv|resume|curriculum)\b/i.test(filename);
     const isMadagascar = /madagascar/i.test(filename);
     
-    // First try regular PDF text extraction with proper error handling
+    let pdfParseSuccess = false;
+    let extractedText = '';
+    let pageCount = 0;
+    
+    // PRIMARY APPROACH: Try pdf-parse first (faster and more direct)
     try {
+      console.log('Attempting primary extraction with pdf-parse...');
       const pdfParse = require('pdf-parse');
       const data = await pdfParse(buffer, {
-        // Prevent the library from looking for test files
-        max: 0
+        max: 0 // Process all pages
       });
       
-      console.log(`PDF parsed: ${data.numpages} pages, ${data.text.length} characters`);
+      console.log(`pdf-parse: ${data.numpages} pages, ${data.text.length} characters`);
       
-      // If we get substantial text content, return it
-      if (data.text && data.text.trim().length > 100) {
-        const cleanText = data.text
-          .replace(/\s+/g, ' ')
-          .replace(/([.!?])\s*\n/g, '$1\n\n')
-          .trim();
+      if (data.text && data.text.trim().length > 50) {
+        extractedText = data.text;
+        pageCount = data.numpages;
+        pdfParseSuccess = true;
+        console.log('✅ pdf-parse extraction successful');
+      } else {
+        console.log('⚠️ pdf-parse returned minimal text, trying fallback...');
+      }
+      
+    } catch (pdfParseError) {
+      console.log('❌ pdf-parse failed:', (pdfParseError as Error).message || 'Unknown error');
+      console.log('🔄 Falling back to pdf-lib extraction...');
+    }
+    
+    // SECONDARY APPROACH: Use pdf-lib for challenging PDFs
+    if (!pdfParseSuccess) {
+      try {
+        console.log('Attempting secondary extraction with pdf-lib...');
+        const { PDFDocument } = await import('pdf-lib');
         
-        let contextualIntro = "";
-        if (isCV) {
-          contextualIntro = `✅ CV/Resume Successfully Processed
+        // Convert Buffer to Uint8Array for pdf-lib compatibility
+        const uint8Array = new Uint8Array(buffer);
+        const pdfDoc = await PDFDocument.load(uint8Array);
+        const pages = pdfDoc.getPages();
+        pageCount = pages.length;
+        
+        let pdfLibText = '';
+        
+        // Note: pdf-lib doesn't have direct text extraction, so we'll combine with OCR approach
+        console.log(`pdf-lib: Document loaded successfully with ${pageCount} pages`);
+        
+        // For pdf-lib, we'll convert to images and use OCR as it's more robust for complex PDFs
+        try {
+          const pdf2pic = require('pdf2pic');
+          const convertToPic = pdf2pic.fromBuffer(buffer, {
+            density: 100,           // Lower density for faster processing
+            saveFilename: "untitled",
+            savePath: "./temp",
+            format: "png",
+            width: 600,
+            height: 600
+          });
+          
+          // Convert first few pages to images for OCR
+          const maxPagesToProcess = Math.min(pageCount, 3); // Limit for performance
+          console.log(`Converting ${maxPagesToProcess} pages to images for OCR...`);
+          
+          for (let i = 1; i <= maxPagesToProcess; i++) {
+            try {
+              const page = await convertToPic(i);
+              
+              // Use Tesseract on the converted image
+              const { createWorker } = await import('tesseract.js');
+              const worker = await createWorker('eng');
+              
+              const { data } = await worker.recognize(page.path);
+              await worker.terminate();
+              
+              if (data.text && data.text.trim().length > 20) {
+                pdfLibText += `\n--- Page ${i} ---\n${data.text.trim()}\n`;
+              }
+              
+              // Clean up temp file
+              const fs = require('fs').promises;
+              try {
+                await fs.unlink(page.path);
+              } catch (cleanupError) {
+                console.log('Cleanup warning:', (cleanupError as Error).message || 'Cleanup failed');
+              }
+              
+            } catch (pageError) {
+              console.log(`Page ${i} processing failed:`, (pageError as Error).message || 'Unknown page error');
+            }
+          }
+          
+          if (pdfLibText.trim().length > 50) {
+            extractedText = pdfLibText.trim();
+            console.log('✅ pdf-lib + OCR extraction successful');
+          }
+          
+        } catch (ocrError) {
+          console.log('OCR processing failed:', (ocrError as Error).message || 'Unknown OCR error');
+          
+          // Final fallback: provide helpful guidance even without text extraction
+          extractedText = `Document structure detected (${pageCount} pages) but text extraction requires manual processing.`;
+        }
+        
+      } catch (pdfLibError) {
+        console.log('❌ pdf-lib failed:', (pdfLibError as Error).message || 'Unknown pdf-lib error');
+        throw new Error('Both PDF processing methods failed');
+      }
+    }
+    
+    // PROCESS RESULTS: Format extracted text based on success method
+    if (extractedText && extractedText.length > 50) {
+      const cleanText = extractedText
+        .replace(/\s+/g, ' ')
+        .replace(/([.!?])\s*\n/g, '$1\n\n')
+        .trim();
+      
+      const processingMethod = pdfParseSuccess ? 'pdf-parse' : 'pdf-lib + OCR';
+      const wordCount = cleanText.split(/\s+/).length;
+      
+      let contextualIntro = "";
+      if (isCV) {
+        contextualIntro = `✅ CV/Resume Successfully Processed
 
 👤 Document: ${filename}
-📊 Pages: ${data.numpages}
-📝 Characters: ${data.text.length}
-🔤 Words: ~${data.text.split(/\s+/).length}
+📊 Pages: ${pageCount}
+🔧 Method: ${processingMethod}
+📝 Characters: ${cleanText.length}
+🔤 Words: ~${wordCount}
 
 💼 CV Analysis Ready! I can help you:
 - Review your qualifications and experience
@@ -62,85 +163,81 @@ async function extractTextFromPDF(buffer: Buffer, filename: string): Promise<str
 - Identify strengths and areas to highlight
 - Compare against job requirements
 - Format and presentation recommendations`;
-        } else if (isMadagascar) {
-          contextualIntro = `✅ Madagascar Document Successfully Processed
+      } else if (isMadagascar) {
+        contextualIntro = `✅ Madagascar Document Successfully Processed
 
 🌍 Document: ${filename}
-📊 Pages: ${data.numpages}
-📝 Characters: ${data.text.length}
-🔤 Words: ~${data.text.split(/\s+/).length}
+📊 Pages: ${pageCount}
+🔧 Method: ${processingMethod}
+📝 Characters: ${cleanText.length}
+🔤 Words: ~${wordCount}
 
 🇲🇬 Madagascar Analysis Ready! I can help analyze:
 - Geographic and demographic data
 - Economic indicators and projections
 - Environmental and conservation topics
 - Political and social developments`;
-        } else {
-          contextualIntro = `✅ PDF Text Extraction Successful
+      } else {
+        contextualIntro = `✅ PDF Text Extraction Successful
 
 📄 Document: ${filename}
-📊 Pages: ${data.numpages}
-📝 Characters: ${data.text.length}
-🔤 Words: ~${data.text.split(/\s+/).length}`;
-        }
-        
-        return `${contextualIntro}
+📊 Pages: ${pageCount}
+🔧 Method: ${processingMethod}
+📝 Characters: ${cleanText.length}
+🔤 Words: ~${wordCount}`;
+      }
+      
+      return `${contextualIntro}
 
 📖 Content:
 ${cleanText}`;
-      }
-      
-      // If minimal text, provide helpful information about the document
-      let contextualGuidance = "";
-      if (isCV) {
-        contextualGuidance = `📄 CV/Resume Processing Results
+    }
+    
+    // FALLBACK GUIDANCE: When both methods provide minimal text
+    let contextualGuidance = "";
+    if (isCV) {
+      contextualGuidance = `📄 CV/Resume Processing Results
 
 🔍 File: ${filename}
-📊 Pages: ${data.numpages}
-⚠️  Type: Image-based or scanned CV
-
-📋 Available Content:
-${data.text.length > 0 ? `Limited text found: "${data.text.substring(0, 200)}..."` : 'No extractable text found'}
+📊 Pages: ${pageCount || 'Unknown'}
+🔧 Processing: Advanced dual-method attempted
+⚠️  Result: Limited text extraction achieved
 
 💼 CV Analysis Support:
-Even with limited text extraction, I can help you:
+Even with challenging text extraction, I can provide comprehensive CV guidance:
 
-🔍 **Review & Feedback:**
-- Analyze your experience and qualifications
-- Suggest improvements to content structure
-- Recommend skills to highlight
-- Review formatting and presentation
+🔍 **Professional Review Services:**
+- **Experience Analysis**: Review your work history and achievements
+- **Skills Assessment**: Evaluate technical and soft skills presentation
+- **Format Optimization**: Improve layout and visual impact
+- **Content Enhancement**: Strengthen job descriptions and accomplishments
+- **Industry Alignment**: Tailor content for specific sectors or roles
 
-📝 **Content Optimization:**
-- Help tailor CV for specific roles
-- Improve job descriptions and achievements
-- Suggest powerful action words
-- Review education and certification sections
+📝 **Strategic Improvements:**
+- Quantify achievements with specific numbers/results
+- Use strong action verbs (achieved, implemented, led, optimized)
+- Optimize for Applicant Tracking Systems (ATS)
+- Balance white space and content density
+- Ensure consistent formatting throughout
 
-🎯 **Strategic Advice:**
-- Identify your strongest selling points
-- Recommend section organization
-- Suggest industry-specific improvements
-- Help with cover letter alignment
+🎯 **Next Steps:**
+Please share details about:
+1. **Your background**: Industry, years of experience, key roles
+2. **Target positions**: What types of jobs are you applying for?
+3. **Specific concerns**: What aspects of your CV worry you most?
+4. **Current challenges**: Are you getting interviews? Response rates?
 
-💭 **How to proceed:**
-1. **Describe your background**: Tell me about your experience, skills, and career goals
-2. **Share key sections**: Mention your main roles, achievements, or concerns
-3. **Ask specific questions**: What aspects of your CV do you want to improve?
-
-🚀 Ready to help optimize your CV! What's your professional background and what type of roles are you targeting?`;
-      } else if (isMadagascar) {
-        contextualGuidance = `📄 Madagascar Document Processing Results
+🚀 Let's optimize your CV for maximum impact! What's your professional background?`;
+    } else if (isMadagascar) {
+      contextualGuidance = `📄 Madagascar Document Processing Results
 
 🔍 File: ${filename}
-📊 Pages: ${data.numpages}
-⚠️  Type: Image-based or scanned PDF
+📊 Pages: ${pageCount || 'Unknown'}
+🔧 Processing: Advanced dual-method attempted
+⚠️  Result: Limited text extraction achieved
 
-📋 Available Content:
-${data.text.length > 0 ? `Limited text found: "${data.text.substring(0, 200)}..."` : 'No extractable text found'}
-
-🌍 Madagascar Analysis Support:
-I can provide detailed analysis on Madagascar topics:
+🌍 Madagascar Expertise Available:
+Despite processing challenges, I have comprehensive Madagascar knowledge:
 
 🗺️ **Geographic Analysis:**
 - Climate zones and topography
@@ -168,158 +265,55 @@ I can provide detailed analysis on Madagascar topics:
 3. **Ask targeted questions**: What Madagascar information do you need?
 
 🚀 Ready to provide Madagascar expertise! What aspects does your document focus on?`;
-      } else {
-        contextualGuidance = `📄 PDF Processing Results
+    } else {
+      contextualGuidance = `📄 Advanced PDF Processing Results
 
 🔍 File: ${filename}
-📊 Pages: ${data.numpages}
-⚠️  Type: Image-based or scanned PDF
+📊 Pages: ${pageCount || 'Unknown'}
+🔧 Processing: Dual-method extraction attempted (pdf-parse → pdf-lib + OCR)
+⚠️  Result: Complex document structure detected
 
-📋 Available Content:
-${data.text.length > 0 ? `Limited text found: "${data.text.substring(0, 200)}..."` : 'No extractable text found'}
-
-💭 How to proceed:
-1. **Describe the content**: Tell me what you see in the document
-2. **Share key data**: Mention specific numbers, charts, or findings
-3. **Ask targeted questions**: What specific information do you need?
-
-🚀 Ready to help! What aspects of this document would you like to analyze?`;
-      }
-      
-      return contextualGuidance;
-      
-    } catch (pdfError) {
-      console.error('PDF parsing error:', pdfError);
-      
-      // Provide detailed error handling based on document type
-      let contextualError = "";
-      if (isCV) {
-        contextualError = `📄 CV/Resume Processing Issue
-
-🔍 File: ${filename}
-⚠️  Issue: Unable to extract text from this PDF
-
-💼 CV Analysis Available:
-Even though the PDF couldn't be parsed automatically, I can still provide comprehensive CV analysis!
-
-🔍 **Professional Review Services:**
-- **Experience Analysis**: Review your work history and achievements
-- **Skills Assessment**: Evaluate technical and soft skills presentation
-- **Format Optimization**: Improve layout and visual impact
-- **Content Enhancement**: Strengthen job descriptions and accomplishments
-- **Industry Alignment**: Tailor content for specific sectors or roles
-
-📝 **Common CV Improvements:**
-- Quantify achievements with specific numbers/results
-- Use strong action verbs (achieved, implemented, led, etc.)
-- Optimize for Applicant Tracking Systems (ATS)
-- Balance white space and content density
-- Ensure consistent formatting throughout
-
-🎯 **Strategic Guidance:**
-- Match keywords to job descriptions
-- Highlight most relevant experience first
-- Create compelling professional summary
-- Showcase career progression effectively
-
-💭 **Next Steps:**
-Please share details about:
-1. **Your background**: Industry, years of experience, key roles
-2. **Target positions**: What types of jobs are you applying for?
-3. **Specific concerns**: What aspects of your CV worry you most?
-4. **Current challenges**: Are you getting interviews? Responses?
-
-🚀 Let's optimize your CV for maximum impact! What's your professional background?`;
-      } else if (isMadagascar) {
-        contextualError = `📄 Madagascar Document Processing Issue
-
-🔍 File: ${filename}
-⚠️  Issue: Unable to extract text from this PDF
-
-🌍 Madagascar Expertise Available:
-While I cannot process the PDF directly, I have comprehensive knowledge about Madagascar!
-
-🗺️ **Geographic Analysis:**
-- **Physical Geography**: Mountains, coastlines, climate zones
-- **Natural Resources**: Mining, agriculture, marine resources
-- **Biodiversity**: Unique flora and fauna, conservation status
-- **Regional Variations**: Highlands, coastal areas, desert regions
-
-💼 **Economic Intelligence:**
-- **Key Industries**: Agriculture (rice, vanilla, cloves), mining (nickel, cobalt), tourism
-- **Development Indicators**: GDP, poverty rates, infrastructure
-- **Trade Patterns**: Export/import data, international partnerships
-- **Investment Climate**: Foreign investment, business environment
-
-🏛️ **Social & Political Context:**
-- **Demographics**: Population distribution, urbanization trends
-- **Politics**: Government structure, recent developments, stability
-- **Culture**: Languages (Malagasy, French), traditions, ethnic groups
-- **Education & Health**: System performance, development challenges
-
-🌿 **Environmental Focus:**
-- **Conservation**: National parks, protected areas, CITES compliance
-- **Climate Change**: Impacts, adaptation strategies, vulnerability
-- **Sustainability**: Environmental policies, community conservation
-
-💭 **How I Can Help:**
-Please describe what the document contains:
-1. **Topic focus**: Geography, economics, politics, environment?
-2. **Time period**: Historical data, current analysis, future projections?
-3. **Specific questions**: What information do you need about Madagascar?
-4. **Analysis goals**: Research, business, academic, policy purposes?
-
-🚀 Ready to provide detailed Madagascar analysis! What aspects interest you most?`;
-      } else {
-        contextualError = `📄 PDF Processing Issue
-
-🔍 File: ${filename}
-⚠️  Issue: Unable to extract text from this PDF
-
-🛠️ Technical Details:
-The PDF structure couldn't be properly parsed, which often happens with:
-- Scanned documents or image-based PDFs
-- Password-protected or encrypted files
-- Unusual PDF formats or corruption
-- Complex layouts with embedded graphics
-
-🔧 **Local Processing Note:**
-PDF processing happens entirely locally on the server - **no database required**. The system uses:
-- pdf-parse library for text extraction
-- Tesseract.js for OCR when needed
-- Local file processing without external storage
+🛠️ **Processing Details:**
+- **Primary Method**: pdf-parse (fast text extraction)
+- **Secondary Method**: pdf-lib + OCR (robust fallback)
+- **Local Processing**: No database required
+- **Supported Features**: Multi-approach text extraction
 
 💭 **Alternative Approaches:**
 1. **Describe the content**: Tell me what you see in the document
 2. **Share key information**: Mention specific data, charts, or findings
 3. **Ask targeted questions**: What analysis do you need?
-4. **Try re-saving**: Sometimes re-saving the PDF can fix parsing issues
+4. **Consider re-formatting**: Sometimes saving as "text-searchable PDF" helps
 
-🚀 Ready to help based on your description! What does the document contain?`;
-      }
-      
-      return contextualError;
+🚀 Ready to help based on your description! What information does the document contain?`;
     }
+    
+    return contextualGuidance;
     
   } catch (error) {
     console.error('PDF processing error:', error);
     
-    // Generic error handling
-    return `❌ PDF Processing Error
+    // Enhanced error handling with processing method details
+    return `❌ Advanced PDF Processing Error
 
 🔍 File: ${filename}
 ⚠️  Issue: ${error instanceof Error ? error.message : 'Unknown processing error'}
 
-🛠️ **Processing Details:**
-- **Local Processing**: No database required - all processing happens locally
-- **Supported Features**: Text extraction, OCR, multiple file formats
-- **Common Issues**: Scanned documents, encrypted files, complex layouts
+🛠️ **Processing Methods Attempted:**
+- **Primary**: pdf-parse (direct text extraction)
+- **Secondary**: pdf-lib + OCR (image-based processing)
+- **Result**: Both methods encountered issues
 
-💡 **Quick Solutions:**
+🔧 **Technical Details:**
+- **Local Processing**: No database required - all processing happens locally
+- **Dual Approach**: Maximizes success rate for challenging PDFs
+- **Common Issues**: Heavily encrypted files, unusual formats, corruption
+
+💡 **Solutions to Try:**
 1. **File Check**: Ensure the PDF opens normally in a PDF viewer
-2. **Re-save**: Try "Save As" to create a new copy
-3. **Format**: Convert to text-searchable PDF if possible
-4. **Manual Input**: Describe the content for analysis
+2. **Re-save**: Try "Save As" to create a new, clean copy
+3. **Format Convert**: Convert to text-searchable PDF if possible
+4. **Manual Description**: Share the content details for analysis
 
 🚀 I'm ready to help analyze your content! What information does the document contain?`;
   }
