@@ -10,6 +10,8 @@ type Message = {
   role: "user" | "assistant"
   timestamp: Date
   attachments?: ProcessedFile[]
+  model?: string
+  provider?: string
 }
 
 type ProcessedFile = {
@@ -225,7 +227,7 @@ export default function Home() {
     }
     
     const data = await response.json()
-    return data.response || "No response"
+    return data
   }
 
   // Find current conversation
@@ -341,14 +343,17 @@ export default function Home() {
       }
 
       // Call the unified AI API
-      aiResponse = await callAI(allMessages, selectedModelData.provider, apiKey, modelName, customModelName)
+      const apiResult = await callAI(allMessages, selectedModelData.provider, apiKey, modelName, customModelName)
+      aiResponse = apiResult.response || apiResult
 
       // 5. Add the AI response message
       const newAiMessage = {
         id: `msg-${Date.now()}-ai`,
-        content: aiResponse,
+        content: typeof apiResult === 'string' ? apiResult : apiResult.response,
         role: "assistant" as const,
         timestamp: new Date(),
+        model: typeof apiResult === 'object' ? apiResult.model : modelName,
+        provider: typeof apiResult === 'object' ? apiResult.provider : selectedModelData.provider,
       }
       
       setConversations(prevConvos => prevConvos.map(conv => {

@@ -37,6 +37,8 @@ type Message = {
   role: "user" | "assistant"
   timestamp: Date
   attachments?: ProcessedFile[]
+  model?: string
+  provider?: string
 }
 
 type ProcessedFile = {
@@ -647,11 +649,12 @@ export default function MainUI({
                 </button>
               )}
 
-              <h2 className="font-medium text-gray-800 dark:text-gray-200">{currentConversation.title}</h2>
-
-              <div className="ml-3 px-2 py-1 text-xs rounded-full bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
-                {availableModels.find((m) => m.id === currentConversation.model)?.name || currentConversation.model}
-              </div>
+              <h2 
+                className="font-medium text-gray-800 dark:text-gray-200 cursor-pointer hover:bg-gray-200/20 dark:hover:bg-gray-700/20 px-2 py-1 rounded transition-colors"
+                title="Double-click to rename conversation"
+              >
+                {currentConversation.title}
+              </h2>
             </div>
           </div>
 
@@ -691,6 +694,21 @@ export default function MainUI({
                     }
                   `}
                 >
+                  {/* Model icon and name for assistant messages */}
+                  {message.role === "assistant" && (
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200/30 dark:border-gray-600/30">
+                      <ModelLogo 
+                        provider={(message.provider as "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter") || "openai"} 
+                        size="sm"
+                      />
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        {(() => {
+                          const model = availableModels.find(m => m.id === message.model || m.provider === message.provider);
+                          return model?.name || message.provider || 'AI';
+                        })()}
+                      </span>
+                    </div>
+                  )}
                   {/* Attachments */}
                   {message.attachments && message.attachments.length > 0 && (
                     <div className="mb-3 space-y-2">

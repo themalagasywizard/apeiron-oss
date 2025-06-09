@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
             "Authorization": `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model: model.includes("gpt-3.5") ? "gpt-3.5-turbo" : "gpt-4",
+            model: model.includes("gpt-3.5") ? "gpt-3.5-turbo" : "gpt-4o",
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
             temperature: temperature || 0.7,
             stream: false
@@ -162,7 +162,11 @@ export async function POST(request: NextRequest) {
         throw new Error(`Unsupported provider: ${provider}`);
     }
 
-    return NextResponse.json({ response: aiResponse });
+    return NextResponse.json({ 
+      response: aiResponse,
+      model: model,
+      provider: provider
+    });
 
   } catch (error) {
     console.error("Chat API error:", error);
