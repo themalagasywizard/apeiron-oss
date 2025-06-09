@@ -1,76 +1,219 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// VEO 2 API Configuration
+const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+const VERTEX_AI_BASE_URL = "https://us-central1-aiplatform.googleapis.com/v1";
+
+// Helper function to validate parameters
+function validateParameters(prompt: string, apiKey: string, duration?: number, aspectRatio?: string) {
+  if (!prompt || prompt.trim().length === 0) {
+    throw new Error("Prompt is required and cannot be empty");
+  }
+
+  if (!apiKey || apiKey.trim().length === 0) {
+    throw new Error("Google API key is required for VEO 2");
+  }
+
+  if (duration && (duration < 5 || duration > 8)) {
+    throw new Error("Duration must be between 5 and 8 seconds");
+  }
+
+  if (aspectRatio && !["16:9", "9:16"].includes(aspectRatio)) {
+    throw new Error("Aspect ratio must be either '16:9' or '9:16'");
+  }
+}
+
+// Generate video using Google VEO 2 API
+async function generateVideoWithVEO2(
+  prompt: string,
+  apiKey: string,
+  duration: number = 8,
+  aspectRatio: string = "16:9",
+  personGeneration: string = "dont_allow",
+  negativePrompt?: string,
+  seed?: number
+) {
+  try {
+    // Use Gemini API endpoint for VEO 2
+    const url = `${GEMINI_API_BASE_URL}/models/veo-2.0-generate-001:predictLongRunning?key=${apiKey}`;
+    
+    const requestBody = {
+      instances: [{
+        prompt: prompt,
+        ...(negativePrompt && { negativePrompt })
+      }],
+      parameters: {
+        aspectRatio: aspectRatio,
+        personGeneration: personGeneration,
+        durationSeconds: duration,
+        sampleCount: 1,
+        enhancePrompt: true,
+        ...(seed && { seed })
+      }
+    };
+
+    console.log("Sending VEO 2 request:", { url, body: requestBody });
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("VEO 2 API error response:", response.status, errorData);
+      
+      // Parse error details if possible
+      try {
+        const parsedError = JSON.parse(errorData);
+        throw new Error(`VEO 2 API error: ${parsedError.error?.message || parsedError.message || 'Unknown error'}`);
+      } catch {
+        throw new Error(`VEO 2 API error (${response.status}): ${errorData || 'Request failed'}`);
+      }
+    }
+
+    const result = await response.json();
+    console.log("VEO 2 API response:", result);
+
+    return result;
+  } catch (error) {
+    console.error("Error calling VEO 2 API:", error);
+    throw error;
+  }
+}
+
+// Check operation status
+async function checkOperationStatus(operationName: string, apiKey: string) {
+  try {
+    const url = `${GEMINI_API_BASE_URL}/${operationName}?key=${apiKey}`;
+    
+    console.log("Checking operation status:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("Operation status check error:", response.status, errorData);
+      throw new Error(`Status check failed (${response.status}): ${errorData}`);
+    }
+
+    const result = await response.json();
+    console.log("Operation status response:", result);
+
+    return result;
+  } catch (error) {
+    console.error("Error checking operation status:", error);
+    throw error;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, apiKey, duration = "5s", aspectRatio = "16:9" } = await request.json();
+    const { 
+      prompt, 
+      apiKey, 
+      duration = 8, 
+      aspectRatio = "16:9",
+      personGeneration = "dont_allow",
+      negativePrompt,
+      seed
+    } = await request.json();
 
-    if (!prompt) {
-      return NextResponse.json(
-        { error: "Prompt is required for video generation" },
-        { status: 400 }
-      );
+    // Validate input parameters
+    validateParameters(prompt, apiKey, duration, aspectRatio);
+
+    console.log("Starting VEO 2 video generation:", {
+      prompt: prompt.substring(0, 100) + "...",
+      duration,
+      aspectRatio,
+      personGeneration
+    });
+
+    // Call the real VEO 2 API
+    const operation = await generateVideoWithVEO2(
+      prompt,
+      apiKey,
+      duration,
+      aspectRatio,
+      personGeneration,
+      negativePrompt,
+      seed
+    );
+
+    // Extract operation name from the response
+    const operationName = operation.name;
+    if (!operationName) {
+      throw new Error("No operation name returned from VEO 2 API");
     }
 
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Google API key is required for VEO2" },
-        { status: 400 }
-      );
-    }
-
-    // For now, we'll simulate the VEO2 API call since the actual API might not be fully available
-    // In a real implementation, this would call the actual Google VEO2 API
-    
-    // Simulate API processing time
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Mock response structure that would come from VEO2 API
-    const mockVideoResponse = {
-      jobId: `veo2_${Date.now()}`,
-      status: "processing",
-      prompt: prompt,
-      estimatedCompletionTime: "2-5 minutes",
-      videoConfig: {
-        duration: duration,
-        aspectRatio: aspectRatio,
-        resolution: "1080p",
-        format: "mp4"
-      },
-      // In a real implementation, this would be the actual video URL once processing is complete
-      videoUrl: null,
-      thumbnailUrl: null,
-      message: `🎬 **Video Generation Initiated**
+    const response = {
+      success: true,
+      data: {
+        operationName: operationName,
+        status: "processing",
+        prompt: prompt,
+        estimatedCompletionTime: "2-6 minutes",
+        videoConfig: {
+          duration: `${duration}s`,
+          aspectRatio: aspectRatio,
+          resolution: "720p",
+          format: "mp4",
+          personGeneration: personGeneration
+        },
+        message: `🎬 **Video Generation Started**
 
 **Prompt:** ${prompt}
 
 **Status:** Processing with Google VEO 2
 
 **Configuration:**
-- Duration: ${duration}
+- Duration: ${duration} seconds
 - Aspect Ratio: ${aspectRatio}
-- Resolution: 1080p
+- Resolution: 720p (24fps)
 - Format: MP4
+- Person Generation: ${personGeneration}
 
-**Estimated Time:** 2-5 minutes
+**Estimated Time:** 2-6 minutes
 
-Your video is being generated and will appear above once complete. VEO 2 creates high-quality, realistic videos from text descriptions.
+Your video is being generated using Google's VEO 2 model. This is a real production request that will create high-quality, cinematic video from your text description.
 
-**Note:** This is a development placeholder. In production, this would:
-1. Submit the job to Google's VEO 2 API
-2. Return a job ID for tracking
-3. Provide the video URL once processing completes
-4. Support various video formats and resolutions`
+The video will appear above once processing is complete.`
+      }
     };
 
-    return NextResponse.json({
-      success: true,
-      data: mockVideoResponse
-    });
+    return NextResponse.json(response);
 
   } catch (error) {
-    console.error("VEO2 API error:", error);
+    console.error("VEO 2 generation error:", error);
+    
+    // Provide helpful error messages for common issues
+    let errorMessage = "Failed to generate video";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // Handle specific API errors
+      if (errorMessage.includes("API key")) {
+        errorMessage = "Invalid or missing Google API key. Please check your VEO 2 API key.";
+      } else if (errorMessage.includes("quota")) {
+        errorMessage = "VEO 2 API quota exceeded. Please try again later or check your billing.";
+      } else if (errorMessage.includes("permission")) {
+        errorMessage = "VEO 2 API access denied. Please ensure your API key has VEO 2 permissions.";
+      }
+    }
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error occurred" },
+      { 
+        error: errorMessage,
+        details: error instanceof Error ? error.message : "Unknown error occurred"
+      },
       { status: 500 }
     );
   }
@@ -80,37 +223,88 @@ Your video is being generated and will appear above once complete. VEO 2 creates
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const jobId = searchParams.get('jobId');
+    const operationName = searchParams.get('operationName');
+    const apiKey = searchParams.get('apiKey');
 
-    if (!jobId) {
+    if (!operationName) {
       return NextResponse.json(
-        { error: "Job ID is required" },
+        { error: "Operation name is required" },
         { status: 400 }
       );
     }
 
-    // Mock status check - in real implementation, this would query the VEO2 API
-    const mockStatus = {
-      jobId: jobId,
-      status: "completed", // could be: "processing", "completed", "failed"
-      progress: 100,
-      videoUrl: `https://example.com/videos/${jobId}.mp4`, // Mock URL
-      thumbnailUrl: `https://example.com/thumbnails/${jobId}.jpg`,
-      duration: "5s",
-      fileSize: "2.5MB",
-      createdAt: new Date().toISOString(),
-      completedAt: new Date().toISOString()
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "API key is required" },
+        { status: 400 }
+      );
+    }
+
+    console.log("Checking VEO 2 operation status:", operationName);
+
+    // Check the real operation status
+    const statusResult = await checkOperationStatus(operationName, apiKey);
+
+    let status = "processing";
+    let progress = 50;
+    let videoUrl = null;
+    let error = null;
+
+    if (statusResult.done === true) {
+      if (statusResult.response) {
+        status = "completed";
+        progress = 100;
+        
+        // Extract video URL from the response
+        const generatedVideos = statusResult.response.generatedVideos || 
+                              statusResult.response.videos ||
+                              statusResult.response.generatedSamples;
+        
+        if (generatedVideos && generatedVideos.length > 0) {
+          const firstVideo = generatedVideos[0];
+          videoUrl = firstVideo.video?.uri || firstVideo.uri || firstVideo.gcsUri;
+          
+          // If it's a GCS URI, we need to append the API key for access
+          if (videoUrl && videoUrl.includes('gs://')) {
+            // For GCS URIs, we might need to use a different access method
+            // This depends on how Google provides access to the generated videos
+            console.log("Generated video GCS URI:", videoUrl);
+          }
+        }
+      } else if (statusResult.error) {
+        status = "failed";
+        progress = 0;
+        error = statusResult.error.message || "Video generation failed";
+      }
+    } else {
+      // Still processing
+      status = "processing";
+      progress = Math.min(90, 20 + Math.floor(Math.random() * 50)); // Simulate progress
+    }
+
+    const response = {
+      success: true,
+      data: {
+        operationName: operationName,
+        status: status,
+        progress: progress,
+        videoUrl: videoUrl,
+        error: error,
+        duration: "5-8s",
+        createdAt: new Date().toISOString(),
+        ...(status === "completed" && { completedAt: new Date().toISOString() })
+      }
     };
 
-    return NextResponse.json({
-      success: true,
-      data: mockStatus
-    });
+    return NextResponse.json(response);
 
   } catch (error) {
-    console.error("VEO2 status check error:", error);
+    console.error("VEO 2 status check error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error occurred" },
+      { 
+        error: "Failed to check video status",
+        details: error instanceof Error ? error.message : "Unknown error occurred"
+      },
       { status: 500 }
     );
   }

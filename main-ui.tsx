@@ -454,17 +454,31 @@ export default function MainUI({
 
   // Detect video generation content
   const detectVideoContent = (content: string) => {
-    const videoPattern = /🎬.*?Video Generation.*?Processed/i
+    // Enhanced patterns for real VEO2 integration
+    const videoPattern = /🎬.*?Video Generation.*?(Started|Complete|Initiated|Processing)/i
     const promptPattern = /\*\*Prompt:\*\*\s*(.+?)(?=\n|$)/i
+    const operationPattern = /Operation Name:\s*([^\s\n]+)/i
+    const videoUrlPattern = /Video URL:\s*(https?:\/\/[^\s\n]+)/i
+    const statusPattern = /\*\*Status:\*\*\s*([^\n]+)/i
     
     const hasVideo = videoPattern.test(content)
     const promptMatch = content.match(promptPattern)
+    const operationMatch = content.match(operationPattern)
+    const videoUrlMatch = content.match(videoUrlPattern)
+    const statusMatch = content.match(statusPattern)
+    
+    // Check if it's currently generating/processing
+    const isGenerating = content.includes('Video Generation Started') || 
+                        content.includes('Generating Video') ||
+                        content.includes('Processing with Google VEO 2') ||
+                        (statusMatch && statusMatch[1].toLowerCase().includes('processing'))
     
     return {
       hasVideo,
       prompt: promptMatch ? promptMatch[1].trim() : null,
-      isGenerating: content.includes('Video generation initiated') || content.includes('Generating Video'),
-      videoUrl: null // In a real implementation, this would be extracted from the API response
+      isGenerating,
+      operationName: operationMatch ? operationMatch[1].trim() : null,
+      videoUrl: videoUrlMatch ? videoUrlMatch[1].trim() : null
     }
   }
 
@@ -858,7 +872,9 @@ export default function MainUI({
                                                      <VideoPreview 
                              prompt={videoDetection.prompt || message.content}
                              videoUrl={videoDetection.videoUrl || undefined}
-                             isGenerating={videoDetection.isGenerating}
+                             isGenerating={videoDetection.isGenerating || false}
+                             operationName={videoDetection.operationName || undefined}
+                             apiKey={userSettings.veo2ApiKey || undefined}
                              videoTitle={`VEO2 Generated Video`}
                              onDownload={(videoUrl, filename) => {
                                // Trigger download
@@ -868,6 +884,9 @@ export default function MainUI({
                                document.body.appendChild(a)
                                a.click()
                                document.body.removeChild(a)
+                             }}
+                             onError={(error) => {
+                               console.error('VEO2 Video Error:', error)
                              }}
                            />
                           

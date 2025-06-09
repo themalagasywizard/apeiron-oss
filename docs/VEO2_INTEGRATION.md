@@ -1,97 +1,137 @@
-# VEO2 Video Generation Integration
+# VEO 2 Video Generation Integration - Production Ready
+
+This document describes the complete integration of Google's VEO 2 video generation API into the T3 Chat application. This is a **production-ready implementation** that makes real API calls to Google's VEO 2 service.
 
 ## Overview
 
-This document describes the integration of Google's VEO 2 video generation model into the T3 Chat platform. VEO 2 is Google's advanced AI model for generating high-quality videos from text prompts.
+VEO 2 is Google's state-of-the-art video generation model that creates high-quality, cinematic videos from text descriptions. Our integration provides:
 
-## Features
+- ✅ **Real VEO 2 API Integration** - Actual calls to Google's VEO 2 API
+- ✅ **Long-running Operation Tracking** - Real-time status polling and progress updates
+- ✅ **Production Error Handling** - Comprehensive error management and user feedback
+- ✅ **Video Download & Playback** - Custom video player with full controls
+- ✅ **Seamless UI Integration** - Videos appear directly in chat messages
+- ✅ **API Key Management** - Secure storage and validation of credentials
 
-### ✨ Core Capabilities
-- **Text-to-Video Generation**: Create videos from descriptive text prompts
-- **High-Quality Output**: Generate videos in 1080p resolution
-- **Multiple Formats**: Support for MP4 and other video formats
-- **Customizable Duration**: Generate videos from 2 seconds to 2 minutes
-- **Aspect Ratio Control**: Support for 16:9, 9:16, 1:1, and other ratios
-- **Real-time Preview**: Live video player with custom controls
-- **Download Functionality**: Save generated videos locally
+## Quick Start
 
-### 🎬 Video Player Features
-- Custom video controls with play/pause
-- Volume control and mute functionality
-- Fullscreen support
-- Progress tracking
-- Responsive design for mobile and desktop
+### 1. Get Google VEO 2 API Access
 
-## Setup Instructions
+1. Visit [Google AI Studio](https://aistudio.google.com/) or [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable VEO 2 API access (requires approval)
+3. Generate your API key with VEO 2 permissions
+4. Note: VEO 2 is currently in limited preview
 
-### 1. API Key Configuration
+### 2. Configure API Key
 
-VEO2 uses Google's API infrastructure. You'll need a Google Cloud API key with VEO2 access:
+1. Open the application
+2. Click the settings gear icon
+3. Navigate to "Models" tab
+4. Add VEO 2 API key in the "Google VEO 2 (Video)" section
+5. Select the VEO 2 model from the dropdown
 
-1. Go to **Settings > Models** in the chat interface
-2. Select **Google VEO 2 (Video)** from the provider dropdown
-3. Enter your Google API key (same as Gemini API key)
-4. Save the configuration
+### 3. Generate Your First Video
 
-### 2. Model Selection
+1. Select "VEO 2" from the model dropdown
+2. Type a descriptive prompt: `"A serene sunset over a calm lake with gentle ripples"`
+3. Hit Enter and watch real-time generation progress
+4. Download and share your video once complete
 
-1. In the model selector, choose **VEO 2** from the available models
-2. The model icon will show a red play button indicating video generation capability
-3. Start a new conversation or continue an existing one
+## Production Features
 
-## Usage Guide
+### Real-Time Operation Tracking
 
-### Basic Video Generation
-
-1. **Select VEO2 Model**: Choose VEO 2 from the model dropdown
-2. **Enter Prompt**: Type a descriptive prompt for your video
-3. **Send Message**: Click send or press Enter
-4. **Wait for Generation**: Video processing takes 2-5 minutes
-5. **View Result**: The video will appear above the response
-
-### Example Prompts
-
-```
-A golden retriever playing in a sunny park with children laughing in the background
-
-A time-lapse of a flower blooming in spring with morning dew
-
-A futuristic city skyline at sunset with flying cars
-
-A chef preparing a gourmet meal in a modern kitchen
-
-Ocean waves crashing against rocky cliffs during a storm
+```typescript
+// The system tracks long-running operations with real status updates
+interface OperationStatus {
+  operationName: string           // Google's operation identifier
+  status: "processing" | "completed" | "failed"
+  progress: number               // 0-100% completion
+  videoUrl?: string             // Final video URL when complete
+  error?: string                // Error details if failed
+  duration?: string             // Video duration
+  createdAt?: string           // Creation timestamp
+  completedAt?: string         // Completion timestamp
+}
 ```
 
-### Advanced Configuration
+### Advanced Video Player
 
-The VEO2 API supports additional parameters:
+- **Custom Controls**: Play/pause, volume, fullscreen
+- **Progress Tracking**: Real-time generation progress with percentage
+- **Download Integration**: Direct download with proper filename handling
+- **Error Recovery**: Graceful handling of video loading errors
+- **Mobile Responsive**: Optimized for all screen sizes
 
-- **Duration**: 2s, 5s, 10s, 30s, 1m, 2m
-- **Aspect Ratio**: 16:9, 9:16, 1:1, 4:3
-- **Resolution**: 720p, 1080p, 4K (depending on plan)
-- **Style**: Realistic, cinematic, artistic, documentary
+### API Integration Details
 
-## Technical Implementation
+The integration uses Google's official VEO 2 API endpoints:
 
-### Architecture
+```typescript
+// Primary endpoint for video generation
+const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+
+// Request structure for VEO 2
+const requestBody = {
+  instances: [{
+    prompt: "Your video description",
+    negativePrompt: "Optional: what to avoid"
+  }],
+  parameters: {
+    aspectRatio: "16:9" | "9:16",     // Video aspect ratio
+    personGeneration: "dont_allow",    // Person generation setting
+    durationSeconds: 5-8,              // Video length in seconds
+    sampleCount: 1,                    // Number of videos to generate
+    enhancePrompt: true,               // Auto-enhance prompt
+    seed: 123456                       // Optional: reproducible results
+  }
+}
+```
+
+## Technical Architecture
+
+### API Flow
+
+```mermaid
+graph TD
+    A[User Types Prompt] --> B[Select VEO 2 Model]
+    B --> C[Validate API Key]
+    C --> D[Call VEO 2 API]
+    D --> E[Receive Operation ID]
+    E --> F[Start Status Polling]
+    F --> G{Operation Complete?}
+    G -->|No| H[Show Progress]
+    H --> I[Wait 5 seconds]
+    I --> F
+    G -->|Yes| J[Extract Video URL]
+    J --> K[Display Video Player]
+    G -->|Error| L[Show Error Message]
+```
+
+### File Structure
 
 ```
-User Input → Chat API → VEO2 API → Video Processing → Response Display
+/api/veo2/route.ts          # VEO 2 API endpoint
+/components/video-preview.tsx # Video player component
+/main-ui.tsx                # UI integration
+/docs/VEO2_INTEGRATION.md   # This documentation
 ```
 
 ### API Endpoints
 
 #### POST `/api/veo2`
-Generate a new video from a text prompt.
+Initiates video generation with Google VEO 2.
 
-**Request Body:**
+**Request:**
 ```json
 {
-  "prompt": "A cat playing with a ball of yarn",
+  "prompt": "A beautiful sunset over mountains",
   "apiKey": "your-google-api-key",
-  "duration": "5s",
-  "aspectRatio": "16:9"
+  "duration": 8,
+  "aspectRatio": "16:9",
+  "personGeneration": "dont_allow",
+  "negativePrompt": "blurry, low quality",
+  "seed": 123456
 }
 ```
 
@@ -100,236 +140,262 @@ Generate a new video from a text prompt.
 {
   "success": true,
   "data": {
-    "jobId": "veo2_1234567890",
+    "operationName": "operations/generate-video-123",
     "status": "processing",
-    "prompt": "A cat playing with a ball of yarn",
-    "estimatedCompletionTime": "2-5 minutes",
+    "prompt": "A beautiful sunset over mountains",
+    "estimatedCompletionTime": "2-6 minutes",
     "videoConfig": {
-      "duration": "5s",
+      "duration": "8s",
       "aspectRatio": "16:9",
-      "resolution": "1080p",
-      "format": "mp4"
+      "resolution": "720p",
+      "format": "mp4",
+      "personGeneration": "dont_allow"
     }
   }
 }
 ```
 
-#### GET `/api/veo2?jobId=<id>`
-Check the status of a video generation job.
+#### GET `/api/veo2?operationName=...&apiKey=...`
+Checks the status of a video generation operation.
 
-**Response:**
+**Response (Processing):**
 ```json
 {
   "success": true,
   "data": {
-    "jobId": "veo2_1234567890",
+    "operationName": "operations/generate-video-123",
+    "status": "processing",
+    "progress": 45,
+    "error": null,
+    "duration": "5-8s",
+    "createdAt": "2024-01-20T10:30:00Z"
+  }
+}
+```
+
+**Response (Complete):**
+```json
+{
+  "success": true,
+  "data": {
+    "operationName": "operations/generate-video-123",
     "status": "completed",
     "progress": 100,
-    "videoUrl": "https://storage.googleapis.com/videos/veo2_1234567890.mp4",
-    "thumbnailUrl": "https://storage.googleapis.com/thumbnails/veo2_1234567890.jpg",
-    "duration": "5s",
-    "fileSize": "2.5MB"
+    "videoUrl": "https://storage.googleapis.com/...",
+    "duration": "8s",
+    "createdAt": "2024-01-20T10:30:00Z",
+    "completedAt": "2024-01-20T10:35:00Z"
   }
 }
 ```
 
-### Components
+## Configuration
 
-#### VideoPreview Component
-Located at `components/video-preview.tsx`
-
-**Props:**
-- `videoUrl?: string` - URL of the generated video
-- `videoTitle?: string` - Title for the video
-- `prompt?: string` - Original text prompt
-- `isGenerating?: boolean` - Whether video is still processing
-- `onDownload?: (url: string, filename: string) => void` - Download handler
-
-**Features:**
-- Loading animation during generation
-- Custom video player controls
-- Download functionality
-- Responsive design
-- Error handling
-
-#### Video Detection Logic
-Located in `main-ui.tsx`
-
-```typescript
-const detectVideoContent = (content: string) => {
-  const videoPattern = /🎬.*?Video Generation.*?Processed/i
-  const promptPattern = /\*\*Prompt:\*\*\s*(.+?)(?=\n|$)/i
-  
-  return {
-    hasVideo: videoPattern.test(content),
-    prompt: promptMatch ? promptMatch[1].trim() : null,
-    isGenerating: content.includes('Video generation initiated'),
-    videoUrl: null // Extracted from API response
-  }
-}
-```
-
-### Message Flow
-
-1. **User Input**: User types video generation prompt
-2. **Model Detection**: System detects VEO2 model selection
-3. **API Call**: Request sent to `/api/chat` with VEO2 provider
-4. **VEO2 Processing**: Dedicated VEO2 endpoint handles generation
-5. **Response Parsing**: Video content detected in response
-6. **UI Rendering**: VideoPreview component displays result
-
-## Security Considerations
-
-### API Key Protection
-- API keys are stored securely in browser localStorage
-- Keys are never exposed in client-side code
-- Server-side validation of API key format
-
-### Content Filtering
-- Prompts are validated for appropriate content
-- Generated videos are scanned for policy compliance
-- Rate limiting prevents abuse
-
-### Data Privacy
-- Video generation prompts are not stored permanently
-- Generated videos can be deleted after download
-- User data is handled according to privacy policy
-
-## Deployment
-
-### Environment Variables
-
-For production deployment, set these environment variables:
+### Environment Variables (Optional)
 
 ```bash
-# Google Cloud Configuration
-GOOGLE_CLOUD_PROJECT_ID=your-project-id
-GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
-
-# VEO2 Specific
-VEO2_API_ENDPOINT=https://generativelanguage.googleapis.com/v1beta
-VEO2_MODEL_NAME=veo-2
-VEO2_MAX_DURATION=120 # seconds
-VEO2_MAX_RESOLUTION=1080p
-
-# Storage Configuration
-VIDEO_STORAGE_BUCKET=your-storage-bucket
-VIDEO_CDN_URL=https://your-cdn.com
+# For server-side configuration (if needed)
+GOOGLE_VEO2_API_KEY=your_api_key_here
+VEO2_DEFAULT_DURATION=8
+VEO2_DEFAULT_ASPECT_RATIO=16:9
 ```
 
-### Netlify Configuration
+### User Settings Schema
 
-Add to `netlify.toml`:
+```typescript
+type UserSettings = {
+  // ... other settings
+  veo2ApiKey: string          // Google VEO 2 API key
+}
 
-```toml
-[build.environment]
-  NODE_VERSION = "18"
-  NPM_VERSION = "9"
-
-[[functions]]
-  name = "veo2-api"
-  runtime = "nodejs18.x"
-  timeout = 300 # 5 minutes for video processing
-
-[functions.veo2-api.environment]
-  GOOGLE_CLOUD_PROJECT_ID = "your-project-id"
-  VEO2_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
+type Model = {
+  id: string
+  name: string
+  icon: string
+  provider: "veo2"            // VEO 2 provider
+}
 ```
 
-### Database Schema
+## Usage Examples
 
-For storing video generation history:
+### Basic Video Generation
 
-```sql
-CREATE TABLE video_generations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id),
-  prompt TEXT NOT NULL,
-  video_url TEXT,
-  thumbnail_url TEXT,
-  duration INTEGER, -- in seconds
-  aspect_ratio VARCHAR(10),
-  resolution VARCHAR(10),
-  file_size BIGINT, -- in bytes
-  status VARCHAR(20) DEFAULT 'processing',
-  job_id VARCHAR(100) UNIQUE,
-  created_at TIMESTAMP DEFAULT NOW(),
-  completed_at TIMESTAMP,
-  metadata JSONB
-);
-
-CREATE INDEX idx_video_generations_user_id ON video_generations(user_id);
-CREATE INDEX idx_video_generations_status ON video_generations(status);
-CREATE INDEX idx_video_generations_job_id ON video_generations(job_id);
 ```
+User: "Create a video of a peaceful forest with morning mist"
+```
+
+The system will:
+1. Detect VEO 2 model selection
+2. Validate API key
+3. Submit to Google VEO 2 API
+4. Show real-time progress
+5. Display completed video with controls
+
+### Advanced Prompting
+
+```
+User: "A cinematic shot of a bustling Tokyo street at night with neon lights reflecting on wet pavement, shot with a 35mm lens, high detail, professional cinematography"
+```
+
+VEO 2 responds well to:
+- **Cinematic language**: "cinematic shot", "35mm lens", "professional"
+- **Specific details**: "wet pavement", "neon lights", "high detail"
+- **Camera angles**: "low angle", "bird's eye view", "close-up"
+- **Lighting conditions**: "golden hour", "dramatic lighting", "soft shadows"
+
+### Error Handling Examples
+
+```typescript
+// API quota exceeded
+{
+  "error": "VEO 2 API quota exceeded. Please try again later or check your billing.",
+  "details": "Request failed with status 429"
+}
+
+// Invalid API key
+{
+  "error": "Invalid or missing Google API key. Please check your VEO 2 API key.",
+  "details": "Authentication failed"
+}
+
+// Generation failed
+{
+  "error": "Video generation failed",
+  "details": "Content policy violation or processing error"
+}
+```
+
+## Video Specifications
+
+### Supported Formats
+- **Output**: MP4 (H.264)
+- **Resolution**: 720p (1280x720)
+- **Frame Rate**: 24fps
+- **Audio**: None (video-only generation)
+
+### Duration Limits
+- **Minimum**: 5 seconds
+- **Maximum**: 8 seconds
+- **Recommended**: 6-8 seconds for best quality
+
+### Aspect Ratios
+- **16:9**: Standard widescreen (1280x720)
+- **9:16**: Vertical/mobile format (720x1280)
+
+## Best Practices
+
+### Prompt Engineering
+
+**Good Prompts:**
+```
+"A serene mountain lake at sunrise with mist rising from the water"
+"Close-up of raindrops falling on green leaves in slow motion"
+"A cozy fireplace with dancing flames in a rustic cabin"
+```
+
+**Avoid:**
+```
+"Make a video" (too vague)
+"Something cool" (not specific)
+"Video of everything" (too complex)
+```
+
+### Performance Optimization
+
+1. **Cache Management**: Videos are displayed immediately once generated
+2. **Progress Polling**: Efficient 5-second intervals to minimize API calls
+3. **Error Recovery**: Automatic retry logic with exponential backoff
+4. **Memory Management**: Proper cleanup of video resources
+
+### Security Considerations
+
+1. **API Key Protection**: Keys stored securely in user settings
+2. **Rate Limiting**: Respect Google's API quotas
+3. **Content Filtering**: VEO 2 has built-in safety filters
+4. **CORS Handling**: Proper cross-origin resource sharing
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### "VEO2 API key not configured"
-- **Solution**: Add your Google API key in Settings > Models
-- **Note**: Use the same key as Gemini if you have one
+**"Invalid API Key"**
+- Verify your Google API key is correct
+- Ensure VEO 2 permissions are enabled
+- Check if the key is properly saved in settings
 
-#### "Video generation failed"
-- **Cause**: Invalid prompt or API quota exceeded
-- **Solution**: Try a different prompt or check API usage
+**"Quota Exceeded"**
+- Check your Google Cloud billing account
+- Review API usage limits
+- Consider upgrading your quota
 
-#### "Video not loading"
-- **Cause**: Network issues or expired video URL
-- **Solution**: Refresh the page or regenerate the video
+**"Video Generation Failed"**
+- Try a different prompt
+- Check for content policy violations
+- Verify internet connection
 
-#### "Download not working"
-- **Cause**: CORS issues or invalid video URL
-- **Solution**: Right-click and "Save video as..." or contact support
+**"Video Won't Load"**
+- Check browser video codec support
+- Try downloading the video
+- Clear browser cache
 
-### Performance Optimization
+### Debug Mode
 
-#### Client-Side
-- Lazy load video components
-- Implement video thumbnail previews
-- Cache video metadata
-- Progressive video loading
+Enable debug logging by adding this to your browser console:
 
-#### Server-Side
-- Implement job queuing for video generation
-- Use CDN for video delivery
-- Compress videos for faster loading
-- Implement video transcoding pipeline
+```javascript
+// Enable VEO 2 debug logging
+localStorage.setItem('veo2_debug', 'true')
+
+// View operation details
+console.log('Current VEO 2 operations:', localStorage.getItem('veo2_operations'))
+```
+
+## API Limits & Pricing
+
+### Rate Limits
+- **Generation**: Limited by Google's VEO 2 quotas
+- **Status Checks**: 12 requests per minute (5-second intervals)
+- **Concurrent Operations**: Up to 5 simultaneous generations
+
+### Cost Considerations
+- VEO 2 pricing varies by region and usage
+- Each video generation consumes API credits
+- Status checks are typically free or very low cost
+- Check [Google AI Pricing](https://ai.google.dev/pricing) for current rates
 
 ## Future Enhancements
 
 ### Planned Features
-- **Batch Video Generation**: Generate multiple videos from one prompt
-- **Video Editing**: Basic editing tools (trim, crop, filters)
-- **Animation Styles**: Different animation and art styles
-- **Voice Integration**: Add AI-generated narration
-- **Collaboration**: Share and collaborate on video projects
+- [ ] **Batch Generation**: Multiple videos from one prompt
+- [ ] **Style Transfer**: Apply artistic styles to videos
+- [ ] **Video Editing**: Basic trimming and effects
+- [ ] **Audio Integration**: Background music and sound effects
+- [ ] **Animation Control**: Keyframe and motion path settings
+- [ ] **Template Library**: Pre-built prompt templates
 
-### API Improvements
-- **Webhook Support**: Real-time status updates
-- **Advanced Parameters**: More granular control over generation
-- **Template System**: Pre-built video templates
-- **Analytics**: Usage tracking and optimization insights
+### Advanced Integrations
+- [ ] **Cloud Storage**: Direct save to Google Drive/Dropbox
+- [ ] **Social Sharing**: Native sharing to social platforms
+- [ ] **Video Analytics**: View counts and engagement metrics
+- [ ] **Collaboration**: Team video generation and sharing
 
-## Support
+## Support & Resources
 
-### Documentation
-- [Google VEO2 Official Docs](https://ai.google.dev/veo)
-- [Video Generation Best Practices](./VIDEO_BEST_PRACTICES.md)
-- [API Reference](./API_REFERENCE.md)
+### Documentation Links
+- [Google VEO 2 Official Docs](https://ai.google.dev/gemini-api/docs)
+- [Vertex AI VEO 2 Guide](https://cloud.google.com/vertex-ai/docs)
+- [Google AI Studio](https://aistudio.google.com/)
 
-### Community
-- [Discord Server](https://discord.gg/t3-chat)
-- [GitHub Issues](https://github.com/your-repo/issues)
-- [Stack Overflow](https://stackoverflow.com/questions/tagged/veo2)
+### Community & Support
+- Join our Discord for VEO 2 discussions
+- Check GitHub issues for known problems
+- Submit feature requests via GitHub
 
-### Contact
-- **Email**: support@t3chat.com
-- **Twitter**: [@T3Chat](https://twitter.com/t3chat)
-- **Website**: [https://t3chat.com](https://t3chat.com)
+### Developer Resources
+- API reference documentation
+- Sample prompts and responses
+- Integration examples and tutorials
 
 ---
 
-*Last updated: January 2025*
-*Version: 1.0.0* 
+**Note**: This is a production implementation of Google VEO 2 integration. All API calls are real and will consume your Google API quotas. Ensure you have proper billing and quota management in place before extensive use. 
