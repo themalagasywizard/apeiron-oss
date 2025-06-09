@@ -365,10 +365,10 @@ export default function MainUI({
               </div>
 
               {/* Settings Button */}
-              <div className="p-4 border-t border-gray-200/20 dark:border-gray-700/20">
+              <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20">
                 <button
                   onClick={() => setSettingsOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 p-2 rounded-lg bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
+                  className="w-full h-[48px] flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
                   aria-label="Open settings"
                 >
                   <Settings className="w-4 h-4" />
