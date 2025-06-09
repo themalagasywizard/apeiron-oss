@@ -9,6 +9,18 @@ type Message = {
   content: string
   role: "user" | "assistant"
   timestamp: Date
+  attachments?: ProcessedFile[]
+}
+
+type ProcessedFile = {
+  id: string
+  name: string
+  type: string
+  size: number
+  url?: string
+  extractedText?: string
+  thumbnailUrl?: string
+  uploadedAt: string
 }
 
 type Model = {
@@ -350,12 +362,28 @@ export default function Home() {
   const currentConversation = conversations.find((conv) => conv.id === currentConversationId) || conversations[0]
 
   // Handle sending a message
-  const handleSendMessage = async (message: string) => {
+  const handleSendMessage = async (message: string, attachments?: ProcessedFile[]) => {
+    // Create the message content including attachment information
+    let fullContent = message
+    
+    // If there are attachments, include their extracted text in the message context
+    if (attachments && attachments.length > 0) {
+      const attachmentContext = attachments
+        .filter(att => att.extractedText)
+        .map(att => `[File: ${att.name}]\n${att.extractedText}`)
+        .join('\n\n')
+      
+      if (attachmentContext) {
+        fullContent = attachmentContext + (message ? '\n\n' + message : '')
+      }
+    }
+
     const newUserMessage = {
       id: `msg-${Date.now()}-user`,
-      content: message,
+      content: fullContent || message, // Use original message if no extracted text
       role: "user" as const,
       timestamp: new Date(),
+      attachments: attachments,
     }
 
     // Add user message

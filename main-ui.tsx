@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { formatFileSize } from "@/lib/file-utils"
 import {
   Menu,
   X,
@@ -21,6 +22,11 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  Paperclip,
+  FileImage,
+  FileText,
+  Loader2,
+  Download,
 } from "lucide-react"
 
 // Types
@@ -29,6 +35,18 @@ type Message = {
   content: string
   role: "user" | "assistant"
   timestamp: Date
+  attachments?: ProcessedFile[]
+}
+
+type ProcessedFile = {
+  id: string
+  name: string
+  type: string
+  size: number
+  url?: string
+  extractedText?: string
+  thumbnailUrl?: string
+  uploadedAt: string
 }
 
 type Conversation = {
@@ -75,7 +93,7 @@ type MainUIProps = {
   currentConversation?: Conversation
   currentModel?: string
   userSettings?: UserSettings
-  onSendMessage?: (message: string) => void
+  onSendMessage?: (message: string, attachments?: ProcessedFile[]) => void
   onSelectConversation?: (id: string) => void
   onSelectModel?: (id: string) => void
   onCreateConversation?: () => void
@@ -144,6 +162,11 @@ export default function MainUI({
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
 
+  // File upload state
+  const [attachments, setAttachments] = useState<ProcessedFile[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
+
   // Use models from props (calculated in page.tsx with proper API key logic)
   const availableModels = models
 
@@ -174,11 +197,86 @@ export default function MainUI({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [currentConversation.messages])
 
+  // Handle file upload
+  const handleFileUpload = async (file: File) => {
+    if (!file) return
+
+    setIsUploading(true)
+    setError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed')
+      }
+
+      // Add the processed file to attachments
+      setAttachments(prev => [...prev, result.file])
+    } catch (error) {
+      console.error('Upload error:', error)
+      setError(error instanceof Error ? error.message : 'Failed to upload file')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  // Handle file input change
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        handleFileUpload(files[i])
+      }
+    }
+    // Reset the input
+    e.target.value = ''
+  }
+
+  // Remove attachment
+  const removeAttachment = (attachmentId: string) => {
+    setAttachments(prev => prev.filter(att => att.id !== attachmentId))
+  }
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+
+    const files = Array.from(e.dataTransfer.files)
+    files.forEach(file => {
+      handleFileUpload(file)
+    })
+  }
+
   // Handle sending a message
   const handleSendMessage = () => {
-    if (inputValue.trim()) {
-      onSendMessage(inputValue)
+    if (inputValue.trim() || attachments.length > 0) {
+      onSendMessage(inputValue, attachments.length > 0 ? attachments : undefined)
       setInputValue("")
+      setAttachments([])
       // Simulate AI typing
       setIsTyping(true)
       setTimeout(() => {
@@ -569,7 +667,60 @@ export default function MainUI({
                     }
                   `}
                 >
-                  <div className="prose dark:prose-invert prose-sm">{message.content}</div>
+                  {/* Attachments */}
+                  {message.attachments && message.attachments.length > 0 && (
+                    <div className="mb-3 space-y-2">
+                      {message.attachments.map((attachment) => (
+                        <div
+                          key={attachment.id}
+                          className={`
+                            flex items-center gap-3 p-3 rounded-lg border 
+                            ${
+                              message.role === "user"
+                                ? "bg-white/20 border-white/30"
+                                : "bg-gray-100/50 dark:bg-gray-700/30 border-gray-200/30 dark:border-gray-600/30"
+                            }
+                          `}
+                        >
+                          {attachment.type.startsWith('image/') ? (
+                            <>
+                              <FileImage className="w-5 h-5 flex-shrink-0" />
+                              {attachment.url && (
+                                <img
+                                  src={attachment.url}
+                                  alt={attachment.name}
+                                  className="w-16 h-16 object-cover rounded-lg"
+                                />
+                              )}
+                            </>
+                          ) : (
+                            <FileText className="w-5 h-5 flex-shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">{attachment.name}</div>
+                            <div className="text-xs opacity-70">
+                              {formatFileSize(attachment.size)}
+                            </div>
+                          </div>
+                          {attachment.url && (
+                            <a
+                              href={attachment.url}
+                              download={attachment.name}
+                              className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                            >
+                              <Download className="w-4 h-4" />
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Message content */}
+                  {message.content && (
+                    <div className="prose dark:prose-invert prose-sm">{message.content}</div>
+                  )}
+                  
                   <div
                     className={`
                     text-xs mt-2 
@@ -611,8 +762,58 @@ export default function MainUI({
           </div>
 
           {/* Input Area */}
-          <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 h-[72px] flex items-center">
-            <div className="flex items-center gap-3 w-full">
+          <div 
+            className={`px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 relative ${
+              isDragOver ? 'bg-purple-500/10 border-purple-500/50' : ''
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {/* Drag overlay */}
+            {isDragOver && (
+              <div className="absolute inset-0 bg-purple-500/20 border-2 border-dashed border-purple-500 rounded-lg flex items-center justify-center z-10">
+                <div className="text-purple-400 text-center">
+                  <Paperclip className="w-8 h-8 mx-auto mb-2" />
+                  <p className="text-sm font-medium">Drop files here to upload</p>
+                </div>
+              </div>
+            )}
+            {/* Attachments Preview */}
+            {attachments.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {attachments.map((attachment) => (
+                  <div
+                    key={attachment.id}
+                    className="flex items-center gap-2 bg-white/20 dark:bg-gray-800/40 rounded-lg p-2 text-sm text-gray-800 dark:text-gray-200"
+                  >
+                    {attachment.type.startsWith('image/') ? (
+                      <>
+                        <FileImage className="w-4 h-4 flex-shrink-0" />
+                        {attachment.url && (
+                          <img
+                            src={attachment.url}
+                            alt={attachment.name}
+                            className="w-8 h-8 object-cover rounded"
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <FileText className="w-4 h-4 flex-shrink-0" />
+                    )}
+                    <span className="truncate max-w-[100px]">{attachment.name}</span>
+                    <button
+                      onClick={() => removeAttachment(attachment.id)}
+                      className="text-gray-500 hover:text-red-500 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 w-full min-h-[48px]">
               <div className="flex-shrink-0">
                 <div className="relative">
                   <select
@@ -629,6 +830,25 @@ export default function MainUI({
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400 pointer-events-none" />
                 </div>
+              </div>
+
+              {/* File Upload Button */}
+              <div className="flex-shrink-0">
+                <label className="h-[48px] w-[48px] rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 border border-gray-200/20 dark:border-gray-700/20 transition-colors cursor-pointer flex items-center justify-center">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,application/pdf,.txt,.doc,.docx"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                    aria-label="Upload files"
+                  />
+                  {isUploading ? (
+                    <Loader2 className="w-5 h-5 text-gray-600 dark:text-gray-400 animate-spin" />
+                  ) : (
+                    <Paperclip className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  )}
+                </label>
               </div>
 
               <div className="flex-1 bg-white/20 dark:bg-gray-800/40 rounded-xl border border-gray-200/20 dark:border-gray-700/20 overflow-hidden focus-within:ring-2 focus-within:ring-purple-500/50">
@@ -651,11 +871,11 @@ export default function MainUI({
 
               <button
                 onClick={handleSendMessage}
-                disabled={!inputValue.trim()}
+                disabled={!inputValue.trim() && attachments.length === 0}
                 className={`
                   h-[48px] w-[48px] rounded-xl flex-shrink-0 transition-all duration-200 flex items-center justify-center
                   ${
-                    inputValue.trim()
+                    inputValue.trim() || attachments.length > 0
                       ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-purple-500/25"
                       : "bg-gray-200/50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed"
                   }
