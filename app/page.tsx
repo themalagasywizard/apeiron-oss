@@ -366,31 +366,31 @@ export default function Home() {
   const handleSendMessage = async (message: string, attachments?: ProcessedFile[]) => {
     // Start typing indicator
     setIsTyping(true)
-    
-    // Create the message content including attachment information
+
+    // 1. Create the full message content with attachments
     let fullContent = message
-    
-    // If there are attachments, include their extracted text in the message context
     if (attachments && attachments.length > 0) {
       const attachmentContext = attachments
         .filter(att => att.extractedText)
-        .map(att => `[File: ${att.name}]\n${att.extractedText}`)
+        .map(att => `--- Attachment: ${att.name} ---\n${att.extractedText}`)
         .join('\n\n')
       
       if (attachmentContext) {
-        fullContent = attachmentContext + (message ? '\n\n' + message : '')
+        // Prepend attachment context to the user's message
+        fullContent = `${message}\n\n${attachmentContext}`
       }
     }
 
+    // 2. Create the new user message object
     const newUserMessage = {
       id: `msg-${Date.now()}-user`,
-      content: fullContent || message, // Use original message if no extracted text
+      content: fullContent.trim(), // Use the combined content
       role: "user" as const,
       timestamp: new Date(),
-      attachments: attachments,
+      attachments: attachments, // Keep attachments for display
     }
 
-    // Add user message
+    // 3. Add the new message to the conversation
     const updatedConversations = conversations.map((conv) => {
       if (conv.id === currentConversationId) {
         return {
@@ -400,9 +400,9 @@ export default function Home() {
       }
       return conv
     })
-
     setConversations(updatedConversations)
-
+    
+    // 4. Call the AI with the updated conversation history
     try {
       let aiResponse = ""
       const selectedModelData = availableModels.find(m => m.id === currentModel)
@@ -411,8 +411,12 @@ export default function Home() {
         throw new Error("No model selected")
       }
 
-      // Get all messages including the new user message for context
-      const allMessages = [...currentConversation.messages, newUserMessage]
+      // Get the latest messages for the API call
+      const conversationForApi = updatedConversations.find(c => c.id === currentConversationId)
+      if (!conversationForApi) {
+        throw new Error("Could not find current conversation.")
+      }
+      const allMessages = conversationForApi.messages
 
       // Determine which API to call based on the model provider
       switch (selectedModelData.provider) {
@@ -469,24 +473,21 @@ export default function Home() {
           throw new Error(`API key required. Please configure ${selectedModelData.provider} in Settings > Models.`)
       }
 
+      // 5. Add the AI response message
       const newAiMessage = {
         id: `msg-${Date.now()}-ai`,
         content: aiResponse,
         role: "assistant" as const,
         timestamp: new Date(),
       }
-
-      const finalConversations = conversations.map((conv) => {
+      
+      setConversations(prevConvos => prevConvos.map(conv => {
         if (conv.id === currentConversationId) {
-          return {
-            ...conv,
-            messages: [...conv.messages, newUserMessage, newAiMessage],
-          }
+          return { ...conv, messages: [...conv.messages, newAiMessage] }
         }
         return conv
-      })
+      }))
 
-      setConversations(finalConversations)
     } catch (error) {
       console.error('Error sending message:', error)
       const errorMessage = {
@@ -496,17 +497,14 @@ export default function Home() {
         timestamp: new Date(),
       }
 
-      const errorConversations = conversations.map((conv) => {
+      setConversations(prevConvos => prevConvos.map(conv => {
         if (conv.id === currentConversationId) {
-          return {
-            ...conv,
-            messages: [...conv.messages, newUserMessage, errorMessage],
-          }
+          // Add error message without duplicating the user message
+          return { ...conv, messages: [...conv.messages, errorMessage] }
         }
         return conv
-      })
+      }))
 
-      setConversations(errorConversations)
     } finally {
       // Stop typing indicator when done
       setIsTyping(false)
