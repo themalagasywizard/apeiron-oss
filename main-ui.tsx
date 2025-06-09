@@ -118,9 +118,6 @@ export default function MainUI({
   onLogout = () => {},
   onSaveSettings = () => {},
 }: MainUIProps) {
-  // Local Storage Keys
-  const USER_SETTINGS_KEY = "t3-chat-user-settings"
-  
   // Initialize default models
   const defaultModels: Model[] = [
     { id: "openai-gpt4", name: "GPT-4", icon: "G4", provider: "openai" },
@@ -130,57 +127,6 @@ export default function MainUI({
     { id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" },
     { id: "grok", name: "Grok", icon: "GK", provider: "grok" },
   ]
-
-  // Load settings from localStorage
-  const loadSettings = (): UserSettings => {
-    if (typeof window === "undefined") {
-      return {
-        temperature: 0.7,
-        models: [],
-        openrouterEnabled: false,
-        openrouterApiKey: "",
-        openrouterModelName: "",
-        openaiApiKey: "",
-        claudeApiKey: "",
-        geminiApiKey: "",
-        deepseekApiKey: "",
-        grokApiKey: ""
-      }
-    }
-    
-    try {
-      const saved = localStorage.getItem(USER_SETTINGS_KEY)
-      if (saved) {
-        return JSON.parse(saved)
-      }
-    } catch (error) {
-      console.error("Failed to load settings:", error)
-    }
-    
-    return {
-      temperature: 0.7,
-      models: [],
-      openrouterEnabled: false,
-      openrouterApiKey: "",
-      openrouterModelName: "",
-      openaiApiKey: "",
-      claudeApiKey: "",
-      geminiApiKey: "",
-      deepseekApiKey: "",
-      grokApiKey: ""
-    }
-  }
-
-  // Save settings to localStorage
-  const saveSettings = (settings: UserSettings) => {
-    if (typeof window === "undefined") return
-    
-    try {
-      localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(settings))
-    } catch (error) {
-      console.error("Failed to save settings:", error)
-    }
-  }
 
   // State
   const [theme, setTheme] = useState<"dark" | "light">("dark")
@@ -198,10 +144,8 @@ export default function MainUI({
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
 
-  // Get available models (user configured + defaults without API keys)
-  const availableModels = userSettings.openrouterEnabled 
-    ? [{ id: "openrouter", name: userSettings.openrouterModelName || "OpenRouter", icon: "OR", provider: "openrouter" as const }]
-    : [...userSettings.models, ...defaultModels.filter(m => !userSettings.models.some(um => um.id === m.id))]
+  // Use models from props (calculated in page.tsx with proper API key logic)
+  const availableModels = models
 
 
 
@@ -948,34 +892,58 @@ export default function MainUI({
                         <div>
                           <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Your Models</h4>
                           <div className="space-y-2">
-                            {userSettings.models.length === 0 ? (
-                              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
-                                No models configured yet. Add your first model above.
-                              </p>
-                            ) : (
-                              userSettings.models.map((model) => (
-                                <div
-                                  key={model.id}
-                                  className="flex items-center justify-between p-3 bg-white/50 dark:bg-gray-900/50 rounded-lg border border-gray-200/50 dark:border-gray-700/50"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">
-                                      {model.icon}
-                                    </div>
-                                    <div>
-                                      <div className="font-medium text-gray-900 dark:text-gray-100">{model.name}</div>
-                                      <div className="text-sm text-gray-500 dark:text-gray-400 capitalize">{model.provider}</div>
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => handleRemoveModel(model.id)}
-                                    className="text-red-500 hover:text-red-600 transition-colors"
+                            {(() => {
+                              // Get list of configured models based on API keys
+                              const configuredModels = []
+                              
+                              if (userSettings.deepseekApiKey) {
+                                configuredModels.push({ id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" })
+                              }
+                              if (userSettings.openaiApiKey) {
+                                configuredModels.push({ id: "openai-gpt4", name: "GPT-4", icon: "G4", provider: "openai" })
+                              }
+                              if (userSettings.claudeApiKey) {
+                                configuredModels.push({ id: "claude-3", name: "Claude 3", icon: "C3", provider: "claude" })
+                              }
+                              if (userSettings.geminiApiKey) {
+                                configuredModels.push({ id: "gemini-2.5", name: "Gemini 2.5", icon: "G2", provider: "gemini" })
+                              }
+                              if (userSettings.grokApiKey) {
+                                configuredModels.push({ id: "grok", name: "Grok", icon: "GK", provider: "grok" })
+                              }
+                              
+                              // Add custom models
+                              configuredModels.push(...userSettings.models)
+                              
+                              return configuredModels.length === 0 ? (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                                  No models configured yet. Add your first model above.
+                                </p>
+                              ) : (
+                                configuredModels.map((model) => (
+                                  <div
+                                    key={model.id}
+                                    className="flex items-center justify-between p-3 bg-white/50 dark:bg-gray-900/50 rounded-lg border border-gray-200/50 dark:border-gray-700/50"
                                   >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              ))
-                            )}
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                                        {model.icon}
+                                      </div>
+                                      <div>
+                                        <div className="font-medium text-gray-900 dark:text-gray-100">{model.name}</div>
+                                        <div className="text-sm text-gray-500 dark:text-gray-400 capitalize">{model.provider}</div>
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => handleRemoveModel(model.id)}
+                                      className="text-red-500 hover:text-red-600 transition-colors"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ))
+                              )
+                            })()}
                           </div>
                         </div>
                       </>
