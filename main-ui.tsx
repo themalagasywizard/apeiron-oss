@@ -28,6 +28,8 @@ import {
   FileText,
   Loader2,
   Download,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react"
 
 // Types
@@ -484,52 +486,20 @@ export default function MainUI({
 
   return (
     <div
-      className={`font-inter h-screen flex flex-col ${theme === "dark" ? "dark bg-gradient-to-br from-gray-900 to-gray-800" : "bg-gradient-to-br from-gray-50 to-white"}`}
+      className={`font-inter h-screen flex ${theme === "dark" ? "dark bg-gradient-to-br from-gray-900 to-gray-800" : "bg-gradient-to-br from-gray-50 to-white"}`}
     >
-      {/* Top Bar */}
-      <header className="h-16 px-4 flex items-center justify-between border-b backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 sticky top-0 z-10">
-        {isMobile && (
+      <div className="flex flex-1 overflow-hidden">
+        {/* Mobile Menu Button (only visible when sidebar is closed) */}
+        {isMobile && !sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
+            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-gray-800/90 transition-colors shadow-lg"
             aria-label="Open sidebar"
           >
             <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
           </button>
         )}
 
-        <div className="flex-1 flex justify-center md:justify-start">
-          {!isMobile && (
-            <h1 className="text-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
-              AI Chat
-            </h1>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          >
-            {theme === "dark" ? <Sun className="w-5 h-5 text-gray-200" /> : <Moon className="w-5 h-5 text-gray-700" />}
-          </button>
-
-          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium">
-            U
-          </div>
-
-          <button
-            onClick={onLogout}
-            className="p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors md:ml-2"
-            aria-label="Log out"
-          >
-            <LogOut className="w-5 h-5 text-gray-700 dark:text-gray-200" />
-          </button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <AnimatePresence>
           {sidebarOpen && (
@@ -545,15 +515,41 @@ export default function MainUI({
                 border-r border-gray-200/20 dark:border-gray-700/20
               `}
             >
+              {/* Sidebar Header with Title and Controls */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200/20 dark:border-gray-700/20 h-[60px]">
-                <div></div>
-                <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
-                  aria-label="Close sidebar"
-                >
-                  <X className="w-5 h-5 text-gray-700 dark:text-gray-200" />
-                </button>
+                <h1 className="text-lg font-bold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
+                  AI Chat
+                </h1>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={toggleTheme}
+                    className="p-1.5 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
+                    aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                  >
+                    {theme === "dark" ? <Sun className="w-4 h-4 text-gray-200" /> : <Moon className="w-4 h-4 text-gray-700" />}
+                  </button>
+
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-medium">
+                    U
+                  </div>
+
+                  <button
+                    onClick={onLogout}
+                    className="p-1.5 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
+                    aria-label="Log out"
+                  >
+                    <LogOut className="w-4 h-4 text-gray-700 dark:text-gray-200" />
+                  </button>
+
+                  {/* Toggle Sidebar Button */}
+                  <button
+                    onClick={() => setSidebarOpen(false)}
+                    className="p-1.5 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors ml-1"
+                    aria-label="Toggle sidebar"
+                  >
+                    {sidebarOpen ? <PanelLeftClose className="w-4 h-4 text-gray-700 dark:text-gray-200" /> : <PanelLeftOpen className="w-4 h-4 text-gray-700 dark:text-gray-200" />}
+                  </button>
+                </div>
               </div>
 
               {/* Conversation History */}
@@ -572,28 +568,48 @@ export default function MainUI({
 
                   <div className="mt-2 space-y-1">
                     {conversations.map((conversation) => (
-                      <button
+                      <div
                         key={conversation.id}
-                        onClick={() => onSelectConversation(conversation.id)}
                         className={`
                           w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-200
-                          hover:bg-white/20 dark:hover:bg-gray-800/40
+                          hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer
                           ${
                             currentConversation.id === conversation.id
                               ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
                               : "bg-transparent"
                           }
                         `}
+                        onClick={() => onSelectConversation(conversation.id)}
                       >
-                        <div className="font-medium text-gray-800 dark:text-gray-200 truncate">
-                          {conversation.title}
-                        </div>
+                        {editingConversationId === conversation.id ? (
+                          <input
+                            type="text"
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onKeyDown={handleRenameKeyPress}
+                            onBlur={handleSaveRename}
+                            className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <div 
+                            className="font-medium text-gray-800 dark:text-gray-200 truncate"
+                            title="Double-click to rename conversation"
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              handleStartRename(conversation.id, conversation.title);
+                            }}
+                          >
+                            {conversation.title}
+                          </div>
+                        )}
                         <div className="mt-1">
                           <span className="text-xs text-gray-500 dark:text-gray-400">
                             {new Date(conversation.timestamp).toLocaleDateString()}
                           </span>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -638,12 +654,12 @@ export default function MainUI({
                               if (!conv) return null
 
                               return (
-                                <button
+                                <div
                                   key={conv.id}
                                   onClick={() => onSelectConversation(conv.id)}
                                   className={`
                                     w-full text-left px-3 py-1.5 rounded-lg text-xs transition-all duration-200
-                                    hover:bg-white/20 dark:hover:bg-gray-800/40
+                                    hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer
                                     ${
                                       currentConversation.id === conv.id
                                         ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
@@ -651,10 +667,30 @@ export default function MainUI({
                                     }
                                   `}
                                 >
-                                  <div className="font-medium text-gray-800 dark:text-gray-200 truncate">
-                                    {conv.title}
-                                  </div>
-                                </button>
+                                  {editingConversationId === conv.id ? (
+                                    <input
+                                      type="text"
+                                      value={editingTitle}
+                                      onChange={(e) => setEditingTitle(e.target.value)}
+                                      onKeyDown={handleRenameKeyPress}
+                                      onBlur={handleSaveRename}
+                                      className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-xs"
+                                      autoFocus
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  ) : (
+                                    <div 
+                                      className="font-medium text-gray-800 dark:text-gray-200 truncate"
+                                      title="Double-click to rename conversation"
+                                      onDoubleClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStartRename(conv.id, conv.title);
+                                      }}
+                                    >
+                                      {conv.title}
+                                    </div>
+                                  )}
+                                </div>
                               )
                             })}
                           </div>
@@ -680,42 +716,19 @@ export default function MainUI({
           )}
         </AnimatePresence>
 
+        {/* Desktop Sidebar Toggle (only visible when sidebar is closed on desktop) */}
+        {!isMobile && !sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-gray-800/90 transition-colors shadow-lg"
+            aria-label="Open sidebar"
+          >
+            <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
+          </button>
+        )}
+
         {/* Main Chat Panel */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          {/* Chat Header */}
-          <div className="px-4 py-3 border-b backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 flex items-center justify-between h-[60px]">
-            <div className="flex items-center">
-              {!isMobile && !sidebarOpen && (
-                <button
-                  onClick={() => setSidebarOpen(true)}
-                  className="p-2 mr-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
-                  aria-label="Open sidebar"
-                >
-                  <Menu className="w-5 h-5 text-gray-700 dark:text-gray-200" />
-                </button>
-              )}
-
-              {editingConversationId === currentConversation.id ? (
-                <input
-                  type="text"
-                  value={editingTitle}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  onKeyDown={handleRenameKeyPress}
-                  onBlur={handleSaveRename}
-                  className="font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                  autoFocus
-                />
-              ) : (
-                <h2 
-                  className="font-medium text-gray-800 dark:text-gray-200 cursor-pointer hover:bg-gray-200/20 dark:hover:bg-gray-700/20 px-2 py-1 rounded transition-colors"
-                  title="Double-click to rename conversation"
-                  onDoubleClick={() => handleStartRename(currentConversation.id, currentConversation.title)}
-                >
-                  {currentConversation.title}
-                </h2>
-              )}
-            </div>
-          </div>
 
           {/* Error Alert */}
           <AnimatePresence>
