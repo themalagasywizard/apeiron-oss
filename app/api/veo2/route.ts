@@ -137,6 +137,50 @@ export async function POST(request: NextRequest) {
       personGeneration
     });
 
+    // Check if this is a demo request (no API key or demo key)
+    if (!apiKey || apiKey === "demo" || apiKey === "your-google-api-key") {
+      // Return demo response for testing
+      const mockOperationName = `operations/generate-video-demo-${Date.now()}`;
+      
+      const response = {
+        success: true,
+        data: {
+          operationName: mockOperationName,
+          status: "processing",
+          prompt: prompt,
+          estimatedCompletionTime: "2-6 minutes",
+          videoConfig: {
+            duration: `${duration}s`,
+            aspectRatio: aspectRatio,
+            resolution: "720p",
+            format: "mp4",
+            personGeneration: personGeneration
+          },
+          message: `🎬 **Video Generation Started (Demo Mode)**
+
+**Prompt:** ${prompt}
+
+**Status:** Demo processing - VEO 2 integration ready
+
+**Configuration:**
+- Duration: ${duration} seconds
+- Aspect Ratio: ${aspectRatio}
+- Resolution: 720p (24fps)
+- Format: MP4
+- Person Generation: ${personGeneration}
+
+**Note:** This is demo mode. To generate real videos:
+1. Get VEO 2 API access from Google AI Studio
+2. Add your Google API key in Settings
+3. VEO 2 is currently in limited preview
+
+The production VEO 2 integration is ready and will work with a valid API key.`
+        }
+      };
+      
+      return NextResponse.json(response);
+    }
+
     // Call the real VEO 2 API
     const operation = await generateVideoWithVEO2(
       prompt,
@@ -201,11 +245,15 @@ The video will appear above once processing is complete.`
       
       // Handle specific API errors
       if (errorMessage.includes("API key")) {
-        errorMessage = "Invalid or missing Google API key. Please check your VEO 2 API key.";
+        errorMessage = "Invalid or missing Google API key. Please check your VEO 2 API key in Settings.";
       } else if (errorMessage.includes("quota")) {
         errorMessage = "VEO 2 API quota exceeded. Please try again later or check your billing.";
-      } else if (errorMessage.includes("permission")) {
-        errorMessage = "VEO 2 API access denied. Please ensure your API key has VEO 2 permissions.";
+      } else if (errorMessage.includes("permission") || errorMessage.includes("403")) {
+        errorMessage = "VEO 2 API access denied. VEO 2 is currently in limited preview. Please apply for access at Google AI Studio.";
+      } else if (errorMessage.includes("404")) {
+        errorMessage = "VEO 2 model not found. The service may not be available in your region or your API key may not have VEO 2 access.";
+      } else if (errorMessage.includes("500") || errorMessage.includes("502") || errorMessage.includes("503")) {
+        errorMessage = "VEO 2 service is temporarily unavailable. Please try again in a few minutes.";
       }
     }
 
@@ -241,6 +289,28 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("Checking VEO 2 operation status:", operationName);
+
+    // Handle demo operations
+    if (operationName.includes('demo') || !apiKey || apiKey === "demo" || apiKey === "your-google-api-key") {
+      // Simulate processing for demo
+      const progress = Math.min(95, 20 + Math.floor(Math.random() * 60));
+      
+      const response = {
+        success: true,
+        data: {
+          operationName: operationName,
+          status: "processing",
+          progress: progress,
+          videoUrl: null,
+          error: null,
+          duration: "5-8s",
+          createdAt: new Date().toISOString(),
+          message: `Demo operation in progress (${progress}%). Real VEO 2 integration ready for production use.`
+        }
+      };
+
+      return NextResponse.json(response);
+    }
 
     // Check the real operation status
     const statusResult = await checkOperationStatus(operationName, apiKey);

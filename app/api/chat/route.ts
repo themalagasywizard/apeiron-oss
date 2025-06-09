@@ -178,7 +178,11 @@ export async function POST(request: NextRequest) {
         // VEO2 video generation using dedicated endpoint
         const prompt = messages[messages.length - 1]?.content || "";
         
-        response = await fetch(`${request.url.replace('/api/chat', '/api/veo2')}`, {
+        // Construct the VEO2 endpoint URL properly
+        const baseUrl = new URL(request.url).origin;
+        const veo2Url = `${baseUrl}/api/veo2`;
+        
+        response = await fetch(veo2Url, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -186,7 +190,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             prompt: prompt,
             apiKey: apiKey,
-            duration: "5s",
+            duration: 8, // Use number instead of string
             aspectRatio: "16:9"
           })
         });
