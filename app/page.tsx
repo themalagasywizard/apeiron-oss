@@ -35,7 +35,7 @@ type Model = {
   name: string
   icon: string
   apiKey?: string
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
   isCustom?: boolean
   customModelName?: string
 }
@@ -51,6 +51,7 @@ type UserSettings = {
   geminiApiKey: string
   deepseekApiKey: string
   grokApiKey: string
+  veo2ApiKey: string
 }
 
 // Sample data for demonstration
@@ -149,7 +150,8 @@ export default function Home() {
     claudeApiKey: "",
     geminiApiKey: "",
     deepseekApiKey: "",
-    grokApiKey: ""
+    grokApiKey: "",
+    veo2ApiKey: ""
   })
 
   // Load settings and set client flag on mount
@@ -170,7 +172,8 @@ export default function Home() {
             claudeApiKey: parsed.claudeApiKey || "",
             geminiApiKey: parsed.geminiApiKey || "",
             deepseekApiKey: parsed.deepseekApiKey || "",
-            grokApiKey: parsed.grokApiKey || ""
+            grokApiKey: parsed.grokApiKey || "",
+            veo2ApiKey: parsed.veo2ApiKey || ""
           }
         }
       } catch (error) {
@@ -187,7 +190,8 @@ export default function Home() {
         claudeApiKey: "",
         geminiApiKey: "",
         deepseekApiKey: "",
-        grokApiKey: ""
+        grokApiKey: "",
+        veo2ApiKey: ""
       }
     }
 
@@ -201,7 +205,8 @@ export default function Home() {
     { id: "claude-3", name: "Claude 3", icon: "C", provider: "claude" },
     { id: "gemini-2.5", name: "Gemini 2.5", icon: "G", provider: "gemini" },
     { id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" },
-    { id: "grok", name: "Grok", icon: "GK", provider: "grok" }
+    { id: "grok", name: "Grok", icon: "GK", provider: "grok" },
+    { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" }
   ]
 
   // Get available models (user configured + defaults without API keys)
@@ -340,6 +345,13 @@ export default function Home() {
           customModelName = userSettings.openrouterModelName || "meta-llama/llama-3.1-8b-instruct:free"
           if (!apiKey) {
             throw new Error("OpenRouter API key not configured. Please add it in Settings > Models.")
+          }
+          break
+
+        case "veo2":
+          apiKey = userSettings.veo2ApiKey || userSettings.geminiApiKey || ""
+          if (!apiKey) {
+            throw new Error("VEO2 requires a Google API key. Please add your Gemini API key in Settings > Models.")
           }
           break
 

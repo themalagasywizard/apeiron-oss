@@ -174,6 +174,32 @@ export async function POST(request: NextRequest) {
         aiResponse = openrouterData.choices[0]?.message?.content || "OpenRouter didn't provide a response. Please try again.";
         break;
 
+      case "veo2":
+        // VEO2 video generation using dedicated endpoint
+        const prompt = messages[messages.length - 1]?.content || "";
+        
+        response = await fetch(`${request.url.replace('/api/chat', '/api/veo2')}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            prompt: prompt,
+            apiKey: apiKey,
+            duration: "5s",
+            aspectRatio: "16:9"
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.text();
+          throw new Error(`VEO2 is currently unavailable (${response.status}). Please try again in a moment.`);
+        }
+
+        const veo2Data = await safeJsonParse(response, "VEO2");
+        aiResponse = veo2Data.data?.message || "Video generation initiated with VEO2";
+        break;
+
       default:
         throw new Error(`Unsupported provider: ${provider}`);
     }

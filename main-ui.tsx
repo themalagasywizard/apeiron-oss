@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { formatFileSize } from "@/lib/file-utils"
 import ModelLogo from "@/components/model-logos"
 import HTMLPreview from "@/components/html-preview"
+import VideoPreview from "@/components/video-preview"
 import { detectHTMLInContent } from "@/lib/html-templates"
 import {
   Menu,
@@ -80,7 +81,7 @@ type Model = {
   name: string
   icon: string
   apiKey?: string
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
   isCustom?: boolean
   customModelName?: string
 }
@@ -96,6 +97,7 @@ type UserSettings = {
   geminiApiKey: string
   deepseekApiKey: string
   grokApiKey: string
+  veo2ApiKey: string
 }
 
 type MainUIProps = {
@@ -140,7 +142,8 @@ export default function MainUI({
     claudeApiKey: "",
     geminiApiKey: "",
     deepseekApiKey: "",
-    grokApiKey: ""
+    grokApiKey: "",
+    veo2ApiKey: ""
   },
   isTyping = false,
   onSendMessage = () => {},
@@ -162,6 +165,7 @@ export default function MainUI({
     { id: "gemini-2.5", name: "Gemini 2.5", icon: "G2", provider: "gemini" },
     { id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" },
     { id: "grok", name: "Grok", icon: "GK", provider: "grok" },
+    { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" },
   ]
 
   // State
@@ -172,7 +176,7 @@ export default function MainUI({
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const [settingsTab, setSettingsTab] = useState<"general" | "models">("general")
-  const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter">("openai")
+  const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2">("openai")
   const [newModelApiKey, setNewModelApiKey] = useState("")
   const [newModelCustomName, setNewModelCustomName] = useState("")
   const [showNewModelApiKey, setShowNewModelApiKey] = useState(false)
@@ -446,6 +450,22 @@ export default function MainUI({
     setTheme(newTheme)
     onToggleTheme()
     document.documentElement.classList.toggle("dark", newTheme === "dark")
+  }
+
+  // Detect video generation content
+  const detectVideoContent = (content: string) => {
+    const videoPattern = /🎬.*?Video Generation.*?Processed/i
+    const promptPattern = /\*\*Prompt:\*\*\s*(.+?)(?=\n|$)/i
+    
+    const hasVideo = videoPattern.test(content)
+    const promptMatch = content.match(promptPattern)
+    
+    return {
+      hasVideo,
+      prompt: promptMatch ? promptMatch[1].trim() : null,
+      isGenerating: content.includes('Video generation initiated') || content.includes('Generating Video'),
+      videoUrl: null // In a real implementation, this would be extracted from the API response
+    }
   }
 
   // Format message content
@@ -829,8 +849,40 @@ export default function MainUI({
                   {/* Message content */}
                   {message.content && (() => {
                     const htmlDetection = detectHTMLInContent(message.content)
+                    const videoDetection = detectVideoContent(message.content)
                     
-                    if (htmlDetection.hasHTML && htmlDetection.htmlContent) {
+                    if (videoDetection.hasVideo) {
+                      return (
+                        <div className="space-y-4">
+                          {/* Video Preview Component */}
+                                                     <VideoPreview 
+                             prompt={videoDetection.prompt || message.content}
+                             videoUrl={videoDetection.videoUrl || undefined}
+                             isGenerating={videoDetection.isGenerating}
+                             videoTitle={`VEO2 Generated Video`}
+                             onDownload={(videoUrl, filename) => {
+                               // Trigger download
+                               const a = document.createElement('a')
+                               a.href = videoUrl
+                               a.download = filename
+                               document.body.appendChild(a)
+                               a.click()
+                               document.body.removeChild(a)
+                             }}
+                           />
+                          
+                          {/* Regular message content without video markers */}
+                          <div 
+                            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+                              message.isError ? 'text-red-600 dark:text-red-400' : ''
+                            }`}
+                            dangerouslySetInnerHTML={{ 
+                              __html: formatMessageContent(message.content) 
+                            }}
+                          />
+                        </div>
+                      )
+                    } else if (htmlDetection.hasHTML && htmlDetection.htmlContent) {
                       return (
                         <div className="space-y-4">
                           {/* Regular message content without HTML */}
@@ -1270,6 +1322,7 @@ export default function MainUI({
                                 <option value="gemini">Google (Gemini)</option>
                                 <option value="deepseek">DeepSeek</option>
                                 <option value="grok">Grok (xAI)</option>
+                                <option value="veo2">Google VEO 2 (Video)</option>
                                 <option value="openrouter">OpenRouter</option>
                               </select>
                             </div>
