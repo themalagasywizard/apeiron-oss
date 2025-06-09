@@ -127,6 +127,7 @@ const sampleProjects = [
 ]
 
 export default function Home() {
+  const [isClient, setIsClient] = useState(false)
   const [conversations, setConversations] = useState(sampleConversations)
   const [currentConversationId, setCurrentConversationId] = useState("conv1")
   const [currentModel, setCurrentModel] = useState("gpt-4")
@@ -144,24 +145,10 @@ export default function Home() {
     grokApiKey: ""
   })
 
-  // Load settings on mount
+  // Load settings and set client flag on mount
   useEffect(() => {
     const loadSettings = (): UserSettings => {
-      if (typeof window === "undefined") {
-        return {
-          temperature: 0.7,
-          models: [],
-          openrouterEnabled: false,
-          openrouterApiKey: "",
-          openrouterModelName: "",
-          openaiApiKey: "",
-          claudeApiKey: "",
-          geminiApiKey: "",
-          deepseekApiKey: "",
-          grokApiKey: ""
-        }
-      }
-
+      // No need to check for window here, useEffect only runs on client
       try {
         const saved = localStorage.getItem("t3-chat-user-settings")
         if (saved) {
@@ -198,6 +185,7 @@ export default function Home() {
     }
 
     setUserSettings(loadSettings())
+    setIsClient(true) // Set client to true after settings are loaded
   }, [])
 
   // Default models (shown only if user hasn't configured API keys)
@@ -536,6 +524,18 @@ export default function Home() {
         console.error("Failed to save settings:", error)
       }
     }
+  }
+
+  if (!isClient) {
+    // Render a loading state or null on the server to prevent hydration mismatch
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-gray-900 text-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-600 border-t-blue-500" />
+          <p>Loading Chat...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
