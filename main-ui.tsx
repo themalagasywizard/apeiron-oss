@@ -241,7 +241,7 @@ export default function MainUI({
                 border-r border-gray-200/20 dark:border-gray-700/20
               `}
             >
-              <div className="flex items-center justify-between p-4 border-b border-gray-200/20 dark:border-gray-700/20">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200/20 dark:border-gray-700/20">
                 <div></div>
                 <button
                   onClick={() => setSidebarOpen(false)}
@@ -480,15 +480,14 @@ export default function MainUI({
           </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t border-gray-200/20 dark:border-gray-700/20 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30">
-            <div className="flex items-end gap-3">
+          <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30">
+            <div className="flex items-center gap-3">
               <div className="flex-shrink-0">
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Model</label>
                 <div className="relative">
                   <select
                     value={currentModel}
                     onChange={(e) => onSelectModel(e.target.value)}
-                    className="h-[50px] w-36 px-3 pr-8 rounded-xl bg-white/20 dark:bg-gray-800/40 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    className="h-[48px] w-36 px-3 pr-8 rounded-xl bg-white/20 dark:bg-gray-800/40 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                     aria-label="Select AI model"
                   >
                     {models.map((model) => (
@@ -508,11 +507,11 @@ export default function MainUI({
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyPress}
                   placeholder="Ask anything..."
-                  className="w-full p-3 bg-transparent text-gray-800 dark:text-gray-200 resize-none focus:outline-none"
+                  className="w-full px-4 py-3 bg-transparent text-gray-800 dark:text-gray-200 resize-none focus:outline-none"
                   rows={1}
                   style={{
                     height: "auto",
-                    minHeight: "50px",
+                    minHeight: "48px",
                     maxHeight: "200px",
                   }}
                   aria-label="Message input"
@@ -523,7 +522,7 @@ export default function MainUI({
                 onClick={handleSendMessage}
                 disabled={!inputValue.trim()}
                 className={`
-                  h-[50px] w-[50px] rounded-xl flex-shrink-0 transition-all duration-200 flex items-center justify-center
+                  h-[48px] w-[48px] rounded-xl flex-shrink-0 transition-all duration-200 flex items-center justify-center
                   ${
                     inputValue.trim()
                       ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-purple-500/25"
@@ -537,7 +536,7 @@ export default function MainUI({
 
               <button
                 disabled={true}
-                className="h-[50px] w-[50px] rounded-xl bg-gray-200/50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed flex-shrink-0 flex items-center justify-center"
+                className="h-[48px] w-[48px] rounded-xl bg-gray-200/50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed flex-shrink-0 flex items-center justify-center"
                 aria-label="Voice input (coming soon)"
               >
                 <Mic className="w-5 h-5" />
