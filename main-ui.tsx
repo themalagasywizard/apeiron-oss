@@ -1051,7 +1051,11 @@ export default function MainUI({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end justify-center pb-[84px] p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-center p-4"
+            style={{ 
+              alignItems: 'flex-end',
+              paddingBottom: '84px' // Height of input area + padding
+            }}
             onClick={() => setSettingsOpen(false)}
           >
             <motion.div
