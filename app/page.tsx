@@ -130,6 +130,7 @@ export default function Home() {
   const [conversations, setConversations] = useState(sampleConversations)
   const [currentConversationId, setCurrentConversationId] = useState("conv1")
   const [currentModel, setCurrentModel] = useState("gpt-4")
+  const [isTyping, setIsTyping] = useState(false)
   const [userSettings, setUserSettings] = useState<UserSettings>({
     temperature: 0.7,
     models: [],
@@ -363,6 +364,9 @@ export default function Home() {
 
   // Handle sending a message
   const handleSendMessage = async (message: string, attachments?: ProcessedFile[]) => {
+    // Start typing indicator
+    setIsTyping(true)
+    
     // Create the message content including attachment information
     let fullContent = message
     
@@ -503,6 +507,9 @@ export default function Home() {
       })
 
       setConversations(errorConversations)
+    } finally {
+      // Stop typing indicator when done
+      setIsTyping(false)
     }
   }
 
@@ -541,6 +548,7 @@ export default function Home() {
       currentModel={currentModel}
       userSettings={userSettings}
       models={availableModels}
+      isTyping={isTyping}
       onSendMessage={handleSendMessage}
       onSelectConversation={setCurrentConversationId}
       onSelectModel={setCurrentModel}

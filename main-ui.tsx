@@ -94,6 +94,7 @@ type MainUIProps = {
   currentConversation?: Conversation
   currentModel?: string
   userSettings?: UserSettings
+  isTyping?: boolean
   onSendMessage?: (message: string, attachments?: ProcessedFile[]) => void
   onSelectConversation?: (id: string) => void
   onSelectModel?: (id: string) => void
@@ -128,6 +129,7 @@ export default function MainUI({
     deepseekApiKey: "",
     grokApiKey: ""
   },
+  isTyping = false,
   onSendMessage = () => {},
   onSelectConversation = () => {},
   onSelectModel = () => {},
@@ -152,7 +154,6 @@ export default function MainUI({
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [inputValue, setInputValue] = useState("")
-  const [isTyping, setIsTyping] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const [settingsTab, setSettingsTab] = useState<"general" | "models">("general")
@@ -170,8 +171,6 @@ export default function MainUI({
 
   // Use models from props (calculated in page.tsx with proper API key logic)
   const availableModels = models
-
-
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
@@ -278,11 +277,6 @@ export default function MainUI({
       onSendMessage(inputValue, attachments.length > 0 ? attachments : undefined)
       setInputValue("")
       setAttachments([])
-      // Simulate AI typing
-      setIsTyping(true)
-      setTimeout(() => {
-        setIsTyping(false)
-      }, 2000)
     }
   }
 
@@ -406,6 +400,35 @@ export default function MainUI({
     setTheme(newTheme)
     onToggleTheme()
     document.documentElement.classList.toggle("dark", newTheme === "dark")
+  }
+
+  // Format message content
+  const formatMessageContent = (content: string) => {
+    // Clean up content by removing excessive emojis and fixing formatting
+    const cleaned = content
+      // Remove excessive emojis at the start of lines (more than 3)
+      .replace(/^[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]{4,}/gmu, '')
+      // Limit emoji sequences to max 3
+      .replace(/([\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])\1{3,}/gu, '$1$1$1')
+      // Clean up markdown formatting
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm">$1</code>')
+      // Handle code blocks
+      .replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg overflow-x-auto"><code>$1</code></pre>')
+      // Handle line breaks properly
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>')
+      // Wrap in paragraphs
+      .replace(/^/, '<p>')
+      .replace(/$/, '</p>')
+      // Clean up empty paragraphs
+      .replace(/<p>\s*<\/p>/g, '')
+      // Fix nested paragraph issues
+      .replace(/<p><\/p><p>/g, '<p>')
+      .trim();
+
+    return cleaned;
   }
 
   return (
@@ -719,7 +742,10 @@ export default function MainUI({
                   
                   {/* Message content */}
                   {message.content && (
-                    <div className="prose dark:prose-invert prose-sm">{message.content}</div>
+                    <div 
+                      className="prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200"
+                      dangerouslySetInnerHTML={{ __html: formatMessageContent(message.content) }}
+                    />
                   )}
                   
                   <div

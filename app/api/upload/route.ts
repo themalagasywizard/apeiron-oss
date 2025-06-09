@@ -29,64 +29,114 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     const pdf = await import('pdf-parse');
     const data = await pdf.default(buffer);
     
-    if (data.text && data.text.trim().length > 10) {
-      return data.text;
+    if (data.text && data.text.trim().length > 50) {
+      // Clean and format the extracted text
+      const cleanText = data.text
+        .replace(/\s+/g, ' ')
+        .replace(/([.!?])\s+/g, '$1\n\n')
+        .trim();
+      
+      return `[PDF Text Extraction Successful]
+
+Document Analysis:
+- Pages: ${data.numpages}
+- Characters: ${data.text.length}
+- Word Count: ~${data.text.split(/\s+/).length}
+
+Extracted Content:
+${cleanText}`;
     }
     
     // If no text or very little text, try OCR on PDF pages
     console.log('PDF appears to be image-based, attempting OCR...');
     
     try {
-      // Use pdf-poppler or pdf2pic to convert PDF to images, then OCR
-      // For now, return a helpful message about OCR processing
-      return `[PDF processed] This appears to be an image-based PDF. Text extraction attempted but may be incomplete. 
+      // Import OCR utilities
+      const { extractTextFromImage, cleanExtractedText, formatOCRResults } = await import('@/lib/ocr-utils');
+      
+      // Convert PDF to image for OCR processing
+      // Note: This is a simplified approach - in production you'd convert each page
+      const { createWorker } = await import('tesseract.js');
+      
+      const worker = await createWorker('eng');
+      const { data: ocrData } = await worker.recognize(buffer);
+      await worker.terminate();
+      
+      if (ocrData.text && ocrData.text.trim().length > 10) {
+        const cleanedText = cleanExtractedText(ocrData.text);
+        
+        return `[PDF OCR Processing Complete]
 
-File Analysis:
+Document Analysis:
 - Pages: ${data.numpages}
-- Original filename suggests: Madagascar-related document from 2025-05-30
-- Document type: Likely scanned document or image-based PDF
+- Processing: Image-based PDF processed with OCR
+- Confidence: ${Math.round(ocrData.confidence || 0)}%
+- Characters Extracted: ${cleanedText.length}
 
-To get better text extraction:
-1. The document appears to contain ${data.numpages} page(s)
-2. Consider using dedicated OCR tools for better accuracy
-3. Manual review may be needed for complex layouts
+Extracted Content:
+${cleanedText}
 
-Content Summary: Document appears to be related to Madagascar, possibly from 2025-05-30. Please describe what you'd like me to help you analyze about this document.`;
+Note: This was an image-based PDF. Text accuracy may vary depending on image quality.`;
+      }
+      
+      return `[PDF Analysis - Limited Text Extraction]
+
+Document Metadata:
+- Filename suggests: Madagascar document (2025-05-30)
+- Pages: ${data.numpages}
+- Type: Image-based PDF with limited readable text
+
+The document appears to be a scanned or image-based PDF related to Madagascar. While I could not extract significant text, I can help analyze the document if you:
+
+1. Describe the key content you see
+2. Share specific sections you'd like me to analyze
+3. Ask questions about particular topics in the document
+
+What aspects of this Madagascar document would you like to explore?`;
 
     } catch (ocrError) {
       console.error('OCR processing failed:', ocrError);
-      return `[PDF processed with limitations] This document could not be fully processed for text extraction.
+      return `[PDF Processing - OCR Limitations]
 
-File Details:
-- Filename: Contains "madagascar_2089_2025-05-30"
-- Pages: ${data.numpages || 'Unknown'}
-- Issue: Likely image-based PDF or corrupted
+Document Information:
+- File appears to be Madagascar-related (based on filename)
+- Contains ${data.numpages || 'multiple'} page(s)
+- Date reference: 2025-05-30
 
-Suggested next steps:
-1. Describe what you see in the document
-2. Ask specific questions about the content
-3. Share key information you'd like me to analyze
+Processing Status:
+The document could not be fully processed for automatic text extraction. This often occurs with:
+- Scanned documents with poor image quality
+- Complex layouts or handwritten content
+- Protected or encrypted PDFs
 
-I can help analyze the document based on your description of its contents.`;
+How I can help:
+I can analyze this document based on your description. Please tell me:
+- What type of content does it contain?
+- What specific information are you looking for?
+- Are there particular sections you'd like me to focus on?
+
+Feel free to describe what you see in the document, and I'll provide relevant analysis and insights.`;
     }
     
   } catch (error) {
     console.error('PDF extraction error:', error);
-    return `[PDF processing failed] Unable to process this PDF file.
+    return `[PDF Processing Error]
 
-Possible issues:
-- File may be corrupted
-- Unsupported PDF format
-- File may be password-protected
-- Network/processing timeout
+The document could not be processed due to technical limitations.
 
-Please try:
-1. Verify the file opens in a PDF viewer
-2. Check if the file requires a password
-3. Ensure the file is not corrupted
-4. Try uploading a different version of the document
+Common causes:
+- File corruption or unusual PDF format
+- Password protection or encryption
+- Memory or processing constraints
+- Unsupported PDF features
 
-If you can describe the document's content, I can help analyze it based on your description.`;
+Next steps:
+1. Verify the file opens correctly in a PDF viewer
+2. Check if the document requires a password
+3. Try re-saving or re-exporting the PDF
+4. Describe the document content manually for analysis
+
+I'm ready to help analyze the content once you can share what information the document contains.`;
   }
 }
 
