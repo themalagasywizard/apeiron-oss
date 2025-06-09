@@ -1051,7 +1051,7 @@ export default function MainUI({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center pt-16 p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end justify-center pb-[84px] p-4"
             onClick={() => setSettingsOpen(false)}
           >
             <motion.div
