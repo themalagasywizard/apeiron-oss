@@ -241,7 +241,7 @@ export default function MainUI({
                 border-r border-gray-200/20 dark:border-gray-700/20
               `}
             >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200/20 dark:border-gray-700/20">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200/20 dark:border-gray-700/20 h-[60px]">
                 <div></div>
                 <button
                   onClick={() => setSidebarOpen(false)}
@@ -365,7 +365,7 @@ export default function MainUI({
               </div>
 
               {/* Settings Button */}
-              <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20">
+              <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 h-[72px] flex items-center">
                 <button
                   onClick={() => setSettingsOpen(true)}
                   className="w-full h-[48px] flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
@@ -382,7 +382,7 @@ export default function MainUI({
         {/* Main Chat Panel */}
         <main className="flex-1 flex flex-col overflow-hidden">
           {/* Chat Header */}
-          <div className="px-4 py-3 border-b backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 flex items-center justify-between">
+          <div className="px-4 py-3 border-b backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 flex items-center justify-between h-[60px]">
             <div className="flex items-center">
               {!isMobile && !sidebarOpen && (
                 <button
@@ -480,8 +480,8 @@ export default function MainUI({
           </div>
 
           {/* Input Area */}
-          <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30">
-            <div className="flex items-center gap-3">
+          <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 h-[72px] flex items-center">
+            <div className="flex items-center gap-3 w-full">
               <div className="flex-shrink-0">
                 <div className="relative">
                   <select
