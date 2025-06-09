@@ -58,8 +58,10 @@ const ModelLogo: React.FC<ModelLogoProps> = ({ provider, isLoading = false, size
         
       case "deepseek":
         return (
-          <div className={`${sizeClasses[size]} rounded-lg bg-gradient-to-br from-gray-800 to-black flex items-center justify-center text-white font-bold text-xs`}>
-            <span>DS</span>
+          <div className={`${sizeClasses[size]} rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center`}>
+            <svg viewBox="0 0 24 24" className="w-3/4 h-3/4 fill-white">
+              <path d="M4 12c0-4.42 3.58-8 8-8s8 3.58 8 8-3.58 8-8 8-8-3.58-8-8zm11-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm-6 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3 3.5c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm0-4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm4.47 3.8c.28-.4.48-.86.59-1.35.1-.46-.08-.92-.48-1.2-.4-.28-.96-.18-1.24.22-.28.4-.48.86-.59 1.35-.1.46.08.92.48 1.2.4.28.96.18 1.24-.22zM7.53 14.8c-.28-.4-.48-.86-.59-1.35-.1-.46.08-.92.48-1.2.4-.28.96-.18 1.24.22.28.4.48.86.59 1.35.1.46-.08.92-.48 1.2-.4.28-.96.18-1.24-.22z"/>
+            </svg>
           </div>
         )
         

@@ -105,6 +105,7 @@ type MainUIProps = {
   onToggleTheme?: () => void
   onLogout?: () => void
   onSaveSettings?: (settings: any) => void
+  onRenameConversation?: (id: string, newTitle: string) => void
 }
 
 export default function MainUI({
@@ -140,6 +141,7 @@ export default function MainUI({
   onToggleTheme = () => {},
   onLogout = () => {},
   onSaveSettings = () => {},
+  onRenameConversation = () => {},
 }: MainUIProps) {
   // Initialize default models
   const defaultModels: Model[] = [
@@ -165,6 +167,8 @@ export default function MainUI({
   const [showNewModelApiKey, setShowNewModelApiKey] = useState(false)
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState("")
 
   // File upload state
   const [attachments, setAttachments] = useState<ProcessedFile[]>([])
@@ -290,6 +294,35 @@ export default function MainUI({
     }
   }
 
+  // Handle conversation renaming
+  const handleStartRename = (conversationId: string, currentTitle: string) => {
+    setEditingConversationId(conversationId)
+    setEditingTitle(currentTitle)
+  }
+
+  const handleSaveRename = () => {
+    if (editingConversationId && editingTitle.trim()) {
+      onRenameConversation(editingConversationId, editingTitle.trim())
+    }
+    setEditingConversationId(null)
+    setEditingTitle("")
+  }
+
+  const handleCancelRename = () => {
+    setEditingConversationId(null)
+    setEditingTitle("")
+  }
+
+  const handleRenameKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      handleSaveRename()
+    } else if (e.key === "Escape") {
+      e.preventDefault()
+      handleCancelRename()
+    }
+  }
+
   // Toggle project expansion
   const toggleProject = (projectId: string) => {
     setExpandedProjects((prev) => ({
@@ -406,28 +439,37 @@ export default function MainUI({
 
   // Format message content
   const formatMessageContent = (content: string) => {
-    // Clean up content by removing excessive emojis and fixing formatting
+    // Clean up content for minimalist formatting
     const cleaned = content
-      // Remove excessive emojis at the start of lines (more than 3)
-      .replace(/^[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]{4,}/gmu, '')
-      // Limit emoji sequences to max 3
-      .replace(/([\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])\1{3,}/gu, '$1$1$1')
-      // Clean up markdown formatting
+      // Remove all emojis
+      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+      // Remove excessive hashtags and replace with clean headers
+      .replace(/^#{1,6}\s+/gm, '')
+      // Clean markdown formatting to HTML
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm">$1</code>')
+      .replace(/`(.*?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">$1</code>')
       // Handle code blocks
-      .replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg overflow-x-auto"><code>$1</code></pre>')
-      // Handle line breaks properly
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>')
-      // Wrap in paragraphs
-      .replace(/^/, '<p>')
+      .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto my-4"><code class="font-mono text-sm">$1</code></pre>')
+      // Handle bullet points with proper spacing
+      .replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li class="mb-2">$1</li>')
+      // Handle numbered lists
+      .replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li class="mb-2">$1</li>')
+      // Convert multiple line breaks to paragraph breaks
+      .replace(/\n\s*\n/g, '</p><p class="mb-4">')
+      // Convert single line breaks to line breaks
+      .replace(/\n/g, '<br/>')
+      // Wrap content in paragraph tags
+      .replace(/^/, '<p class="mb-4">')
       .replace(/$/, '</p>')
+      // Wrap list items in ul tags
+      .replace(/(<li class="mb-2">.*?<\/li>)/g, (match) => {
+        return '<ul class="list-disc list-inside space-y-2 mb-4 ml-4">' + match + '</ul>';
+      })
       // Clean up empty paragraphs
-      .replace(/<p>\s*<\/p>/g, '')
-      // Fix nested paragraph issues
-      .replace(/<p><\/p><p>/g, '<p>')
+      .replace(/<p class="mb-4">\s*<\/p>/g, '')
+      // Fix multiple consecutive paragraph breaks
+      .replace(/(<\/p>)(\s*<p class="mb-4">)/g, '$1$2')
       .trim();
 
     return cleaned;
@@ -539,12 +581,9 @@ export default function MainUI({
                         <div className="font-medium text-gray-800 dark:text-gray-200 truncate">
                           {conversation.title}
                         </div>
-                        <div className="flex items-center justify-between mt-1">
+                        <div className="mt-1">
                           <span className="text-xs text-gray-500 dark:text-gray-400">
                             {new Date(conversation.timestamp).toLocaleDateString()}
-                          </span>
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
-                            {availableModels.find((m) => m.id === conversation.model)?.name || conversation.model}
                           </span>
                         </div>
                       </button>
@@ -649,12 +688,25 @@ export default function MainUI({
                 </button>
               )}
 
-              <h2 
-                className="font-medium text-gray-800 dark:text-gray-200 cursor-pointer hover:bg-gray-200/20 dark:hover:bg-gray-700/20 px-2 py-1 rounded transition-colors"
-                title="Double-click to rename conversation"
-              >
-                {currentConversation.title}
-              </h2>
+              {editingConversationId === currentConversation.id ? (
+                <input
+                  type="text"
+                  value={editingTitle}
+                  onChange={(e) => setEditingTitle(e.target.value)}
+                  onKeyDown={handleRenameKeyPress}
+                  onBlur={handleSaveRename}
+                  className="font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                  autoFocus
+                />
+              ) : (
+                <h2 
+                  className="font-medium text-gray-800 dark:text-gray-200 cursor-pointer hover:bg-gray-200/20 dark:hover:bg-gray-700/20 px-2 py-1 rounded transition-colors"
+                  title="Double-click to rename conversation"
+                  onDoubleClick={() => handleStartRename(currentConversation.id, currentConversation.title)}
+                >
+                  {currentConversation.title}
+                </h2>
+              )}
             </div>
           </div>
 

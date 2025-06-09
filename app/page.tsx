@@ -413,6 +413,13 @@ export default function Home() {
     }
   }
 
+  // Rename conversation function
+  const handleRenameConversation = (id: string, newTitle: string) => {
+    setConversations(prev => prev.map(conv => 
+      conv.id === id ? { ...conv, title: newTitle } : conv
+    ))
+  }
+
   if (!isClient) {
     // Render a loading state or null on the server to prevent hydration mismatch
     return (
@@ -439,6 +446,7 @@ export default function Home() {
       onSelectModel={setCurrentModel}
       onCreateConversation={handleCreateConversation}
       onSaveSettings={handleSaveSettings}
+      onRenameConversation={handleRenameConversation}
     />
   )
 }
