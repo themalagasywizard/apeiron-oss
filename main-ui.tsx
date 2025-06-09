@@ -5,6 +5,7 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatFileSize } from "@/lib/file-utils"
+import ModelLogo from "@/components/model-logos"
 import {
   Menu,
   X,
@@ -733,26 +734,44 @@ export default function MainUI({
               </motion.div>
             ))}
 
-            {/* Typing Indicator */}
+            {/* Typing Indicator with Model Logo */}
             {isTyping && (
               <div className="flex justify-start">
                 <div className="bg-white/20 dark:bg-gray-800/40 rounded-2xl p-4 border border-gray-200/20 dark:border-gray-700/20">
-                  <div className="flex space-x-2">
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0 }}
-                      className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
+                  <div className="flex items-center space-x-3">
+                    {/* Model Logo */}
+                    <ModelLogo 
+                      provider={(() => {
+                        const model = availableModels.find(m => m.id === currentModel);
+                        return model?.provider || "openai";
+                      })()} 
+                      isLoading={true} 
+                      size="sm" 
                     />
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0.2 }}
-                      className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
-                    />
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0.4 }}
-                      className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
-                    />
+                    
+                    {/* Typing Animation */}
+                    <div className="flex items-center space-x-1">
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0 }}
+                        className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0.2 }}
+                        className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
+                      />
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0.4 }}
+                        className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
+                      />
+                    </div>
+                    
+                    {/* Model Name */}
+                    <span className="text-xs text-gray-600 dark:text-gray-400 ml-2">
+                      {availableModels.find(m => m.id === currentModel)?.name || 'AI'} is thinking...
+                    </span>
                   </div>
                 </div>
               </div>
