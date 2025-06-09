@@ -529,14 +529,6 @@ export default function MainUI({
                     {theme === "dark" ? <Sun className="w-4 h-4 text-gray-200" /> : <Moon className="w-4 h-4 text-gray-700" />}
                   </button>
 
-                  <button
-                    onClick={onLogout}
-                    className="p-1.5 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
-                    aria-label="Log out"
-                  >
-                    <LogOut className="w-4 h-4 text-gray-700 dark:text-gray-200" />
-                  </button>
-
                   {/* Toggle Sidebar Button */}
                   <button
                     onClick={() => setSidebarOpen(false)}
@@ -707,7 +699,7 @@ export default function MainUI({
                 {/* Settings Button */}
                 <button
                   onClick={() => setSettingsOpen(true)}
-                  className="flex-1 h-[48px] flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
+                  className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
                   aria-label="Open settings"
                 >
                   <Settings className="w-4 h-4" />
