@@ -12,6 +12,11 @@ type Message = {
   attachments?: ProcessedFile[]
   model?: string
   provider?: string
+  isError?: boolean
+  retryData?: {
+    originalMessage: string
+    attachments?: ProcessedFile[]
+  }
 }
 
 type ProcessedFile = {
@@ -367,9 +372,14 @@ export default function Home() {
       console.error('Error sending message:', error)
       const errorMessage = {
         id: `msg-${Date.now()}-error`,
-        content: `Error: ${error instanceof Error ? error.message : "Unknown error occurred"}`,
+        content: error instanceof Error ? error.message : "Unknown error occurred. Please try again.",
         role: "assistant" as const,
         timestamp: new Date(),
+        isError: true,
+        retryData: {
+          originalMessage: message,
+          attachments: attachments
+        }
       }
 
       setConversations(prevConvos => prevConvos.map(conv => {
@@ -420,6 +430,25 @@ export default function Home() {
     ))
   }
 
+  // Retry failed message function
+  const handleRetryMessage = (messageId: string) => {
+    const conversation = conversations.find(c => c.id === currentConversationId)
+    if (!conversation) return
+
+    const errorMessage = conversation.messages.find(m => m.id === messageId) as Message
+    if (!errorMessage?.isError || !errorMessage?.retryData) return
+
+    // Remove the error message from the conversation
+    setConversations(prev => prev.map(conv => 
+      conv.id === currentConversationId 
+        ? { ...conv, messages: conv.messages.filter(m => m.id !== messageId) }
+        : conv
+    ))
+
+    // Retry the original message
+    handleSendMessage(errorMessage.retryData.originalMessage, errorMessage.retryData.attachments)
+  }
+
   if (!isClient) {
     // Render a loading state or null on the server to prevent hydration mismatch
     return (
@@ -447,6 +476,7 @@ export default function Home() {
       onCreateConversation={handleCreateConversation}
       onSaveSettings={handleSaveSettings}
       onRenameConversation={handleRenameConversation}
+      onRetryMessage={handleRetryMessage}
     />
   )
 }

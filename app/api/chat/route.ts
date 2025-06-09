@@ -7,6 +7,22 @@ export async function POST(request: NextRequest) {
     let response;
     let aiResponse = "";
 
+    // Helper function to safely parse JSON with fallback
+    const safeJsonParse = async (response: Response, providerName: string) => {
+      const text = await response.text();
+      if (!text || text.trim() === '') {
+        throw new Error(`${providerName} returned an empty response. Please try again.`);
+      }
+      
+      try {
+        return JSON.parse(text);
+      } catch (parseError) {
+        console.error(`${providerName} JSON parse error:`, parseError);
+        console.error(`${providerName} response text:`, text);
+        throw new Error(`${providerName} returned an invalid response. Please try again.`);
+      }
+    };
+
     switch (provider) {
       case "openai":
         response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -25,11 +41,11 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
           const errorData = await response.text();
-          throw new Error(`OpenAI API error: ${response.status} - ${errorData}`);
+          throw new Error(`OpenAI is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
-        const openaiData = await response.json();
-        aiResponse = openaiData.choices[0]?.message?.content || "No response";
+        const openaiData = await safeJsonParse(response, "OpenAI");
+        aiResponse = openaiData.choices[0]?.message?.content || "OpenAI didn't provide a response. Please try again.";
         break;
 
       case "claude":
@@ -50,11 +66,11 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
           const errorData = await response.text();
-          throw new Error(`Claude API error: ${response.status} - ${errorData}`);
+          throw new Error(`Claude is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
-        const claudeData = await response.json();
-        aiResponse = claudeData.content[0]?.text || "No response";
+        const claudeData = await safeJsonParse(response, "Claude");
+        aiResponse = claudeData.content[0]?.text || "Claude didn't provide a response. Please try again.";
         break;
 
       case "gemini":
@@ -77,11 +93,11 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
           const errorData = await response.text();
-          throw new Error(`Gemini API error: ${response.status} - ${errorData}`);
+          throw new Error(`Gemini is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
-        const geminiData = await response.json();
-        aiResponse = geminiData.candidates[0]?.content?.parts[0]?.text || "No response";
+        const geminiData = await safeJsonParse(response, "Gemini");
+        aiResponse = geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini didn't provide a response. Please try again.";
         break;
 
       case "deepseek":
@@ -101,11 +117,11 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
           const errorData = await response.text();
-          throw new Error(`DeepSeek API error: ${response.status} - ${errorData}`);
+          throw new Error(`DeepSeek is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
-        const deepseekData = await response.json();
-        aiResponse = deepseekData.choices[0]?.message?.content || "No response";
+        const deepseekData = await safeJsonParse(response, "DeepSeek");
+        aiResponse = deepseekData.choices[0]?.message?.content || "DeepSeek didn't provide a response. Please try again.";
         break;
 
       case "grok":
@@ -125,11 +141,11 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
           const errorData = await response.text();
-          throw new Error(`Grok API error: ${response.status} - ${errorData}`);
+          throw new Error(`Grok is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
-        const grokData = await response.json();
-        aiResponse = grokData.choices[0]?.message?.content || "No response";
+        const grokData = await safeJsonParse(response, "Grok");
+        aiResponse = grokData.choices[0]?.message?.content || "Grok didn't provide a response. Please try again.";
         break;
 
       case "openrouter":
@@ -151,11 +167,11 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
           const errorData = await response.text();
-          throw new Error(`OpenRouter API error: ${response.status} - ${errorData}`);
+          throw new Error(`OpenRouter is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
-        const openrouterData = await response.json();
-        aiResponse = openrouterData.choices[0]?.message?.content || "No response";
+        const openrouterData = await safeJsonParse(response, "OpenRouter");
+        aiResponse = openrouterData.choices[0]?.message?.content || "OpenRouter didn't provide a response. Please try again.";
         break;
 
       default:

@@ -39,6 +39,11 @@ type Message = {
   attachments?: ProcessedFile[]
   model?: string
   provider?: string
+  isError?: boolean
+  retryData?: {
+    originalMessage: string
+    attachments?: ProcessedFile[]
+  }
 }
 
 type ProcessedFile = {
@@ -106,6 +111,7 @@ type MainUIProps = {
   onLogout?: () => void
   onSaveSettings?: (settings: any) => void
   onRenameConversation?: (id: string, newTitle: string) => void
+  onRetryMessage?: (messageId: string) => void
 }
 
 export default function MainUI({
@@ -142,6 +148,7 @@ export default function MainUI({
   onLogout = () => {},
   onSaveSettings = () => {},
   onRenameConversation = () => {},
+  onRetryMessage = () => {},
 }: MainUIProps) {
   // Initialize default models
   const defaultModels: Model[] = [
@@ -813,9 +820,26 @@ export default function MainUI({
                   {/* Message content */}
                   {message.content && (
                     <div 
-                      className="prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200"
+                      className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+                        message.isError ? 'text-red-600 dark:text-red-400' : ''
+                      }`}
                       dangerouslySetInnerHTML={{ __html: formatMessageContent(message.content) }}
                     />
+                  )}
+
+                  {/* Retry button for error messages */}
+                  {message.isError && message.retryData && (
+                    <div className="mt-3 pt-3 border-t border-gray-200/20 dark:border-gray-600/20">
+                      <button
+                        onClick={() => onRetryMessage(message.id)}
+                        className="flex items-center gap-2 px-3 py-2 text-sm bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Try Again
+                      </button>
+                    </div>
                   )}
                   
                   <div
