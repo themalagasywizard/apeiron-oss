@@ -187,10 +187,7 @@ async function extractTextFromPDF(buffer: Buffer, filename: string): Promise<str
 🔤 Words: ~${wordCount}`;
       }
       
-      return `${contextualIntro}
-
-📖 Content:
-${cleanText}`;
+      return cleanText;
     }
     
     // FALLBACK GUIDANCE: When both methods provide minimal text
@@ -288,7 +285,7 @@ Despite processing challenges, I have comprehensive Madagascar knowledge:
 🚀 Ready to help based on your description! What information does the document contain?`;
     }
     
-    return contextualGuidance;
+    return `Unable to extract text from ${filename}. This may be an image-based PDF or encrypted document.`;
     
   } catch (error) {
     console.error('PDF processing error:', error);
@@ -340,52 +337,16 @@ async function processImageWithOCR(buffer: Buffer, mimeType: string): Promise<st
         .replace(/([.!?])\s+/g, '$1\n\n')
         .trim();
 
-      return `✅ Image Text Extraction Complete
-
-📸 Image Size: ${imageSizeKB} KB
-🎯 OCR Confidence: ${Math.round(data.confidence)}%
-📝 Characters: ${cleanText.length}
-
-📖 Extracted Text:
-${cleanText}
-
-💡 You can now ask me to:
-- Analyze the extracted content
-- Answer questions about what's in the image
-- Explain specific parts of the text`;
+      return cleanText;
     } else {
-      return `📸 Image Processed
-
-📊 Size: ${imageSizeKB} KB
-⚠️  Text: No readable text found
-
-💭 This image may contain:
-- Graphics, charts, or diagrams
-- Handwritten content
-- Low-resolution text
-- Non-English text
-
-🔍 How I can help:
-- Describe what you see in the image
-- Ask about visual elements
-- Share questions about the content`;
+      return `No readable text found in image.`;
     }
     
   } catch (error) {
     console.error('Image OCR error:', error);
     const imageSizeKB = Math.round(buffer.length / 1024);
     
-    return `📸 Image Upload Successful
-
-📊 Size: ${imageSizeKB} KB
-⚠️  OCR: Processing unavailable
-
-💭 You can still:
-- Describe what's in the image
-- Ask questions about visual content
-- Request analysis of specific elements
-
-Ready to help based on your description! 🚀`;
+    return `Image uploaded but OCR processing failed.`;
   }
 }
 
