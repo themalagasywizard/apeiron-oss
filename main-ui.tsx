@@ -6,6 +6,8 @@ import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatFileSize } from "@/lib/file-utils"
 import ModelLogo from "@/components/model-logos"
+import HTMLPreview from "@/components/html-preview"
+import { detectHTMLInContent } from "@/lib/html-templates"
 import {
   Menu,
   X,
@@ -825,14 +827,74 @@ export default function MainUI({
                   )}
                   
                   {/* Message content */}
-                  {message.content && (
-                    <div 
-                      className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
-                        message.isError ? 'text-red-600 dark:text-red-400' : ''
-                      }`}
-                      dangerouslySetInnerHTML={{ __html: formatMessageContent(message.content) }}
-                    />
-                  )}
+                  {message.content && (() => {
+                    const htmlDetection = detectHTMLInContent(message.content)
+                    
+                    if (htmlDetection.hasHTML && htmlDetection.htmlContent) {
+                      return (
+                        <div className="space-y-4">
+                          {/* Regular message content without HTML */}
+                          <div 
+                            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+                              message.isError ? 'text-red-600 dark:text-red-400' : ''
+                            }`}
+                            dangerouslySetInnerHTML={{ 
+                              __html: formatMessageContent(message.content.replace(/```html[\s\S]*?```/gi, '').replace(/```[\s\S]*?```/gi, '').trim()) 
+                            }}
+                          />
+                          
+                          {/* HTML Preview Component */}
+                          <HTMLPreview 
+                            htmlContent={htmlDetection.htmlContent}
+                            filename={htmlDetection.filename}
+                            onDownload={async (content, filename) => {
+                              try {
+                                // Save to database
+                                const response = await fetch('/api/html-code', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    title: filename.replace('.html', ''),
+                                    htmlContent: content,
+                                    isPublic: false,
+                                    tags: ['ai-generated'],
+                                    templateType: 'complete'
+                                  })
+                                })
+                                
+                                if (response.ok) {
+                                  const result = await response.json()
+                                  console.log('HTML code saved:', result.data.id)
+                                }
+                              } catch (error) {
+                                console.error('Failed to save HTML code:', error)
+                              }
+                              
+                              // Trigger download
+                              const blob = new Blob([content], { type: 'text/html' })
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = filename
+                              document.body.appendChild(a)
+                              a.click()
+                              document.body.removeChild(a)
+                              URL.revokeObjectURL(url)
+                            }}
+                          />
+                        </div>
+                      )
+                    } else {
+                      return (
+                        <div 
+                          className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+                            message.isError ? 'text-red-600 dark:text-red-400' : ''
+                          }`}
+                          dangerouslySetInnerHTML={{ __html: formatMessageContent(message.content) }}
+                        />
+                      )
+                    }
+                  })()}
 
                   {/* Retry button for error messages */}
                   {message.isError && message.retryData && (
