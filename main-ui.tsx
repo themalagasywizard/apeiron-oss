@@ -292,10 +292,10 @@ export default function MainUI({
     return currentModelData && (currentModelData.provider === "gemini" || currentModelData.provider === "grok")
   }
 
-  // Check if current model supports code generation (hide for VEO2 since it's a video model)
+  // Check if current model supports code generation (hide for VEO2 since it's a video model, and DeepSeek due to timeout issues)
   const isCodeGenerationCompatible = () => {
     const currentModelData = availableModels.find(m => m.id === currentModel)
-    return currentModelData && currentModelData.id !== "veo2"
+    return currentModelData && currentModelData.id !== "veo2" && currentModelData.provider !== "deepseek"
   }
 
   // Check if mobile on mount and window resize
