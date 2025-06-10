@@ -183,6 +183,9 @@ export default function Home() {
     // Start typing indicator
     setIsTyping(true)
 
+    let workingConversationId = currentConversationId
+    let workingConversations = conversations
+
     // If no conversations exist, create the first one
     if (conversations.length === 0 || !currentConversationId) {
       const newId = `conv-${Date.now()}`
@@ -193,11 +196,10 @@ export default function Home() {
         model: currentModel,
         messages: [],
       }
-      setConversations([newConversation])
-      setCurrentConversationId(newId)
-      
-      // Continue with the new conversation
-      return handleSendMessage(message, attachments, webSearchEnabled)
+      workingConversations = [newConversation]
+      workingConversationId = newId
+      setConversations(workingConversations)
+      setCurrentConversationId(workingConversationId)
     }
 
     // 1. Create the full message content with attachments
@@ -224,8 +226,8 @@ export default function Home() {
     }
 
     // 3. Add the new message to the conversation
-    const updatedConversations = conversations.map((conv) => {
-      if (conv.id === currentConversationId) {
+    const updatedConversations = workingConversations.map((conv) => {
+      if (conv.id === workingConversationId) {
         return {
           ...conv,
           messages: [...conv.messages, newUserMessage],
@@ -245,7 +247,7 @@ export default function Home() {
       }
 
       // Get the latest messages for the API call
-      const conversationForApi = updatedConversations.find(c => c.id === currentConversationId)
+      const conversationForApi = updatedConversations.find(c => c.id === workingConversationId)
       if (!conversationForApi) {
         throw new Error("Could not find current conversation.")
       }
@@ -326,7 +328,7 @@ export default function Home() {
       }
       
       setConversations(prevConvos => prevConvos.map(conv => {
-        if (conv.id === currentConversationId) {
+        if (conv.id === workingConversationId) {
           return { ...conv, messages: [...conv.messages, newAiMessage] }
         }
         return conv
@@ -347,7 +349,7 @@ export default function Home() {
       }
 
       setConversations(prevConvos => prevConvos.map(conv => {
-        if (conv.id === currentConversationId) {
+        if (conv.id === workingConversationId) {
           // Add error message without duplicating the user message
           return { ...conv, messages: [...conv.messages, errorMessage] }
         }
