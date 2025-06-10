@@ -533,10 +533,12 @@ export default function Home() {
           throw new Error(`API key required. Please configure ${selectedModelData.provider} in Settings > Models.`)
       }
 
-      // Call the appropriate AI endpoint based on code generation mode
+      // Call the appropriate AI endpoint based on code generation mode or DeepSeek provider
       let apiResult;
-      if (codeGenerationEnabled) {
-        // Use Edge Function for code generation
+      const shouldUseEdgeFunction = codeGenerationEnabled || selectedModelData.provider === "deepseek";
+      
+      if (shouldUseEdgeFunction) {
+        // Use Edge Function for code generation or DeepSeek models (which are slower)
         apiResult = await callCodeGenerationAPI(allMessages, selectedModelData.provider, apiKey, modelName, customModelName)
       } else {
         // Use regular API with web search support
