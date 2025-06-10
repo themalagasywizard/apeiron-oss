@@ -266,45 +266,18 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       // Try multiple download strategies for better compatibility
       try {
         console.log("Attempting video download...");
+        console.log("Video URL:", currentVideoUrl);
         
-        // Strategy 1: Try authenticated download via proxy if API key is available
-        if (apiKey) {
-          console.log("Trying authenticated download via proxy...");
-          const timestamp = Date.now();
-          const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(currentVideoUrl)}&key=${encodeURIComponent(apiKey)}&t=${timestamp}`;
-          
-          const response = await fetch(proxyUrl);
-          
-          if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            console.log("Download completed successfully via proxy");
-            return;
-          } else {
-            // Try to get better error message from proxy
-            try {
-              const errorData = await response.json();
-              if (errorData.message) {
-                console.log("Proxy error:", errorData.message);
-                // Show user-friendly error message
-                alert(errorData.message);
-                return; // Don't try other methods if we have a clear error message
-              }
-            } catch (parseError) {
-              // Continue with other methods if we can't parse the error
-            }
-            console.log("Proxy download failed, trying direct methods...");
-          }
+        // Check if this is a Google Storage URL (usually public)
+        const isGoogleStorage = currentVideoUrl.includes('storage.googleapis.com') || 
+                               currentVideoUrl.includes('googleusercontent.com');
+        
+        if (isGoogleStorage) {
+          console.log("Detected Google Storage URL - using direct download approach");
         }
         
-        // Strategy 2: Try direct fetch (for publicly accessible URLs)
+        // Strategy 1: Try direct fetch first (for publicly accessible URLs)
+        // This is preferred since it doesn't require API authentication
         console.log("Trying direct fetch download...");
         try {
           const response = await fetch(currentVideoUrl, {
@@ -324,31 +297,74 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
             window.URL.revokeObjectURL(url);
             console.log("Download completed successfully via direct fetch");
             return;
+          } else {
+            console.log("Direct fetch failed with status:", response.status);
           }
         } catch (directFetchError) {
           console.log("Direct fetch failed:", directFetchError);
         }
         
-        // Strategy 3: Open in new tab as fallback
-        console.log("Using fallback: opening video in new tab...");
-        const link = document.createElement('a');
-        link.href = currentVideoUrl;
-        link.target = '_blank';
-        link.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Strategy 2: Try browser download with proper attributes
+        console.log("Trying browser download...");
+        try {
+          const link = document.createElement('a');
+          link.href = currentVideoUrl;
+          link.target = '_blank';
+          link.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
+          link.rel = 'noopener noreferrer';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          console.log("Browser download initiated");
+          return;
+        } catch (browserDownloadError) {
+          console.log("Browser download failed:", browserDownloadError);
+        }
+        
+        // Strategy 3: Try authenticated download via proxy only if direct methods fail
+        // Skip proxy for Google Storage URLs since they're usually public
+        if (apiKey && !isGoogleStorage) {
+          console.log("Trying authenticated download via proxy as fallback...");
+          try {
+            const timestamp = Date.now();
+            const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(currentVideoUrl)}&key=${encodeURIComponent(apiKey)}&t=${timestamp}`;
+            
+            const response = await fetch(proxyUrl);
+            
+            if (response.ok) {
+              const blob = await response.blob();
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+              console.log("Download completed successfully via proxy");
+              return;
+            } else {
+              console.log("Proxy download failed with status:", response.status);
+              // Don't show error alert here since we have other fallbacks
+            }
+          } catch (proxyError) {
+            console.log("Proxy download failed:", proxyError);
+          }
+        }
+        
+        // Strategy 4: Final fallback - copy URL to clipboard and guide user
+        console.log("Using final fallback: clipboard + instructions");
+        try {
+          await navigator.clipboard.writeText(currentVideoUrl);
+          alert(`Download via app failed, but the video URL has been copied to your clipboard!\n\nTo download manually:\n1. Paste the URL in a new browser tab\n2. Right-click the video and select "Save video as..."\n3. Choose your download location`);
+        } catch (clipboardErr) {
+          console.error("Clipboard access failed:", clipboardErr);
+          alert(`Download failed. Please copy this URL manually and open it in your browser:\n\n${currentVideoUrl}\n\nThen right-click the video and select "Save video as..."`);
+        }
         
       } catch (err) {
         console.error("All download strategies failed:", err);
-        // Final fallback: copy URL to clipboard and show user message
-        try {
-          await navigator.clipboard.writeText(currentVideoUrl);
-          alert('Download failed, but the video URL has been copied to your clipboard. You can paste it in your browser to access the video.');
-        } catch (clipboardErr) {
-          console.error("Clipboard access failed:", clipboardErr);
-          alert(`Download failed. Please copy this URL manually: ${currentVideoUrl}`);
-        }
+        alert(`Download failed. Video URL: ${currentVideoUrl}\n\nPlease copy this URL and open it in your browser to access the video.`);
       }
     }
   }
