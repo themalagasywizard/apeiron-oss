@@ -5,6 +5,11 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   let provider = "unknown"; // Declare in outer scope for error handling
   
+  // Emergency timeout - kill the entire function after 25 seconds
+  const emergencyTimeout = setTimeout(() => {
+    console.error("Emergency timeout hit - function taking too long");
+  }, 25000);
+  
   try {
     const requestBody = await request.json();
     const { messages, provider: requestProvider, apiKey, model, temperature, customModelName, webSearchEnabled } = requestBody;
@@ -76,13 +81,13 @@ export async function POST(request: NextRequest) {
       isCodeRequest = false; // Fallback to false if detection fails
     }
 
-    // Optimize parameters for code generation
+    // Optimize parameters for code generation (ultra-conservative for serverless)
     const getOptimizedParams = (baseTimeout: number, baseTokens: number) => {
       try {
         if (isCodeRequest) {
           return {
-            timeout: Math.min(baseTimeout + 5000, 28000), // Add 5 seconds for code, max 28s
-            maxTokens: Math.min(baseTokens * 2, 6000), // Double tokens for code, max 6000
+            timeout: Math.min(baseTimeout + 2000, 20000), // Add only 2 seconds for code, max 20s
+            maxTokens: Math.min(baseTokens * 1.5, 4000), // 1.5x tokens for code, max 4000
             temperature: 0.1 // Lower temperature for more focused code output
           };
         }
@@ -142,10 +147,13 @@ User Request: ${lastMessage.content}`;
       }
     };
 
-    // Helper function to add timeout to fetch requests (optimized for serverless)
-    const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 25000): Promise<Response> => {
+    // Helper function to add timeout to fetch requests (ultra-conservative for serverless)
+    const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 18000): Promise<Response> => {
+      // Emergency serverless protection - never exceed 20 seconds
+      const safeTimeout = Math.min(timeoutMs, 20000);
+      
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const timeoutId = setTimeout(() => controller.abort(), safeTimeout);
 
       try {
         const response = await fetch(url, {
@@ -157,7 +165,7 @@ User Request: ${lastMessage.content}`;
       } catch (error) {
         clearTimeout(timeoutId);
         if (error instanceof Error && error.name === 'AbortError') {
-          throw new Error(`Request timed out after ${timeoutMs / 1000} seconds. For large code generation, try breaking your request into smaller parts or use a simpler prompt.`);
+          throw new Error(`Request timed out after ${safeTimeout / 1000} seconds. Serverless functions have strict time limits. Try a shorter request.`);
         }
         throw error;
       }
@@ -177,7 +185,7 @@ User Request: ${lastMessage.content}`;
               query: lastMessage.content,
               maxResults: 5
             })
-          }, 20000); // 20 second timeout for web search
+          }, 15000); // 15 second timeout for web search in serverless
 
           if (searchResponse.ok) {
             const searchData = await searchResponse.json();
@@ -261,7 +269,7 @@ Please provide a comprehensive response using the above search results.`;
 
     switch (provider) {
       case "openai":
-        const openaiParams = getOptimizedParams(25000, 3000);
+        const openaiParams = getOptimizedParams(15000, 2500);
         const openaiMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
         
         response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
@@ -282,7 +290,7 @@ Please provide a comprehensive response using the above search results.`;
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`OpenAI request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
+            throw new Error(`OpenAI request timed out. Serverless time limit reached. Try a shorter request.`);
           }
           throw new Error(`OpenAI is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -292,7 +300,7 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "claude":
-        const claudeParams = getOptimizedParams(25000, 4000);
+        const claudeParams = getOptimizedParams(15000, 3000);
         const claudeMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
         
         response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
@@ -313,7 +321,7 @@ Please provide a comprehensive response using the above search results.`;
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`Claude request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
+            throw new Error(`Claude request timed out. Serverless time limit reached. Try a shorter request.`);
           }
           throw new Error(`Claude is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -323,7 +331,7 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "gemini":
-        const geminiParams = getOptimizedParams(25000, 4096);
+        const geminiParams = getOptimizedParams(15000, 3000);
         const geminiMessages = optimizeMessagesForCode(messages.map((m: any) => ({
           role: m.role === "assistant" ? "model" : "user",
           parts: [{ text: m.content }]
@@ -349,7 +357,7 @@ Please provide a comprehensive response using the above search results.`;
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`Gemini request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
+            throw new Error(`Gemini request timed out. Serverless time limit reached. Try a shorter request.`);
           }
           throw new Error(`Gemini 2.5 Flash is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -359,7 +367,7 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "deepseek":
-        const deepseekParams = getOptimizedParams(25000, 3000);
+        const deepseekParams = getOptimizedParams(15000, 2500);
         const deepseekMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
         
         response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
@@ -380,7 +388,7 @@ Please provide a comprehensive response using the above search results.`;
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`DeepSeek request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
+            throw new Error(`DeepSeek request timed out. Serverless time limit reached. Try a shorter request.`);
           }
           throw new Error(`DeepSeek is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -390,7 +398,7 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "grok":
-        const grokParams = getOptimizedParams(25000, 3000);
+        const grokParams = getOptimizedParams(15000, 2500);
         const grokMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
         
         response = await fetchWithTimeout("https://api.x.ai/v1/chat/completions", {
@@ -411,7 +419,7 @@ Please provide a comprehensive response using the above search results.`;
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`Grok request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
+            throw new Error(`Grok request timed out. Serverless time limit reached. Try a shorter request.`);
           }
           throw new Error(`Grok is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -421,7 +429,7 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "openrouter":
-        const openrouterParams = getOptimizedParams(25000, 3000);
+        const openrouterParams = getOptimizedParams(15000, 2500);
         const openrouterMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
         
         response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
@@ -444,7 +452,7 @@ Please provide a comprehensive response using the above search results.`;
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`OpenRouter request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
+            throw new Error(`OpenRouter request timed out. Serverless time limit reached. Try a shorter request.`);
           }
           throw new Error(`OpenRouter is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -472,12 +480,12 @@ Please provide a comprehensive response using the above search results.`;
             duration: 8, // Use number instead of string
             aspectRatio: "16:9"
           })
-        }, 25000); // 25 second timeout for serverless compatibility
+        }, 15000); // 15 second timeout for serverless compatibility
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`VEO2 video generation timed out. Video generation requires more time than available in serverless environment. Please try a simpler prompt.`);
+            throw new Error(`VEO2 video generation timed out. Video generation requires more time than serverless functions allow. Please try a simpler prompt.`);
           }
           throw new Error(`VEO2 is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -490,6 +498,7 @@ Please provide a comprehensive response using the above search results.`;
         throw new Error(`Unsupported provider: ${provider}`);
     }
 
+    clearTimeout(emergencyTimeout);
     return NextResponse.json({ 
       response: aiResponse,
       model: model,
@@ -499,6 +508,7 @@ Please provide a comprehensive response using the above search results.`;
     });
 
   } catch (error) {
+    clearTimeout(emergencyTimeout);
     console.error("Chat API error:", error);
     
     // Provide more detailed error information
