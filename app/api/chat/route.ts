@@ -2,10 +2,56 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, provider, apiKey, model, temperature, customModelName } = await request.json();
+    const { messages, provider, apiKey, model, temperature, customModelName, webSearchEnabled } = await request.json();
 
     let response;
     let aiResponse = "";
+    let searchResults = null;
+
+    // Perform web search if enabled for compatible models (Gemini and Grok)
+    if (webSearchEnabled && (provider === "gemini" || provider === "grok")) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.role === "user") {
+        try {
+          console.log("Performing web search for:", lastMessage.content);
+          
+          const searchResponse = await fetch(`${new URL(request.url).origin}/api/web-search`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: lastMessage.content,
+              maxResults: 5
+            })
+          });
+
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            searchResults = searchData.results;
+            
+            // Enhance the user's message with search context
+            const searchContext = searchResults.map((result: any) => 
+              `${result.title}: ${result.snippet} (Source: ${result.url})`
+            ).join('\n\n');
+            
+            const enhancedContent = `${lastMessage.content}
+
+Current web search results:
+${searchContext}
+
+Please provide a comprehensive response using the above search results as context. Include relevant information from the search results and cite sources when appropriate.`;
+
+            // Update the last message with search context
+            messages[messages.length - 1] = {
+              ...lastMessage,
+              content: enhancedContent
+            };
+          }
+        } catch (searchError) {
+          console.error("Web search failed:", searchError);
+          // Continue without search results
+        }
+      }
+    }
 
     // Helper function to safely parse JSON with fallback
     const safeJsonParse = async (response: Response, providerName: string) => {
@@ -74,7 +120,8 @@ export async function POST(request: NextRequest) {
         break;
 
       case "gemini":
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        // Use Gemini 2.5 Flash (latest model)
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -86,18 +133,20 @@ export async function POST(request: NextRequest) {
             })),
             generationConfig: {
               temperature: temperature || 0.7,
-              maxOutputTokens: 4000
+              maxOutputTokens: 4000,
+              topP: 0.95,
+              topK: 40
             }
           })
         });
 
         if (!response.ok) {
           const errorData = await response.text();
-          throw new Error(`Gemini is currently unavailable (${response.status}). Please try again in a moment.`);
+          throw new Error(`Gemini 2.5 is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
-        const geminiData = await safeJsonParse(response, "Gemini");
-        aiResponse = geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini didn't provide a response. Please try again.";
+        const geminiData = await safeJsonParse(response, "Gemini 2.5");
+        aiResponse = geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini 2.5 didn't provide a response. Please try again.";
         break;
 
       case "deepseek":
@@ -211,7 +260,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       response: aiResponse,
       model: model,
-      provider: provider
+      provider: provider,
+      searchResults: searchResults,
+      searchEnabled: webSearchEnabled && (provider === "gemini" || provider === "grok")
     });
 
   } catch (error) {

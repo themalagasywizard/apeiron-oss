@@ -33,6 +33,8 @@ import {
   Download,
   PanelLeftClose,
   PanelLeftOpen,
+  Search,
+  Globe,
 } from "lucide-react"
 
 // Types
@@ -108,7 +110,7 @@ type MainUIProps = {
   currentModel?: string
   userSettings?: UserSettings
   isTyping?: boolean
-  onSendMessage?: (message: string, attachments?: ProcessedFile[]) => void
+  onSendMessage?: (message: string, attachments?: ProcessedFile[], webSearchEnabled?: boolean) => void
   onSelectConversation?: (id: string) => void
   onSelectModel?: (id: string) => void
   onCreateConversation?: () => void
@@ -190,11 +192,20 @@ export default function MainUI({
   const [isUploading, setIsUploading] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
 
+  // Web search state
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+
   // Use models from props (calculated in page.tsx with proper API key logic)
   const availableModels = models
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Check if current model supports web search
+  const isWebSearchCompatible = () => {
+    const currentModelData = availableModels.find(m => m.id === currentModel)
+    return currentModelData && (currentModelData.provider === "gemini" || currentModelData.provider === "grok")
+  }
 
   // Check if mobile on mount and window resize
   useEffect(() => {
@@ -217,6 +228,13 @@ export default function MainUI({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [currentConversation.messages])
+
+  // Disable web search when switching to incompatible models
+  useEffect(() => {
+    if (!isWebSearchCompatible() && webSearchEnabled) {
+      setWebSearchEnabled(false)
+    }
+  }, [currentModel])
 
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -295,7 +313,7 @@ export default function MainUI({
   // Handle sending a message
   const handleSendMessage = () => {
     if (inputValue.trim() || attachments.length > 0) {
-      onSendMessage(inputValue, attachments.length > 0 ? attachments : undefined)
+      onSendMessage(inputValue, attachments.length > 0 ? attachments : undefined, webSearchEnabled)
       setInputValue("")
       setAttachments([])
     }
@@ -1112,6 +1130,28 @@ export default function MainUI({
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400 pointer-events-none" />
                 </div>
               </div>
+
+              {/* Web Search Toggle Button (only for compatible models) */}
+              {isWebSearchCompatible() && (
+                <div className="flex-shrink-0">
+                  <button
+                    onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                    className={`h-[48px] w-[48px] rounded-xl border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
+                      webSearchEnabled
+                        ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg hover:shadow-blue-500/25"
+                        : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
+                    }`}
+                    title={webSearchEnabled ? "Web search enabled" : "Enable web search"}
+                    aria-label={webSearchEnabled ? "Disable web search" : "Enable web search"}
+                  >
+                    {webSearchEnabled ? (
+                      <Globe className="w-5 h-5" />
+                    ) : (
+                      <Search className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              )}
 
               {/* File Upload Button */}
               <div className="flex-shrink-0">

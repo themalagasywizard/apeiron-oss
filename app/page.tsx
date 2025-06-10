@@ -215,7 +215,7 @@ export default function Home() {
     : [...userSettings.models, ...defaultModels.filter(m => !userSettings.models.some(um => um.id === m.id))]
 
   // Unified API calling function that uses our server-side route
-  const callAI = async (messages: Message[], provider: string, apiKey: string, model?: string, customModelName?: string) => {
+  const callAI = async (messages: Message[], provider: string, apiKey: string, model?: string, customModelName?: string, webSearchEnabled?: boolean) => {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: {
@@ -227,7 +227,8 @@ export default function Home() {
         apiKey,
         model,
         temperature: userSettings.temperature,
-        customModelName
+        customModelName,
+        webSearchEnabled
       })
     })
     
@@ -244,7 +245,7 @@ export default function Home() {
   const currentConversation = conversations.find((conv) => conv.id === currentConversationId) || conversations[0]
 
   // Handle sending a message
-  const handleSendMessage = async (message: string, attachments?: ProcessedFile[]) => {
+  const handleSendMessage = async (message: string, attachments?: ProcessedFile[], webSearchEnabled?: boolean) => {
     // Start typing indicator
     setIsTyping(true)
 
@@ -360,7 +361,7 @@ export default function Home() {
       }
 
       // Call the unified AI API
-      const apiResult = await callAI(allMessages, selectedModelData.provider, apiKey, modelName, customModelName)
+      const apiResult = await callAI(allMessages, selectedModelData.provider, apiKey, modelName, customModelName, webSearchEnabled)
       aiResponse = apiResult.response || apiResult
 
       // 5. Add the AI response message
