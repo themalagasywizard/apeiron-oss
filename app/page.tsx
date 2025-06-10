@@ -122,6 +122,24 @@ export default function Home() {
 
   // Load settings and set client flag on mount
   useEffect(() => {
+    // Immediately redirect to production if on localhost with auth-related parameters
+    const currentUrl = window.location.href
+    if (window.location.hostname === 'localhost') {
+      const url = new URL(currentUrl)
+      const hasAuthParams = url.searchParams.has('code') || 
+                           url.searchParams.has('error') || 
+                           url.searchParams.has('state') ||
+                           currentUrl.includes('#access_token=')
+      
+      if (hasAuthParams) {
+        // Redirect to production preserving all query parameters and fragments
+        const redirectUrl = currentUrl.replace('http://localhost:3000', 'https://t3-oss.netlify.app')
+        console.log('Redirecting to production:', redirectUrl)
+        window.location.replace(redirectUrl)
+        return
+      }
+    }
+
     // Clean up URL fragments immediately if present
     const cleanUpUrlFragments = () => {
       const currentUrl = window.location.href

@@ -34,6 +34,8 @@ SERP_API_KEY=your_serp_api_key
    - Enable Google+ API
    - Create OAuth 2.0 credentials
    - Add your Supabase callback URL: `https://your-project.supabase.co/auth/v1/callback`
+   - **CRITICAL**: Add `https://t3-oss.netlify.app` as an authorized origin
+   - **CRITICAL**: Add `https://t3-oss.netlify.app/auth/callback` as an authorized redirect URI
    - Copy Client ID and Client Secret to Supabase
 
 ## 5. Row Level Security (RLS)
