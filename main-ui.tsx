@@ -492,45 +492,80 @@ export default function MainUI({
       
       recognition.lang = 'en-US'
       recognition.interimResults = true
-      recognition.continuous = false
+      recognition.continuous = true  // Keep listening until manually stopped
       recognition.maxAlternatives = 1
 
       recognition.onstart = () => {
         setIsListening(true)
         setError(null)
+        console.log('Speech recognition started - speak now')
       }
 
       recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0].transcript)
-          .join('')
+        let finalTranscript = ''
+        let interimTranscript = ''
         
-        setInputValue(transcript)
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript
+          } else {
+            interimTranscript += transcript
+          }
+        }
+        
+        // Update input with final + interim results
+        const fullTranscript = (inputValue + finalTranscript + interimTranscript).trim()
+        setInputValue(fullTranscript)
       }
 
       recognition.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error)
+        
+        // Don't stop on "no-speech" error when in continuous mode - user controls when to stop
+        if (event.error === 'no-speech') {
+          console.log('No speech detected, but continuing to listen...')
+          return // Keep listening
+        }
+        
         setIsListening(false)
         
         switch (event.error) {
-          case 'no-speech':
-            setError('No speech detected. Please try again.')
-            break
           case 'audio-capture':
             setError('Microphone not accessible. Please check permissions.')
             break
           case 'not-allowed':
             setError('Microphone access denied. Please allow microphone access.')
             break
+          case 'network':
+            setError('Network error. Please check your connection.')
+            break
+          case 'aborted':
+            // User manually stopped, no error needed
+            break
           default:
             setError(`Speech recognition error: ${event.error}`)
         }
-        setTimeout(() => setError(null), 5000)
+        
+        if (event.error !== 'aborted') {
+          setTimeout(() => setError(null), 5000)
+        }
       }
 
       recognition.onend = () => {
-        setIsListening(false)
-        recognitionRef.current = null
+        // Only reset if we're not manually controlling the session
+        if (isListening && recognitionRef.current) {
+          console.log('Speech recognition ended unexpectedly, restarting...')
+          // Restart if it ended unexpectedly while we want to keep listening
+          setTimeout(() => {
+            if (isListening && recognitionRef.current) {
+              recognitionRef.current.start()
+            }
+          }, 100)
+        } else {
+          setIsListening(false)
+          recognitionRef.current = null
+        }
       }
 
       recognition.start()
@@ -544,6 +579,7 @@ export default function MainUI({
   }
 
   const stopListening = () => {
+    console.log('Stopping speech recognition...')
     if (recognitionRef.current) {
       recognitionRef.current.stop()
       recognitionRef.current = null
@@ -1332,15 +1368,18 @@ export default function MainUI({
 
               <button
                 onClick={isListening ? stopListening : startListening}
-                className={`h-[48px] w-[48px] rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-200 ${
+                className={`h-[48px] w-[48px] rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-200 relative ${
                   isListening
-                    ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg hover:shadow-red-500/25 animate-pulse"
+                    ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg hover:shadow-red-500/25"
                     : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400 border border-gray-200/20 dark:border-gray-700/20"
                 }`}
-                aria-label={isListening ? "Stop voice input" : "Start voice input"}
-                title={isListening ? "Stop listening" : "Start voice input"}
+                aria-label={isListening ? "Click to stop voice input" : "Click to start voice input"}
+                title={isListening ? "🎤 Listening... Click to stop" : "🎤 Click to start voice input"}
               >
                 <Mic className={`w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
+                {isListening && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-ping"></div>
+                )}
               </button>
             </div>
           </div>
