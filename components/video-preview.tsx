@@ -52,18 +52,37 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [isLoadingVideo, setIsLoadingVideo] = useState(false)
 
-  // Use direct video URL for playback (no authentication needed)
+  // Create authenticated video URL by adding API key as query parameter
   const createAuthenticatedVideoUrl = async (videoUrl: string) => {
-    console.log("Setting up direct video URL for playback...");
+    console.log("Setting up authenticated video URL for playback...");
     console.log("Input video URL:", videoUrl);
     
-    // Always use direct URL - no proxy authentication needed
-    // Most VEO 2 generated videos are publicly accessible
-    setIsLoadingVideo(false);
-    setAuthenticatedVideoUrl(videoUrl);
-    
-    console.log("Direct video URL set successfully:", videoUrl);
-    console.log("Video player will use direct URL without authentication");
+    if (!apiKey) {
+      console.log("No API key available - using direct URL (may fail for protected videos)");
+      setAuthenticatedVideoUrl(videoUrl);
+      setIsLoadingVideo(false);
+      return;
+    }
+
+    try {
+      // Add API key directly to the video URL
+      const authUrl = videoUrl.includes('key=') 
+        ? videoUrl 
+        : videoUrl.includes('?') 
+          ? `${videoUrl}&key=${apiKey}`
+          : `${videoUrl}?key=${apiKey}`;
+      
+      console.log("Created authenticated video URL:", authUrl.replace(apiKey, 'API_KEY_HIDDEN'));
+      setAuthenticatedVideoUrl(authUrl);
+      setIsLoadingVideo(false);
+      
+      console.log("Authenticated video URL set successfully for direct playback");
+    } catch (err) {
+      console.error("Failed to create authenticated video URL:", err);
+      // Fallback to original URL
+      setAuthenticatedVideoUrl(videoUrl);
+      setIsLoadingVideo(false);
+    }
   }
 
   // Poll operation status for real VEO 2 operations
@@ -110,7 +129,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
           console.log("Setting currentVideoUrl to:", status.videoUrl);
           setCurrentVideoUrl(status.videoUrl)
           setIsPolling(false)
-          // Set up direct video URL for playback (no authentication needed)
+          // Create authenticated video URL for playback
           createAuthenticatedVideoUrl(status.videoUrl)
           console.log("Video state updated - should transition to video player")
         } else if (status.status === "failed") {
@@ -156,7 +175,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       setIsLoadingVideo(false);
       
       if (initialVideoUrl) {
-        // Set up direct URL for immediate playback
+        // Create authenticated URL for immediate playback
         createAuthenticatedVideoUrl(initialVideoUrl);
       } else {
         setAuthenticatedVideoUrl(undefined);
