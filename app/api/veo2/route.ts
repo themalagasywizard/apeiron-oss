@@ -169,18 +169,6 @@ export async function POST(request: NextRequest) {
 
 **Operation Name:** ${mockOperationName}
 
-**Configuration:**
-- Duration: ${duration} seconds
-- Aspect Ratio: ${aspectRatio}
-- Resolution: 720p (24fps)
-- Format: MP4
-- Person Generation: ${personGeneration}
-
-**Note:** This is demo mode. To generate real videos:
-1. Get VEO 2 API access from Google AI Studio
-2. Add your Google API key in Settings
-3. VEO 2 is currently in limited preview
-
 The production VEO 2 integration is ready and will work with a valid API key.`
         }
       };
@@ -232,18 +220,7 @@ The production VEO 2 integration is ready and will work with a valid API key.`
 
 **Operation Name:** ${operationName}
 
-**Configuration:**
-- Duration: ${duration} seconds
-- Aspect Ratio: ${aspectRatio}
-- Resolution: 720p (24fps)
-- Format: MP4
-- Person Generation: ${personGeneration}
-
-**Estimated Time:** 2-6 minutes
-
-Your video is being generated using Google's VEO 2 model. This is a real production request that will create high-quality, cinematic video from your text description.
-
-The video will appear above once processing is complete.`
+Your video is being generated using Google's VEO 2 model. The video will appear above once processing is complete.`
       }
     };
 

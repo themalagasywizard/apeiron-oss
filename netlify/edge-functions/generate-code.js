@@ -257,28 +257,79 @@ RESPOND WITH WORKING CODE ONLY:`;
         break;
 
       case "deepseek":
-        response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: "deepseek-chat",
-            messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
-            temperature: codeParams.temperature,
-            max_tokens: codeParams.maxTokens,
-            stream: false
-          })
-        }, codeParams.timeout);
+        // Use the specific model passed in (should be deepseek-v3), max timeout for code generation
+        let deepseekModel = model === "deepseek-v3" ? "deepseek-v3" : "deepseek-chat";
+        let deepseekResponse;
+        
+        // Enhanced parameters for DeepSeek V3 code generation
+        const deepseekCodeParams = {
+          maxTokens: 8000, // Increased for code generation
+          temperature: 0.1, // Very low for consistent code
+          timeout: 120000  // 2 minutes maximum for Edge Function
+        };
+        
+        try {
+          deepseekResponse = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: deepseekModel,
+              messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
+              temperature: deepseekCodeParams.temperature,
+              max_tokens: deepseekCodeParams.maxTokens,
+              stream: false
+            })
+          }, deepseekCodeParams.timeout);
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`DeepSeek API error (${response.status}): ${errorText}`);
+          if (!deepseekResponse.ok) {
+            const errorText = await deepseekResponse.text();
+            console.error(`DeepSeek ${deepseekModel} failed:`, deepseekResponse.status, errorText);
+            
+            // Try fallback to deepseek-chat if we were using deepseek-v3
+            if (deepseekModel === "deepseek-v3") {
+              console.log("Trying fallback to deepseek-chat...");
+              deepseekModel = "deepseek-chat";
+              
+              deepseekResponse = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                  model: "deepseek-chat",
+                  messages: codeOptimizedMessages.slice(-2).map(m => ({ role: m.role, content: m.content })), // Only last 2 messages
+                  temperature: 0.1,
+                  max_tokens: 4000, // Reduced for fallback
+                  stream: false
+                })
+              }, 90000); // 90 second timeout for fallback
+
+              if (!deepseekResponse.ok) {
+                const fallbackError = await deepseekResponse.text();
+                throw new Error(`DeepSeek API error (${deepseekResponse.status}): ${fallbackError}`);
+              }
+            } else {
+              throw new Error(`DeepSeek API error (${deepseekResponse.status}): ${errorText}`);
+            }
+          }
+
+          const deepseekData = await deepseekResponse.json();
+          aiResponse = deepseekData.choices?.[0]?.message?.content || "No response generated";
+          
+        } catch (deepseekError) {
+          console.error("DeepSeek Edge Function error:", deepseekError);
+          
+          // Provide helpful error message
+          if (deepseekError.message.includes("timeout") || deepseekError.message.includes("504")) {
+            throw new Error("DeepSeek V3 is experiencing heavy load. Try again in a few moments or use a different model for code generation.");
+          } else {
+            throw new Error(`DeepSeek V3 code generation failed: ${deepseekError.message}`);
+          }
         }
-
-        const deepseekData = await response.json();
-        aiResponse = deepseekData.choices?.[0]?.message?.content || "No response generated";
         break;
 
       case "grok":
