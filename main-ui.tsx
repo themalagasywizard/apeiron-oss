@@ -499,24 +499,22 @@ export default function MainUI({
         setIsListening(true)
         setError(null)
         console.log('Speech recognition started - speak now')
+        console.log('Current inputValue:', inputValue)
+        // Clear any existing text when starting new session
+        setInputValue('')
       }
 
       recognition.onresult = (event: any) => {
-        let finalTranscript = ''
-        let interimTranscript = ''
+        console.log('Speech recognition result received')
+        let transcript = ''
         
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript
-          } else {
-            interimTranscript += transcript
-          }
+        // Get all results and combine them
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript
         }
         
-        // Update input with final + interim results
-        const fullTranscript = (inputValue + finalTranscript + interimTranscript).trim()
-        setInputValue(fullTranscript)
+        console.log('Transcript:', transcript)
+        setInputValue(transcript.trim())
       }
 
       recognition.onerror = (event: any) => {
@@ -1364,6 +1362,15 @@ export default function MainUI({
                 aria-label="Send message"
               >
                 <Send className="w-5 h-5" />
+              </button>
+
+              {/* Test button to verify input state */}
+              <button
+                onClick={() => setInputValue('Test: ' + new Date().toLocaleTimeString())}
+                className="h-[48px] w-[48px] rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-200 bg-yellow-500 hover:bg-yellow-600 text-white"
+                title="Test input (temporary)"
+              >
+                T
               </button>
 
               <button
