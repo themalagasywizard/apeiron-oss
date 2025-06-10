@@ -127,6 +127,10 @@ type MainUIProps = {
   onCreateProject?: () => void
   onToggleTheme?: () => void
   onLogout?: () => void
+  onLogin?: () => void
+  isAuthenticated?: boolean
+  user?: any
+  authLoading?: boolean
   onSaveSettings?: (settings: any) => void
   onRenameConversation?: (id: string, newTitle: string) => void
   onRetryMessage?: (messageId: string) => void
@@ -166,6 +170,10 @@ export default function MainUI({
   onCreateProject = () => {},
   onToggleTheme = () => {},
   onLogout = () => {},
+  onLogin = () => {},
+  isAuthenticated = false,
+  user = null,
+  authLoading = false,
   onSaveSettings = () => {},
   onRenameConversation = () => {},
   onRetryMessage = () => {},
@@ -966,13 +974,22 @@ export default function MainUI({
                     </button>
                   </div>
 
+                  {/* Authentication status indicator */}
+                  {!isAuthenticated && (
+                    <div className="px-2 py-2 mb-2">
+                      <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1.5 rounded-lg border border-amber-200/50 dark:border-amber-800/50">
+                        💡 Sign in to save conversations across devices
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mt-2 space-y-1">
                     {conversations.map((conversation) => (
                       <div
                         key={conversation.id}
                         className={`
                           w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-200
-                          hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer
+                          hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer group
                           ${
                             currentConversation.id === conversation.id
                               ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
@@ -981,33 +998,18 @@ export default function MainUI({
                         `}
                         onClick={() => onSelectConversation(conversation.id)}
                       >
-                        {editingConversationId === conversation.id ? (
-                          <input
-                            type="text"
-                            value={editingTitle}
-                            onChange={(e) => setEditingTitle(e.target.value)}
-                            onKeyDown={handleRenameKeyPress}
-                            onBlur={handleSaveRename}
-                            className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
-                            autoFocus
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <div 
-                            className="font-medium text-gray-800 dark:text-gray-200 truncate"
-                            title="Double-click to rename conversation"
-                            onDoubleClick={(e) => {
-                              e.stopPropagation();
-                              handleStartRename(conversation.id, conversation.title);
-                            }}
-                          >
-                          {conversation.title}
-                        </div>
-                        )}
-                        <div className="mt-1">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(conversation.timestamp).toLocaleDateString()}
-                          </span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-800 dark:text-gray-200 truncate">
+                              {conversation.title}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                              <span>{new Date(conversation.timestamp).toLocaleDateString()}</span>
+                              {!isAuthenticated && (
+                                <span className="text-amber-500">• Local only</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1074,7 +1076,7 @@ export default function MainUI({
                                       onChange={(e) => setEditingTitle(e.target.value)}
                                       onKeyDown={handleRenameKeyPress}
                                       onBlur={handleSaveRename}
-                                      className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-xs"
+                                      className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
                                       autoFocus
                                       onClick={(e) => e.stopPropagation()}
                                     />
@@ -1103,12 +1105,24 @@ export default function MainUI({
 
               {/* Profile and Settings Section */}
               <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 h-[72px] flex items-center gap-3">
-                {/* Profile Button */}
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium shadow-lg">
-                  U
-              </div>
+                {/* Profile/Login Button */}
+                {isAuthenticated ? (
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium shadow-lg">
+                    {user?.email?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                ) : (
+                  <button
+                    onClick={onLogin}
+                    className="w-12 h-12 rounded-xl bg-gradient-to-r from-gray-400 to-gray-500 hover:from-purple-500 hover:to-pink-500 flex items-center justify-center text-white font-medium shadow-lg transition-all duration-200"
+                    title="Sign in to save conversations"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </button>
+                )}
 
-              {/* Settings Button */}
+                {/* Settings Button */}
                 <button
                   onClick={() => setSettingsOpen(true)}
                   className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
@@ -1117,6 +1131,20 @@ export default function MainUI({
                   <Settings className="w-4 h-4" />
                   <span>Settings</span>
                 </button>
+
+                {/* Logout Button (only show if authenticated) */}
+                {isAuthenticated && onLogout && (
+                  <button
+                    onClick={onLogout}
+                    className="w-12 h-12 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-red-500/20 dark:hover:bg-red-500/20 transition-colors text-gray-800 dark:text-gray-200 hover:text-red-600 dark:hover:text-red-400 flex items-center justify-center"
+                    title="Sign out"
+                    aria-label="Sign out"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </motion.aside>
           )}

@@ -120,32 +120,14 @@ export default function Home() {
   const [dataLoading, setDataLoading] = useState(false)
   const [migrationCompleted, setMigrationCompleted] = useState(false)
 
-  // Load settings and set client flag on mount
+  // Client-side initialization
   useEffect(() => {
-    // Immediately redirect to production if on localhost with auth-related parameters
-    const currentUrl = window.location.href
-    if (window.location.hostname === 'localhost') {
-      const url = new URL(currentUrl)
-      const hasAuthParams = url.searchParams.has('code') || 
-                           url.searchParams.has('error') || 
-                           url.searchParams.has('state') ||
-                           currentUrl.includes('#access_token=')
-      
-      if (hasAuthParams) {
-        // Redirect to production preserving all query parameters and fragments
-        const redirectUrl = currentUrl.replace('http://localhost:3000', 'https://t3-oss.netlify.app')
-        console.log('Redirecting to production:', redirectUrl)
-        window.location.replace(redirectUrl)
-        return
-      }
-    }
-
-    // Clean up URL fragments immediately if present
     const cleanUpUrlFragments = () => {
-      const currentUrl = window.location.href
-      if (currentUrl.includes('#access_token=') || currentUrl.includes('#error=')) {
-        // Clean up the URL by removing the fragment
-        window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+      if (typeof window !== 'undefined') {
+        const currentUrl = window.location.href
+        if (currentUrl.includes('#access_token=') || currentUrl.includes('#error=')) {
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+        }
       }
     }
 
@@ -190,20 +172,47 @@ export default function Home() {
       }
     }
 
+    const loadLocalConversations = () => {
+      try {
+        const saved = localStorage.getItem("t3-chat-conversations")
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          const mappedConversations = parsed.map((conv: any) => ({
+            id: conv.id,
+            title: conv.title,
+            timestamp: new Date(conv.timestamp),
+            model: conv.model,
+            messages: conv.messages.map((msg: any) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp)
+            })),
+            user_id: "local",
+            project_id: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }))
+          setConversations(mappedConversations)
+          if (mappedConversations.length > 0 && !currentConversationId) {
+            setCurrentConversationId(mappedConversations[0].id)
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load local conversations:", error)
+      }
+    }
+
     // Clean up URL fragments first
     cleanUpUrlFragments()
     
     setUserSettings(loadSettings())
+    loadLocalConversations() // Load local conversations for non-authenticated users
     setIsClient(true) // Set client to true after settings are loaded
   }, [])
 
-  // Load data when user is authenticated
+  // Load data when user is authenticated (optional)
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && !authLoading) {
       loadUserData()
-    } else if (!isAuthenticated && !authLoading) {
-      // Show auth modal if not authenticated
-      setShowAuthModal(true)
     }
   }, [isAuthenticated, user, authLoading])
 
@@ -277,44 +286,70 @@ export default function Home() {
     }
   }
 
-  // Project management functions
+  const saveConversationsLocally = (updatedConversations: UIConversation[]) => {
+    if (!isAuthenticated) {
+      // Save to localStorage for non-authenticated users
+      try {
+        const localConversations = updatedConversations.map(conv => ({
+          id: conv.id,
+          title: conv.title,
+          timestamp: conv.updated_at,
+          model: conv.model,
+          messages: conv.messages
+        }))
+        localStorage.setItem("t3-chat-conversations", JSON.stringify(localConversations))
+      } catch (error) {
+        console.error("Failed to save conversations locally:", error)
+      }
+    }
+  }
+
   const handleCreateProject = async (name: string, description?: string) => {
-    if (!user) return
+    if (!isAuthenticated || !user) {
+      console.log('Project creation requires authentication')
+      return
+    }
 
     try {
       const newProject = await createProject({
-        user_id: user.id,
         name,
-        description: description || null,
-        color: '#6366f1'
+        description: description || '',
+        user_id: user.id
       })
-      
-      setProjects(prev => [newProject, ...prev])
+      setProjects(prev => [...prev, newProject])
     } catch (error) {
       console.error('Error creating project:', error)
     }
   }
 
   const handleUpdateProject = async (id: string, updates: Partial<DBProject>) => {
+    if (!isAuthenticated) return
+
     try {
-      const updatedProject = await updateProject(id, updates)
-      setProjects(prev => prev.map(p => p.id === id ? updatedProject : p))
+      await updateProject(id, updates)
+      setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
     } catch (error) {
       console.error('Error updating project:', error)
     }
   }
 
   const handleDeleteProject = async (id: string) => {
+    if (!isAuthenticated) return
+
     try {
       await deleteProject(id)
       setProjects(prev => prev.filter(p => p.id !== id))
       
-      // Move conversations from deleted project to unorganized
+      // Update conversations that were in this project
       setConversations(prev => prev.map(conv => 
         conv.project_id === id 
           ? { ...conv, project_id: null }
           : conv
       ))
+      
+      if (selectedProjectId === id) {
+        setSelectedProjectId(null)
+      }
     } catch (error) {
       console.error('Error deleting project:', error)
     }
@@ -323,10 +358,10 @@ export default function Home() {
   const handleSelectProject = (projectId: string | null) => {
     setSelectedProjectId(projectId)
     
-    // Find first conversation in selected project
-    const projectConversations = conversations.filter(conv => 
-      conv.project_id === projectId
-    )
+    // Find first conversation in this project or show all if no project selected
+    const projectConversations = projectId 
+      ? conversations.filter(conv => conv.project_id === projectId)
+      : conversations
     
     if (projectConversations.length > 0) {
       setCurrentConversationId(projectConversations[0].id)
@@ -334,11 +369,12 @@ export default function Home() {
   }
 
   const handleMoveConversation = async (conversationId: string, projectId: string | null) => {
+    if (!isAuthenticated) return
+
     try {
       await updateConversation(conversationId, { project_id: projectId })
-      
-      setConversations(prev => prev.map(conv =>
-        conv.id === conversationId
+      setConversations(prev => prev.map(conv => 
+        conv.id === conversationId 
           ? { ...conv, project_id: projectId }
           : conv
       ))
@@ -347,28 +383,38 @@ export default function Home() {
     }
   }
 
-  // Conversation management functions
   const handleCreateConversation = async () => {
-    if (!user) return
-
-    try {
-      const newConversation = await createConversation({
-        user_id: user.id,
-        project_id: selectedProjectId,
-        title: 'New Conversation',
-        model: currentModel
-      })
-
-      const conversationWithMessages = {
-        ...newConversation,
-        messages: []
-      }
-
-      setConversations(prev => [conversationWithMessages, ...prev])
-      setCurrentConversationId(newConversation.id)
-    } catch (error) {
-      console.error('Error creating conversation:', error)
+    const newConversation: UIConversation = {
+      id: Date.now().toString(),
+      title: "New Conversation",
+      model: currentModel,
+      messages: [],
+      user_id: user?.id || "local",
+      project_id: selectedProjectId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }
+
+    if (isAuthenticated && user) {
+      try {
+        const dbConversation = await createConversation({
+          title: newConversation.title,
+          model: newConversation.model,
+          user_id: user.id,
+          project_id: selectedProjectId
+        })
+        newConversation.id = dbConversation.id
+        newConversation.created_at = dbConversation.created_at
+        newConversation.updated_at = dbConversation.updated_at
+      } catch (error) {
+        console.error('Error creating conversation in database:', error)
+      }
+    }
+
+    const updatedConversations = [...conversations, newConversation]
+    setConversations(updatedConversations)
+    setCurrentConversationId(newConversation.id)
+    saveConversationsLocally(updatedConversations)
   }
 
   const handleSelectConversation = (id: string) => {
@@ -376,138 +422,128 @@ export default function Home() {
   }
 
   const handleRenameConversation = async (id: string, newTitle: string) => {
-    try {
-      await updateConversation(id, { title: newTitle })
-      
-      setConversations(prev => prev.map(conv =>
-        conv.id === id ? { ...conv, title: newTitle } : conv
-      ))
-    } catch (error) {
-      console.error('Error renaming conversation:', error)
+    const updatedConversations = conversations.map(conv =>
+      conv.id === id ? { ...conv, title: newTitle } : conv
+    )
+    setConversations(updatedConversations)
+    saveConversationsLocally(updatedConversations)
+
+    if (isAuthenticated) {
+      try {
+        await updateConversation(id, { title: newTitle })
+      } catch (error) {
+        console.error('Error updating conversation title:', error)
+      }
     }
   }
 
-  // Enhanced message sending with database storage and AI response handling
   const handleSendMessage = async (
     message: string, 
     attachments?: any[], 
     webSearchEnabled?: boolean, 
     codeGenerationEnabled?: boolean
   ) => {
-    if (!user || !currentConversationId) return
+    if (!message.trim() && !attachments?.length) return
+
+    // Create user message
+    const userMessage: UIMessage = {
+      id: Date.now().toString(),
+      content: message,
+      role: "user",
+      timestamp: new Date(),
+      attachments,
+      model: currentModel
+    }
+
+    // Add user message to conversation
+    const updatedConversations = conversations.map(conv =>
+      conv.id === currentConversationId
+        ? {
+            ...conv,
+            messages: [...conv.messages, userMessage],
+            updated_at: new Date().toISOString()
+          }
+        : conv
+    )
+    setConversations(updatedConversations)
+    saveConversationsLocally(updatedConversations)
 
     setIsTyping(true)
 
     try {
-      // Create user message in database
-      const userMessage = await createMessage({
-        conversation_id: currentConversationId,
-        role: 'user',
-        content: message,
-        attachments: attachments || null,
-        timestamp: new Date().toISOString()
-      })
-
-      // Update local state with user message
-      setConversations(prev => prev.map(conv =>
-        conv.id === currentConversationId
-          ? {
-              ...conv,
-              messages: [...conv.messages, {
-                id: userMessage.id,
-                content: userMessage.content,
-                role: userMessage.role as "user" | "assistant",
-                timestamp: new Date(userMessage.timestamp),
-                attachments: userMessage.attachments as any[] || undefined
-              }]
-            }
-          : conv
-      ))
-
-      // Get API key for the current model
-      const currentModelData = userSettings.models.find(m => m.id === currentModel)
-      const apiKey = getApiKeyForModel(currentModel, userSettings)
-      
-      if (!apiKey) {
-        throw new Error(`No API key found for ${currentModel}. Please configure your API keys in settings.`)
+      // Save user message to database if authenticated
+      if (isAuthenticated && user) {
+        await createMessage({
+          content: message,
+          role: 'user',
+          conversation_id: currentConversationId,
+          attachments: attachments || []
+        })
       }
 
-      // Prepare messages for AI API
-      const conversation = conversations.find(conv => conv.id === currentConversationId)
-      const allMessages = [...(conversation?.messages || []), {
-        id: userMessage.id,
-        content: userMessage.content,
-        role: userMessage.role as "user" | "assistant",
-        timestamp: new Date(userMessage.timestamp),
-        attachments: userMessage.attachments as any[] || undefined
-      }]
-
-      const messagesForAI = allMessages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }))
-
-      // Determine API endpoint
-      const apiEndpoint = codeGenerationEnabled ? '/api/edge-functions/generate-code' : '/api/chat'
-      
-      // Call AI API
-      const response = await fetch(apiEndpoint, {
+      // Make API call to get AI response
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: messagesForAI,
-          provider: getProviderFromModel(currentModel),
-          apiKey,
+          messages: updatedConversations.find(conv => conv.id === currentConversationId)?.messages || [],
           model: currentModel,
           temperature: userSettings.temperature,
-          customModelName: currentModelData?.customModelName,
-          webSearchEnabled
-        })
+          webSearchEnabled,
+          codeGenerationEnabled,
+          settings: userSettings
+        }),
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'AI request failed')
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const aiData = await response.json()
-      
-      // Create AI message in database
-      const aiMessage = await createMessage({
-        conversation_id: currentConversationId,
-        role: 'assistant',
-        content: aiData.response,
-        search_results: aiData.searchResults || null,
-        timestamp: new Date().toISOString()
-      })
+      const data = await response.json()
 
-      // Update local state with AI response
-      setConversations(prev => prev.map(conv =>
+      // Create assistant message
+      const assistantMessage: UIMessage = {
+        id: (Date.now() + 1).toString(),
+        content: data.content,
+        role: "assistant",
+        timestamp: new Date(),
+        model: currentModel,
+        searchResults: data.searchResults
+      }
+
+      // Add assistant message to conversation
+      const finalConversations = conversations.map(conv =>
         conv.id === currentConversationId
           ? {
               ...conv,
-              messages: [...conv.messages, {
-                id: aiMessage.id,
-                content: aiMessage.content,
-                role: aiMessage.role as "user" | "assistant",
-                timestamp: new Date(aiMessage.timestamp),
-                searchResults: aiMessage.search_results as any[] || undefined,
-                model: currentModel,
-                provider: getProviderFromModel(currentModel)
-              }]
+              messages: [...conv.messages, userMessage, assistantMessage],
+              updated_at: new Date().toISOString()
             }
           : conv
-      ))
+      )
+      setConversations(finalConversations)
+      saveConversationsLocally(finalConversations)
 
-      // Update conversation timestamp and title if it's the first message
-      const updateData: any = { updated_at: new Date().toISOString() }
-      if (conversation && conversation.messages.length === 0) {
-        updateData.title = message.slice(0, 50) + (message.length > 50 ? '...' : '')
+      // Save assistant message to database if authenticated
+      if (isAuthenticated && user) {
+        await createMessage({
+          content: data.content,
+          role: 'assistant',
+          conversation_id: currentConversationId,
+          search_results: data.searchResults || []
+        })
+
+        // Update conversation timestamp and title if it's the first message
+        const conversation = conversations.find(conv => conv.id === currentConversationId)
+        const updateData: any = { updated_at: new Date().toISOString() }
+        if (conversation && conversation.messages.length === 0) {
+          updateData.title = message.slice(0, 50) + (message.length > 50 ? '...' : '')
+        }
+        
+        await updateConversation(currentConversationId, updateData)
       }
-      
-      await updateConversation(currentConversationId, updateData)
 
     } catch (error) {
       console.error('Error sending message:', error)
@@ -525,14 +561,17 @@ export default function Home() {
         }
       }
 
-      setConversations(prev => prev.map(conv =>
+      const errorConversations = conversations.map(conv =>
         conv.id === currentConversationId
           ? {
               ...conv,
-              messages: [...conv.messages, errorMessage]
+              messages: [...conv.messages, errorMessage],
+              updated_at: new Date().toISOString()
             }
           : conv
-      ))
+      )
+      setConversations(errorConversations)
+      saveConversationsLocally(errorConversations)
     } finally {
       setIsTyping(false)
     }
@@ -575,77 +614,92 @@ export default function Home() {
   const handleLogout = async () => {
     try {
       await signOut()
-      // Clear local state
-      setConversations([])
+      // Clear authenticated state but keep local conversations
       setProjects([])
-      setCurrentConversationId("")
       setSelectedProjectId(null)
-      setShowAuthModal(true)
+      // Keep current conversations in local mode
     } catch (error) {
       console.error('Error signing out:', error)
     }
   }
 
-  // Get current conversation with database integration
+  // Handle login
+  const handleLogin = () => {
+    setShowAuthModal(true)
+  }
+
+  // Get current conversation
   const currentConversation = conversations.find(conv => conv.id === currentConversationId) || {
     id: "default",
     title: "New Conversation",
     timestamp: new Date(),
     model: currentModel,
     messages: [],
-    user_id: user?.id || "",
+    user_id: user?.id || "local",
     project_id: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }
 
-  // Show loading spinner during auth
-  if (authLoading || dataLoading) {
+  // Generate available models based on API keys
+  const getAvailableModels = () => {
+    const models: Model[] = []
+    
+    // Add models based on available API keys
+    if (userSettings.openaiApiKey) {
+      models.push(
+        { id: "gpt-4", name: "GPT-4", icon: "G4", provider: "openai" },
+        { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", icon: "35", provider: "openai" }
+      )
+    }
+    
+    if (userSettings.claudeApiKey) {
+      models.push(
+        { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet", icon: "C3", provider: "claude" }
+      )
+    }
+    
+    if (userSettings.geminiApiKey) {
+      models.push(
+        { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", icon: "G2", provider: "gemini" }
+      )
+    }
+    
+    // Add more models based on other API keys...
+    
+    return models
+  }
+
+  // Don't show loading spinner - always show the main UI
+  if (!isClient) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">
-            {authLoading ? 'Checking authentication...' : 'Loading your data...'}
-          </p>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     )
   }
 
-  // Show auth modal if not authenticated
-  if (!isAuthenticated) {
-    return (
-      <>
-        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold mb-4">Welcome to T3 Chat</h1>
-            <p className="text-gray-600 dark:text-gray-400 mb-8">
-              Please sign in to access your conversations and projects
-            </p>
-          </div>
-        </div>
-        <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
-      </>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 flex">
-      {/* Project Sidebar */}
-      <ProjectSidebar
-        projects={projects}
-        conversations={conversations}
-        selectedProjectId={selectedProjectId}
-        selectedConversationId={currentConversationId}
-        onCreateProject={handleCreateProject}
-        onSelectProject={handleSelectProject}
-        onSelectConversation={handleSelectConversation}
-        onUpdateProject={handleUpdateProject}
-        onDeleteProject={handleDeleteProject}
-        onMoveConversation={handleMoveConversation}
-        onCreateConversation={handleCreateConversation}
-      />
+      {/* Project Sidebar - only show if authenticated */}
+      {isAuthenticated && (
+        <ProjectSidebar
+          projects={projects}
+          conversations={conversations}
+          selectedProjectId={selectedProjectId}
+          selectedConversationId={currentConversationId}
+          onCreateProject={handleCreateProject}
+          onSelectProject={handleSelectProject}
+          onSelectConversation={handleSelectConversation}
+          onUpdateProject={handleUpdateProject}
+          onDeleteProject={handleDeleteProject}
+          onMoveConversation={handleMoveConversation}
+          onCreateConversation={handleCreateConversation}
+        />
+      )}
 
       {/* Main Chat Interface */}
       <div className="flex-1">
@@ -664,6 +718,7 @@ export default function Home() {
               .filter(conv => conv.project_id === proj.id)
               .map(conv => conv.id)
           }))}
+          models={getAvailableModels()}
           currentConversation={{
             id: currentConversation.id,
             title: currentConversation.title,
@@ -680,7 +735,11 @@ export default function Home() {
           onCreateConversation={handleCreateConversation}
           onCreateProject={() => handleCreateProject('New Project')}
           onToggleTheme={() => {/* Handle theme toggle */}}
-          onLogout={handleLogout}
+          onLogout={isAuthenticated ? handleLogout : undefined}
+          onLogin={!isAuthenticated ? handleLogin : undefined}
+          isAuthenticated={isAuthenticated}
+          user={user}
+          authLoading={authLoading || dataLoading}
           onSaveSettings={(settings) => {
             setUserSettings(settings)
             if (typeof window !== 'undefined') {
@@ -694,6 +753,9 @@ export default function Home() {
           }}
         />
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
     </div>
   )
 }
