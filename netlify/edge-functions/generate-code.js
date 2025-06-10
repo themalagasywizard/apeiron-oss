@@ -257,9 +257,16 @@ RESPOND WITH WORKING CODE ONLY:`;
         break;
 
       case "deepseek":
-        // Try deepseek-coder first, fallback to deepseek-chat
-        let deepseekModel = "deepseek-coder";
+        // Use the specific model passed in (should be deepseek-v3), max timeout for code generation
+        let deepseekModel = model === "deepseek-v3" ? "deepseek-v3" : "deepseek-chat";
         let deepseekResponse;
+        
+        // Enhanced parameters for DeepSeek V3 code generation
+        const deepseekCodeParams = {
+          maxTokens: 8000, // Increased for code generation
+          temperature: 0.1, // Very low for consistent code
+          timeout: 120000  // 2 minutes maximum for Edge Function
+        };
         
         try {
           deepseekResponse = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
@@ -271,38 +278,42 @@ RESPOND WITH WORKING CODE ONLY:`;
             body: JSON.stringify({
               model: deepseekModel,
               messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
-              temperature: Math.min(codeParams.temperature, 0.2), // Even lower temperature for code
-              max_tokens: Math.min(codeParams.maxTokens, 4000), // Reduced tokens
+              temperature: deepseekCodeParams.temperature,
+              max_tokens: deepseekCodeParams.maxTokens,
               stream: false
             })
-          }, codeParams.timeout);
+          }, deepseekCodeParams.timeout);
 
           if (!deepseekResponse.ok) {
             const errorText = await deepseekResponse.text();
-            console.error("DeepSeek-coder failed:", deepseekResponse.status, errorText);
+            console.error(`DeepSeek ${deepseekModel} failed:`, deepseekResponse.status, errorText);
             
-            // Try fallback to deepseek-chat
-            console.log("Trying fallback to deepseek-chat...");
-            deepseekModel = "deepseek-chat";
-            
-            deepseekResponse = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`
-              },
-              body: JSON.stringify({
-                model: "deepseek-chat",
-                messages: codeOptimizedMessages.slice(-2).map(m => ({ role: m.role, content: m.content })), // Only last 2 messages
-                temperature: 0.1,
-                max_tokens: 2000, // Further reduced
-                stream: false
-              })
-            }, 45000); // Shorter timeout for fallback
+            // Try fallback to deepseek-chat if we were using deepseek-v3
+            if (deepseekModel === "deepseek-v3") {
+              console.log("Trying fallback to deepseek-chat...");
+              deepseekModel = "deepseek-chat";
+              
+              deepseekResponse = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                  model: "deepseek-chat",
+                  messages: codeOptimizedMessages.slice(-2).map(m => ({ role: m.role, content: m.content })), // Only last 2 messages
+                  temperature: 0.1,
+                  max_tokens: 4000, // Reduced for fallback
+                  stream: false
+                })
+              }, 90000); // 90 second timeout for fallback
 
-            if (!deepseekResponse.ok) {
-              const fallbackError = await deepseekResponse.text();
-              throw new Error(`DeepSeek API error (${deepseekResponse.status}): ${fallbackError}`);
+              if (!deepseekResponse.ok) {
+                const fallbackError = await deepseekResponse.text();
+                throw new Error(`DeepSeek API error (${deepseekResponse.status}): ${fallbackError}`);
+              }
+            } else {
+              throw new Error(`DeepSeek API error (${deepseekResponse.status}): ${errorText}`);
             }
           }
 
@@ -314,9 +325,9 @@ RESPOND WITH WORKING CODE ONLY:`;
           
           // Provide helpful error message
           if (deepseekError.message.includes("timeout") || deepseekError.message.includes("504")) {
-            throw new Error("DeepSeek is experiencing heavy load. Try again in a few moments or use a different model for code generation.");
+            throw new Error("DeepSeek V3 is experiencing heavy load. Try again in a few moments or use a different model for code generation.");
           } else {
-            throw new Error(`DeepSeek code generation failed: ${deepseekError.message}`);
+            throw new Error(`DeepSeek V3 code generation failed: ${deepseekError.message}`);
           }
         }
         break;

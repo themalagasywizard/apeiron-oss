@@ -286,6 +286,12 @@ export default function MainUI({
     return currentModelData && (currentModelData.provider === "gemini" || currentModelData.provider === "grok")
   }
 
+  // Check if current model supports code generation (hide for VEO2 since it's a video model)
+  const isCodeGenerationCompatible = () => {
+    const currentModelData = availableModels.find(m => m.id === currentModel)
+    return currentModelData && currentModelData.id !== "veo2"
+  }
+
   // Check if mobile on mount and window resize
   useEffect(() => {
     const checkIfMobile = () => {
@@ -312,6 +318,13 @@ export default function MainUI({
   useEffect(() => {
     if (!isWebSearchCompatible() && webSearchEnabled) {
       setWebSearchEnabled(false)
+    }
+  }, [currentModel])
+
+  // Disable code generation when switching to incompatible models (like VEO2)
+  useEffect(() => {
+    if (!isCodeGenerationCompatible() && codeGenerationEnabled) {
+      setCodeGenerationEnabled(false)
     }
   }, [currentModel])
 
@@ -1450,21 +1463,23 @@ export default function MainUI({
                 </div>
               )}
 
-              {/* Code Generation Toggle Button */}
-              <div className="flex-shrink-0">
-                <button
-                  onClick={() => setCodeGenerationEnabled(!codeGenerationEnabled)}
-                  className={`h-[48px] w-[48px] rounded-xl border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
-                    codeGenerationEnabled
-                      ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:shadow-emerald-500/25"
-                      : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
-                  }`}
-                  title={codeGenerationEnabled ? "Code generation mode enabled - Uses Edge Function for longer processing" : "Enable code generation mode"}
-                  aria-label={codeGenerationEnabled ? "Disable code generation mode" : "Enable code generation mode"}
-                >
-                  <Code className="w-5 h-5" />
-                </button>
-              </div>
+              {/* Code Generation Toggle Button (only for compatible models) */}
+              {isCodeGenerationCompatible() && (
+                <div className="flex-shrink-0">
+                  <button
+                    onClick={() => setCodeGenerationEnabled(!codeGenerationEnabled)}
+                    className={`h-[48px] w-[48px] rounded-xl border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
+                      codeGenerationEnabled
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:shadow-emerald-500/25"
+                        : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
+                    }`}
+                    title={codeGenerationEnabled ? "Code generation mode enabled - Uses Edge Function for longer processing" : "Enable code generation mode"}
+                    aria-label={codeGenerationEnabled ? "Disable code generation mode" : "Enable code generation mode"}
+                  >
+                    <Code className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
 
               {/* File Upload Button */}
               <div className="flex-shrink-0">

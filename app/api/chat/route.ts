@@ -404,8 +404,8 @@ Please provide a comprehensive response using the above search results.`;
         const deepseekParams = getOptimizedParams(25000, 1500); // Increased timeout to 25 seconds, further reduced max tokens
         const deepseekMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
         
-        // Try deepseek-coder model for better performance, fallback to deepseek-chat
-        const deepseekModel = "deepseek-coder";
+        // Use the specific model passed in (should be deepseek-v3), fallback to deepseek-chat
+        const deepseekModel = model === "deepseek-v3" ? "deepseek-v3" : "deepseek-chat";
         
         try {
           response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
@@ -444,8 +444,8 @@ Please provide a comprehensive response using the above search results.`;
         } catch (deepseekError) {
           console.error("DeepSeek error:", deepseekError);
           
-          // If deepseek-coder fails, try fallback to deepseek-chat
-          if (deepseekModel === "deepseek-coder") {
+          // If deepseek-v3 fails, try fallback to deepseek-chat
+          if (deepseekModel === "deepseek-v3") {
             console.log("Retrying with deepseek-chat model...");
             
             try {
