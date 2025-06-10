@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// Web search API optimized for serverless environments (Netlify/Vercel)
+// Kept under 25 seconds to work within serverless function limits
 export async function POST(request: NextRequest) {
   try {
     const { query, maxResults = 10 } = await request.json();

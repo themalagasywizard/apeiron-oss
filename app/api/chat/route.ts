@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// API Route optimized for serverless environments (Netlify/Vercel)
+// Timeouts are kept under 25 seconds due to serverless function limits
 export async function POST(request: NextRequest) {
   try {
     const { messages, provider, apiKey, model, temperature, customModelName, webSearchEnabled } = await request.json();
@@ -8,8 +10,8 @@ export async function POST(request: NextRequest) {
     let aiResponse = "";
     let searchResults = null;
 
-    // Helper function to add timeout to fetch requests
-    const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 120000): Promise<Response> => {
+    // Helper function to add timeout to fetch requests (optimized for serverless)
+    const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 25000): Promise<Response> => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -23,7 +25,7 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         clearTimeout(timeoutId);
         if (error instanceof Error && error.name === 'AbortError') {
-          throw new Error(`Request timed out after ${timeoutMs / 1000} seconds. This often happens with large code generation requests. Please try with a shorter prompt or retry.`);
+          throw new Error(`Request timed out after ${timeoutMs / 1000} seconds. For large code generation, try breaking your request into smaller parts or use a simpler prompt.`);
         }
         throw error;
       }
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
               query: lastMessage.content,
               maxResults: 5
             })
-          }, 30000); // 30 second timeout for web search
+          }, 20000); // 20 second timeout for web search
 
           if (searchResponse.ok) {
             const searchData = await searchResponse.json();
@@ -137,14 +139,15 @@ Please provide a comprehensive response using the above search results.`;
             model: model.includes("gpt-3.5") ? "gpt-3.5-turbo" : "gpt-4o",
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
             temperature: temperature || 0.7,
+            max_tokens: 3000, // Reduced for faster response in serverless
             stream: false
           })
-        }, 120000); // 2 minute timeout
+        }, 25000); // 25 second timeout for serverless compatibility
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`OpenAI request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+            throw new Error(`OpenAI request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
           }
           throw new Error(`OpenAI is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -167,12 +170,12 @@ Please provide a comprehensive response using the above search results.`;
             temperature: temperature || 0.7,
             messages: messages.map((m: any) => ({ role: m.role, content: m.content }))
           })
-        }, 120000); // 2 minute timeout
+        }, 25000); // 25 second timeout for serverless compatibility
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`Claude request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+            throw new Error(`Claude request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
           }
           throw new Error(`Claude is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -195,17 +198,17 @@ Please provide a comprehensive response using the above search results.`;
             })),
             generationConfig: {
               temperature: temperature || 0.7,
-              maxOutputTokens: 8192,
+              maxOutputTokens: 4096, // Reduced for faster response
               topP: 0.95,
               topK: 40
             }
           })
-        }, 120000); // 2 minute timeout
+        }, 25000); // 25 second timeout for serverless compatibility
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`Gemini request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+            throw new Error(`Gemini request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
           }
           throw new Error(`Gemini 2.5 Flash is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -225,14 +228,15 @@ Please provide a comprehensive response using the above search results.`;
             model: "deepseek-chat",
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
             temperature: temperature || 0.7,
+            max_tokens: 3000, // Reduced for faster response
             stream: false
           })
-        }, 120000); // 2 minute timeout
+        }, 25000); // 25 second timeout for serverless compatibility
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`DeepSeek request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+            throw new Error(`DeepSeek request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
           }
           throw new Error(`DeepSeek is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -252,14 +256,15 @@ Please provide a comprehensive response using the above search results.`;
             model: "grok-beta",
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
             temperature: temperature || 0.7,
+            max_tokens: 3000, // Reduced for faster response
             stream: false
           })
-        }, 120000); // 2 minute timeout
+        }, 25000); // 25 second timeout for serverless compatibility
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`Grok request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+            throw new Error(`Grok request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
           }
           throw new Error(`Grok is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -281,14 +286,15 @@ Please provide a comprehensive response using the above search results.`;
             model: customModelName || "meta-llama/llama-3.1-8b-instruct:free",
             messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
             temperature: temperature || 0.7,
+            max_tokens: 3000, // Reduced for faster response
             stream: false
           })
-        }, 120000); // 2 minute timeout
+        }, 25000); // 25 second timeout for serverless compatibility
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`OpenRouter request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+            throw new Error(`OpenRouter request timed out. Try breaking large code requests into smaller parts or use a simpler prompt.`);
           }
           throw new Error(`OpenRouter is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -316,12 +322,12 @@ Please provide a comprehensive response using the above search results.`;
             duration: 8, // Use number instead of string
             aspectRatio: "16:9"
           })
-        }, 180000); // 3 minute timeout for video generation
+        }, 25000); // 25 second timeout for serverless compatibility
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`VEO2 video generation timed out. Video generation can take several minutes. Please try again or with a shorter prompt.`);
+            throw new Error(`VEO2 video generation timed out. Video generation requires more time than available in serverless environment. Please try a simpler prompt.`);
           }
           throw new Error(`VEO2 is currently unavailable (${response.status}). Please try again in a moment.`);
         }
