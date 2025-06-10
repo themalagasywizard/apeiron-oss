@@ -60,6 +60,20 @@ ADVANCED CODE GENERATION INSTRUCTIONS:
 - Include error handling and edge cases in the code
 - Use modern syntax and current best practices
 
+SPECIFIC HTML/CSS INSTRUCTIONS:
+- ALWAYS embed CSS within <style> tags inside the HTML <head> section
+- NEVER provide separate CSS files or blocks - integrate ALL styles into the HTML
+- Create complete, self-contained HTML files that work immediately when opened
+- Include responsive design and modern CSS practices
+- Add proper meta tags, viewport settings, and semantic HTML structure
+- Ensure all images, fonts, and resources are either embedded or use CDN links
+- Test that the HTML file would work completely standalone
+- Include interactive JavaScript within <script> tags if needed
+- Use modern CSS features like Flexbox, Grid, and CSS Variables
+- Optimize for both desktop and mobile viewing
+
+CRITICAL: For any web-related request, provide a SINGLE, complete HTML file with embedded styles and scripts.
+
 User Request: ${lastMessage.content}`;
 
         optimizedMessages[optimizedMessages.length - 1] = {

@@ -131,6 +131,14 @@ CODE GENERATION INSTRUCTIONS:
 - Keep descriptions brief and to the point
 - Prioritize code quality and completeness over lengthy explanations
 
+HTML/CSS SPECIFIC INSTRUCTIONS:
+- ALWAYS embed CSS within <style> tags inside the HTML <head> section
+- NEVER provide separate CSS files or blocks - integrate ALL styles into the HTML
+- Create complete, self-contained HTML files that work immediately when opened
+- Include responsive design and modern CSS practices
+- Use embedded JavaScript within <script> tags if needed
+- Optimize for both desktop and mobile viewing
+
 User Request: ${lastMessage.content}`;
 
           optimizedMessages[optimizedMessages.length - 1] = {

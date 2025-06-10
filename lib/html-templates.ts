@@ -326,26 +326,85 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
     /<(!DOCTYPE html|html|head|body|header|nav|main|section|article|footer)[\s\S]*?>/gi
   ]
 
+  // Look for CSS patterns in the content
+  const cssPatterns = [
+    /```css\s*([\s\S]*?)\s*```/gi,
+    /```\s*([^`]*(?:body|html|\.[\w-]+|#[\w-]+)[\s\S]*?)\s*```/gi
+  ]
+
+  let htmlContent = '';
+  let cssContent = '';
+  let hasHTML = false;
+
+  // Extract HTML content
   for (const pattern of htmlPatterns) {
     const match = pattern.exec(content)
     if (match) {
-      let htmlContent = match[1] || match[0]
-      
-      // Clean up the HTML content
-      htmlContent = htmlContent.trim()
-      
-      // Generate filename based on content
-      let filename = 'generated.html'
-      const titleMatch = htmlContent.match(/<title[^>]*>(.*?)<\/title>/i)
-      if (titleMatch && titleMatch[1]) {
-        filename = titleMatch[1].replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-').toLowerCase() + '.html'
-      }
+      htmlContent = (match[1] || match[0]).trim()
+      hasHTML = true
+      break
+    }
+  }
 
-      return {
-        hasHTML: true,
-        htmlContent,
-        filename
+  // Extract CSS content if HTML was found
+  if (hasHTML) {
+    // Reset regex lastIndex
+    cssPatterns.forEach(pattern => pattern.lastIndex = 0)
+    
+    for (const pattern of cssPatterns) {
+      const match = pattern.exec(content)
+      if (match) {
+        const potentialCSS = (match[1] || match[0]).trim()
+        // Check if this looks like CSS (contains selectors or properties)
+        if (potentialCSS.includes('{') && potentialCSS.includes('}') && 
+            (potentialCSS.includes(':') || potentialCSS.includes('body') || potentialCSS.includes('html'))) {
+          cssContent = potentialCSS
+          break
+        }
       }
+    }
+
+    // If we have both HTML and CSS, merge them
+    if (cssContent && htmlContent) {
+      // Check if HTML already has embedded styles
+      if (!htmlContent.includes('<style>') && !htmlContent.includes('<style ')) {
+        // Find the head tag and insert the CSS
+        const headMatch = htmlContent.match(/(<head[^>]*>)([\s\S]*?)(<\/head>)/i)
+        if (headMatch && headMatch.index !== undefined) {
+          const beforeHead = htmlContent.substring(0, headMatch.index + headMatch[1].length)
+          const headContent = headMatch[2]
+          const afterHead = htmlContent.substring(headMatch.index + headMatch[1].length + headContent.length)
+          
+          // Insert CSS into head
+          htmlContent = beforeHead + headContent + 
+            `\n    <style>\n        ${cssContent}\n    </style>\n` + afterHead
+        } else {
+          // If no head tag found, try to add it
+          const htmlTagMatch = htmlContent.match(/(<html[^>]*>)/i)
+          if (htmlTagMatch && htmlTagMatch.index !== undefined) {
+            const insertPoint = htmlTagMatch.index + htmlTagMatch[1].length
+            const before = htmlContent.substring(0, insertPoint)
+            const after = htmlContent.substring(insertPoint)
+            htmlContent = before + 
+              `\n<head>\n    <style>\n        ${cssContent}\n    </style>\n</head>` + after
+          }
+        }
+      }
+    }
+  }
+
+  if (hasHTML) {
+    // Generate filename based on content
+    let filename = 'generated.html'
+    const titleMatch = htmlContent.match(/<title[^>]*>(.*?)<\/title>/i)
+    if (titleMatch && titleMatch[1]) {
+      filename = titleMatch[1].replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-').toLowerCase() + '.html'
+    }
+
+    return {
+      hasHTML: true,
+      htmlContent,
+      filename
     }
   }
 
