@@ -29,22 +29,34 @@ export async function POST(request: NextRequest) {
             searchResults = searchData.results;
             
             // Enhance the user's message with search context
-            const searchContext = searchResults.map((result: any) => 
-              `${result.title}: ${result.snippet} (Source: ${result.url})`
+            const searchContext = searchResults.map((result: any, index: number) => 
+              `[${index + 1}] Title: ${result.title}
+URL: ${result.url}
+Content: ${result.snippet}`
             ).join('\n\n');
             
-            const enhancedContent = `${lastMessage.content}
+            const enhancedContent = `User Query: ${lastMessage.content}
 
-Current web search results:
+REAL-TIME WEB SEARCH RESULTS (Use this information to answer the query):
 ${searchContext}
 
-Please provide a comprehensive response using the above search results as context. Include relevant information from the search results and cite sources when appropriate.`;
+INSTRUCTIONS:
+- Base your response ONLY on the web search results provided above
+- Include specific information from the search results 
+- Cite sources using the format [1], [2], etc. referring to the numbered sources above
+- Provide clickable links in your response using markdown format [Link Text](URL)
+- If the search results don't contain enough information to fully answer the query, say so explicitly
+- Do NOT provide generic information not found in the search results
+
+Please provide a comprehensive response using the above search results.`;
 
             // Update the last message with search context
             messages[messages.length - 1] = {
               ...lastMessage,
               content: enhancedContent
             };
+          } else {
+            console.error("Web search API returned error:", await searchResponse.text());
           }
         } catch (searchError) {
           console.error("Web search failed:", searchError);

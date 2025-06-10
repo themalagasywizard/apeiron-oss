@@ -42,8 +42,8 @@ async function performWebSearch(query: string, maxResults: number) {
     const serpApiKey = process.env.SERP_API_KEY;
     
     if (!serpApiKey) {
-      console.log("SERP_API_KEY not found, using DuckDuckGo fallback");
-      return await performDuckDuckGoSearch(query, maxResults);
+      console.log("SERP_API_KEY not found, using web scraping fallback");
+      return await performWebScrapingSearch(query, maxResults);
     }
 
     const response = await fetch(`https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(query)}&api_key=${serpApiKey}&num=${Math.min(maxResults, 10)}`);
@@ -86,83 +86,155 @@ async function performWebSearch(query: string, maxResults: number) {
     
   } catch (error) {
     console.error("SerpAPI search error:", error);
-    // Fallback to DuckDuckGo if SerpAPI fails
-    return await performDuckDuckGoSearch(query, maxResults);
+    // Fallback to web scraping if SerpAPI fails
+    return await performWebScrapingSearch(query, maxResults);
   }
 }
 
-// Fallback search using DuckDuckGo Instant Answer API
-async function performDuckDuckGoSearch(query: string, maxResults: number) {
+// Advanced web scraping search using multiple search engines
+async function performWebScrapingSearch(query: string, maxResults: number) {
   try {
-    console.log("Using DuckDuckGo fallback search");
+    console.log("Using web scraping search");
     
-    // DuckDuckGo Instant Answer API
-    const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`);
-    
-    if (!response.ok) {
-      throw new Error(`DuckDuckGo request failed: ${response.status}`);
-    }
-
-    const data = await response.json();
     const results = [];
-
-    // Add abstract/definition if available
-    if (data.Abstract && data.Abstract.trim()) {
-      results.push({
-        title: data.Heading || `About ${query}`,
-        url: data.AbstractURL || "#",
-        snippet: data.Abstract,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Add related topics
-    if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
-      for (const topic of data.RelatedTopics.slice(0, maxResults - results.length)) {
-        if (topic.Text && topic.FirstURL) {
-          results.push({
-            title: topic.Text.split(' - ')[0] || "Related topic",
-            url: topic.FirstURL,
-            snippet: topic.Text,
-            timestamp: new Date().toISOString()
-          });
-        }
+    
+    // Try multiple search approaches
+    const searchPromises = [
+      searchBing(query, Math.ceil(maxResults / 2)),
+      searchDuckDuckGoScrape(query, Math.ceil(maxResults / 2)),
+    ];
+    
+    const searchResults = await Promise.allSettled(searchPromises);
+    
+    // Combine results from all sources
+    for (const result of searchResults) {
+      if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+        results.push(...result.value);
       }
     }
-
-    // If we still don't have enough results, add some constructed search URLs
-    if (results.length < 2) {
-      const fallbackResults = [
-        {
-          title: `Search results for "${query}"`,
-          url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
-          snippet: `Search results and information about ${query} from DuckDuckGo.`,
-          timestamp: new Date().toISOString()
-        },
-        {
-          title: `Wikipedia: ${query}`,
-          url: `https://en.wikipedia.org/wiki/${encodeURIComponent(query.replace(/\s+/g, '_'))}`,
-          snippet: `Wikipedia article and encyclopedia information about ${query}.`,
-          timestamp: new Date().toISOString()
-        }
-      ];
-      
-      results.push(...fallbackResults.slice(0, maxResults - results.length));
-    }
-
-    return results.slice(0, maxResults);
+    
+    // Remove duplicates and limit results
+    const uniqueResults = results.filter((result, index, self) => 
+      index === self.findIndex(r => r.url === result.url)
+    );
+    
+    return uniqueResults.slice(0, maxResults);
     
   } catch (error) {
-    console.error("DuckDuckGo search error:", error);
+    console.error("Web scraping search error:", error);
     
-    // Last resort: return constructed results
+    // Last resort: return a search result that at least gives some guidance
     return [
       {
-        title: `Search: ${query}`,
-        url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
-        snippet: `Unable to fetch live search results. Click to search for "${query}" on DuckDuckGo.`,
+        title: `Search results for "${query}"`,
+        url: `https://www.bing.com/search?q=${encodeURIComponent(query)}`,
+        snippet: `I was unable to fetch detailed search results for "${query}". Please try searching manually or check your internet connection. You can click this link to search directly.`,
         timestamp: new Date().toISOString()
       }
     ];
+  }
+}
+
+// Bing search (often has good results and is more permissive than Google)
+async function searchBing(query: string, maxResults: number) {
+  try {
+    const searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=${maxResults}`;
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Bing search failed: ${response.status}`);
+    }
+    
+    const html = await response.text();
+    const results = [];
+    
+    // Parse Bing search results using regex patterns
+    const titlePattern = /<h2[^>]*><a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g;
+    const snippetPattern = /<p class="b_lineclamp[^"]*"[^>]*>([^<]*)<\/p>/g;
+    
+    const titleMatches = [...html.matchAll(titlePattern)];
+    const snippetMatches = [...html.matchAll(snippetPattern)];
+    
+    for (let i = 0; i < Math.min(titleMatches.length, maxResults); i++) {
+      const titleMatch = titleMatches[i];
+      const snippetMatch = snippetMatches[i];
+      
+      if (titleMatch && titleMatch[1] && titleMatch[2]) {
+        let url = titleMatch[1];
+        // Clean up Bing redirect URLs
+        if (url.includes('bing.com/ck/a')) {
+          const urlMatch = url.match(/&u=([^&]*)/);
+          if (urlMatch) {
+            url = decodeURIComponent(urlMatch[1]);
+          }
+        }
+        
+        results.push({
+          title: titleMatch[2].trim(),
+          url: url,
+          snippet: snippetMatch ? snippetMatch[1].trim() : "No description available",
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+    
+    return results;
+    
+  } catch (error) {
+    console.error("Bing search error:", error);
+    return [];
+  }
+}
+
+// DuckDuckGo scraping (alternative approach)
+async function searchDuckDuckGoScrape(query: string, maxResults: number) {
+  try {
+    // First get the search page
+    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`DuckDuckGo search failed: ${response.status}`);
+    }
+    
+    const html = await response.text();
+    const results = [];
+    
+    // Parse DuckDuckGo results
+    const linkPattern = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g;
+    const snippetPattern = /<a[^>]*class="result__snippet"[^>]*>([^<]*)<\/a>/g;
+    
+    const linkMatches = [...html.matchAll(linkPattern)];
+    const snippetMatches = [...html.matchAll(snippetPattern)];
+    
+    for (let i = 0; i < Math.min(linkMatches.length, maxResults); i++) {
+      const linkMatch = linkMatches[i];
+      const snippetMatch = snippetMatches[i];
+      
+      if (linkMatch && linkMatch[1] && linkMatch[2]) {
+        results.push({
+          title: linkMatch[2].trim(),
+          url: linkMatch[1],
+          snippet: snippetMatch ? snippetMatch[1].trim() : "No description available",
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+    
+    return results;
+    
+  } catch (error) {
+    console.error("DuckDuckGo scrape error:", error);
+    return [];
   }
 } 
