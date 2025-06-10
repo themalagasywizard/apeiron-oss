@@ -355,28 +355,90 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
 
   // Show error state
   if (error) {
+    const isContentFiltered = error.includes("blocked by Google's safety filters") || 
+                              error.includes("safety filters") ||
+                              error.includes("content policy");
+    
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-red-50 dark:bg-red-900/20 rounded-lg p-6 border border-red-200 dark:border-red-800"
+        className={`rounded-lg p-6 border ${
+          isContentFiltered 
+            ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+        }`}
       >
         <div className="flex items-center space-x-3 mb-4">
-          <AlertCircle className="w-8 h-8 text-red-500" />
-          <span className="text-lg font-medium text-red-800 dark:text-red-200">
-            Video Generation Failed
+          <AlertCircle className={`w-8 h-8 ${isContentFiltered ? 'text-orange-500' : 'text-red-500'}`} />
+          <span className={`text-lg font-medium ${
+            isContentFiltered 
+              ? 'text-orange-800 dark:text-orange-200'
+              : 'text-red-800 dark:text-red-200'
+          }`}>
+            {isContentFiltered ? '🛡️ Content Filtered' : 'Video Generation Failed'}
           </span>
         </div>
         
         <div className="text-center">
-          <p className="text-sm text-red-700 dark:text-red-300 mb-2">Error:</p>
-          <p className="text-red-800 dark:text-red-200">{error}</p>
+          <p className={`text-sm mb-2 ${
+            isContentFiltered 
+              ? 'text-orange-700 dark:text-orange-300'
+              : 'text-red-700 dark:text-red-300'
+          }`}>
+            {isContentFiltered ? 'Safety Notice:' : 'Error:'}
+          </p>
+          <p className={`${
+            isContentFiltered 
+              ? 'text-orange-800 dark:text-orange-200'
+              : 'text-red-800 dark:text-red-200'
+          }`}>
+            {error}
+          </p>
         </div>
         
+        {isContentFiltered && (
+          <div className="mt-4 p-4 bg-orange-100 dark:bg-orange-900/30 rounded-lg border border-orange-200 dark:border-orange-800">
+            <h4 className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
+              💡 Suggestions to fix this:
+            </h4>
+            <ul className="text-sm text-orange-700 dark:text-orange-300 space-y-1 list-disc list-inside">
+              <li>Avoid references to copyrighted characters, brands, or media</li>
+              <li>Remove potentially sensitive or inappropriate content</li>
+              <li>Use more general, descriptive language</li>
+              <li>Focus on actions, scenes, and visual elements rather than specific people or brands</li>
+            </ul>
+          </div>
+        )}
+        
         {prompt && (
-          <div className="mt-4 pt-4 border-t border-red-200 dark:border-red-800">
-            <p className="text-sm text-red-600 dark:text-red-400 mb-2">Original Prompt:</p>
-            <p className="text-red-800 dark:text-red-200 italic">"{prompt}"</p>
+          <div className={`mt-4 pt-4 border-t ${
+            isContentFiltered 
+              ? 'border-orange-200 dark:border-orange-800'
+              : 'border-red-200 dark:border-red-800'
+          }`}>
+            <p className={`text-sm mb-2 ${
+              isContentFiltered 
+                ? 'text-orange-600 dark:text-orange-400'
+                : 'text-red-600 dark:text-red-400'
+            }`}>
+              Original Prompt:
+            </p>
+            <p className={`italic ${
+              isContentFiltered 
+                ? 'text-orange-800 dark:text-orange-200'
+                : 'text-red-800 dark:text-red-200'
+            }`}>
+              "{prompt}"
+            </p>
+          </div>
+        )}
+        
+        {isContentFiltered && (
+          <div className="mt-4 text-center">
+            <p className="text-xs text-orange-600 dark:text-orange-400">
+              Try rephrasing your prompt to avoid content that might trigger safety filters
+            </p>
           </div>
         )}
       </motion.div>

@@ -413,22 +413,49 @@ export async function GET(request: NextRequest) {
           console.log("No video data found in any expected location");
           console.log("Available response keys:", Object.keys(statusResult.response));
           
-          // Try to find any field that might contain video data
-          const responseStr = JSON.stringify(statusResult.response);
-          if (responseStr.includes('gs://') || responseStr.includes('http')) {
-            console.log("Found potential URLs in response, manual extraction needed");
-            // Try to extract any URL-like strings
-            const urlMatches = responseStr.match(/(gs:\/\/[^\s"]+|https?:\/\/[^\s"]+)/g);
-            if (urlMatches && urlMatches.length > 0) {
-              console.log("Found URLs:", urlMatches);
-              videoUrl = urlMatches[0];
-              if (videoUrl.includes('gs://')) {
-                videoUrl = videoUrl.replace('gs://', 'https://storage.googleapis.com/');
+          // Check if content was filtered by Google's RAI system
+          const generateVideoResponse = statusResult.response.generateVideoResponse;
+          if (generateVideoResponse) {
+            const hasRaiFiltering = generateVideoResponse.raiMediaFilteredCount > 0 || 
+                                   generateVideoResponse.raiMediaFilteredReasons;
+            
+            if (hasRaiFiltering) {
+              console.log("Content was filtered by Google's RAI system");
+              console.log("RAI filtered count:", generateVideoResponse.raiMediaFilteredCount);
+              console.log("RAI filtered reasons:", generateVideoResponse.raiMediaFilteredReasons);
+              
+              status = "failed";
+              error = "Video content was blocked by Google's safety filters. Please try a different prompt that doesn't include potentially harmful, inappropriate, or copyrighted content.";
+              
+              debugInfo = {
+                hasResponse: true,
+                responseKeys: Object.keys(statusResult.response),
+                contentFiltered: true,
+                raiFilteredCount: generateVideoResponse.raiMediaFilteredCount,
+                raiFilteredReasons: generateVideoResponse.raiMediaFilteredReasons,
+                suggestion: "Try modifying your prompt to avoid potentially sensitive content"
+              };
+            } else {
+              // Try to find any field that might contain video data
+              const responseStr = JSON.stringify(statusResult.response);
+              if (responseStr.includes('gs://') || responseStr.includes('http')) {
+                console.log("Found potential URLs in response, manual extraction needed");
+                // Try to extract any URL-like strings
+                const urlMatches = responseStr.match(/(gs:\/\/[^\s"]+|https?:\/\/[^\s"]+)/g);
+                if (urlMatches && urlMatches.length > 0) {
+                  console.log("Found URLs:", urlMatches);
+                  videoUrl = urlMatches[0];
+                  if (videoUrl.includes('gs://')) {
+                    videoUrl = videoUrl.replace('gs://', 'https://storage.googleapis.com/');
+                  }
+                }
+              }
+              
+              if (!videoUrl) {
+                error = "Video generation completed but no video URL was returned";
               }
             }
-          }
-          
-          if (!videoUrl) {
+          } else {
             error = "Video generation completed but no video URL was returned";
           }
         }
