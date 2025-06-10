@@ -208,6 +208,8 @@ export default function Home() {
   // Call the Edge Function for code generation (longer timeout, higher token limits)
   const callCodeGenerationAPI = async (messages: Message[], provider: string, apiKey: string, model?: string, customModelName?: string) => {
     try {
+      console.log("Attempting to use Edge Function for code generation...");
+      
       const response = await fetch("/api/generate-code", {
         method: "POST",
         headers: {
@@ -227,23 +229,27 @@ export default function Home() {
       const responseText = await response.text()
       
       if (!response.ok) {
-        // Try to parse error response
-        try {
-          const errorData = JSON.parse(responseText)
-          throw new Error(errorData.error || `Code generation error: ${response.statusText}`)
-        } catch (parseError) {
-          // If we can't parse the error response, use the status text
-          throw new Error(`Edge Function error (${response.status}): ${response.statusText}. ${responseText.length > 0 ? 'Invalid response format.' : 'Empty response.'}`)
-        }
+        console.error("Edge Function failed with status:", response.status, "Response:", responseText);
+        
+        // If Edge Function fails, fallback to regular API with enhanced code parameters
+        console.log("Falling back to regular API for code generation...");
+        return await callAI(messages, provider, apiKey, model, customModelName, false);
       }
       
       // Parse successful response
       try {
         if (!responseText || responseText.trim() === '') {
-          throw new Error(`Code generation returned an empty response. Please try again.`)
+          throw new Error(`Edge Function returned empty response, falling back to regular API`);
         }
         
         const data = JSON.parse(responseText)
+        
+        // Validate response structure
+        if (!data.response || typeof data.response !== 'string') {
+          throw new Error(`Edge Function returned invalid response structure, falling back to regular API`);
+        }
+        
+        console.log("Edge Function successful!");
         
         // Add a flag to indicate this was generated using the Edge Function
         return {
@@ -252,28 +258,25 @@ export default function Home() {
           edgeFunction: true
         }
       } catch (parseError) {
-        console.error('Edge Function JSON parse error:', parseError)
-        console.error('Response text (first 500 chars):', responseText.substring(0, 500))
+        console.error('Edge Function JSON parse error:', parseError);
+        console.error('Response text (first 500 chars):', responseText.substring(0, 500));
         
-        // Check if this looks like a partial response
-        if (responseText.includes('"response"') || responseText.includes('"content"') || responseText.includes('"message"')) {
-          throw new Error(`Code generation returned a partial response. The Edge Function may have hit resource limits. Please try with a shorter request.`)
-        }
-        
-        throw new Error(`Code generation returned an invalid response format. Please try again.`)
+        // Fallback to regular API
+        console.log("Falling back to regular API due to parse error...");
+        return await callAI(messages, provider, apiKey, model, customModelName, false);
       }
     } catch (error) {
-      // Handle network errors and other fetch failures
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error('Network error: Unable to connect to the code generation endpoint. Please check your internet connection.')
-      }
+      console.error('Edge Function network error:', error);
       
-      // Re-throw other errors with code generation context
-      if (error instanceof Error && !error.message.includes('Code generation') && !error.message.includes('Edge Function')) {
-        throw new Error(`Code generation failed: ${error.message}`)
-      }
+      // Always fallback to regular API if Edge Function fails
+      console.log("Falling back to regular API due to network error...");
       
-      throw error
+      try {
+        return await callAI(messages, provider, apiKey, model, customModelName, false);
+      } catch (fallbackError) {
+        // If both fail, throw the original error but with context
+        throw new Error(`Code generation failed. Edge Function error: ${error instanceof Error ? error.message : 'Unknown error'}. Regular API error: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
+      }
     }
   }
 
