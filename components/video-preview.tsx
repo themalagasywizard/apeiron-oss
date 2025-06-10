@@ -156,6 +156,41 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     console.log("=== End Status Poll ===");
   }
 
+  // Update currentVideoUrl when initialVideoUrl prop changes
+  useEffect(() => {
+    console.log("VideoPreview: initialVideoUrl prop changed:", initialVideoUrl);
+    console.log("VideoPreview: current currentVideoUrl state:", currentVideoUrl);
+    
+    if (initialVideoUrl !== currentVideoUrl) {
+      console.log("VideoPreview: Updating currentVideoUrl to match new prop");
+      setCurrentVideoUrl(initialVideoUrl);
+      
+      // Reset related state when video URL changes
+      setError(null);
+      setIsLoadingVideo(false);
+      
+      if (initialVideoUrl) {
+        // Also create authenticated URL for immediate playback
+        createAuthenticatedVideoUrl(initialVideoUrl);
+      } else {
+        setAuthenticatedVideoUrl(undefined);
+      }
+    }
+  }, [initialVideoUrl]);
+
+  // Reset operation state when operationName changes
+  useEffect(() => {
+    console.log("VideoPreview: operationName prop changed:", operationName);
+    
+    // Reset operation-specific state when switching operations
+    if (operationName) {
+      setOperationStatus(null);
+      setIsPolling(false);
+      setError(null);
+      console.log("VideoPreview: Reset operation state for new operation");
+    }
+  }, [operationName]);
+
   // Start polling when operationName is provided
   useEffect(() => {
     console.log("useEffect triggered - checking if should start polling");
