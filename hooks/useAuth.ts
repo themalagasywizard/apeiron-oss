@@ -32,17 +32,26 @@ export function useAuth() {
       }
     }
 
+    // Timeout to prevent infinite loading
+    const authTimeout = setTimeout(() => {
+      console.warn('Auth loading timeout reached, forcing loading to false')
+      setAuthState(prev => ({ ...prev, loading: false }))
+    }, 10000) // 10 second timeout
+
     // Get initial session
     const getInitialSession = async () => {
       try {
+        console.log('Getting initial session...')
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
+          console.error('Error getting session:', error)
           setAuthState(prev => ({ ...prev, error: error.message, loading: false }))
           return
         }
 
         if (session?.user) {
+          console.log('Session found, user authenticated:', session.user.id)
           // Clean up URL after successful authentication
           cleanUpUrl()
           
@@ -57,6 +66,7 @@ export function useAuth() {
             console.error('Error fetching user profile:', profileError)
           }
 
+          clearTimeout(authTimeout)
           setAuthState({
             user: session.user,
             userProfile: userProfile || null,
@@ -65,6 +75,8 @@ export function useAuth() {
             error: null
           })
         } else {
+          console.log('No session found, user not authenticated')
+          clearTimeout(authTimeout)
           setAuthState({
             user: null,
             userProfile: null,
@@ -74,6 +86,8 @@ export function useAuth() {
           })
         }
       } catch (error) {
+        console.error('Unexpected error in getInitialSession:', error)
+        clearTimeout(authTimeout)
         setAuthState(prev => ({ 
           ...prev, 
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -117,7 +131,10 @@ export function useAuth() {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(authTimeout)
+    }
   }, [])
 
   const signInWithGoogle = async () => {
