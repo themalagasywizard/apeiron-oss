@@ -77,55 +77,68 @@ export async function POST(request: NextRequest) {
 
       console.log("Code request detected:", isCodeRequest, "for message:", lastUserMessage.substring(0, 100));
       
-      // Route code generation requests to Edge Function
+      // Route code generation requests to Edge Function (with fallback)
       if (isCodeRequest) {
         console.log("Routing code generation request to Edge Function");
         
-        const baseUrl = new URL(request.url).origin;
-        const edgeResponse = await fetch(`${baseUrl}/api/generate-code`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            messages,
-            provider,
-            apiKey,
-            model,
-            temperature,
-            customModelName
-          })
-        });
+        try {
+          const baseUrl = new URL(request.url).origin;
+          
+          // Use a quick timeout controller to check if Edge Function is available
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          
+          const edgeResponse = await fetch(`${baseUrl}/api/generate-code`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              messages,
+              provider,
+              apiKey,
+              model,
+              temperature,
+              customModelName
+            }),
+            signal: controller.signal
+          });
 
-        if (!edgeResponse.ok) {
-          const errorText = await edgeResponse.text();
-          console.error("Edge Function error:", errorText);
-          throw new Error(`Code generation failed: ${edgeResponse.status}`);
+          clearTimeout(timeoutId);
+
+          if (edgeResponse.ok) {
+            const edgeData = await edgeResponse.json();
+            
+            clearTimeout(emergencyTimeout);
+            return NextResponse.json({
+              response: edgeData.response,
+              model: edgeData.model,
+              provider: edgeData.provider,
+              codeGeneration: true,
+              isEdgeFunction: true,
+              searchResults: null,
+              searchEnabled: false
+            });
+          } else {
+            console.log("Edge Function not available, falling back to regular processing");
+            // Fall through to regular processing
+          }
+        } catch (edgeError) {
+          const errorMessage = edgeError instanceof Error ? edgeError.message : "Unknown error";
+          console.log("Edge Function not available (fetch failed), falling back to regular processing:", errorMessage);
+          // Fall through to regular processing
         }
-
-        const edgeData = await edgeResponse.json();
-        
-        clearTimeout(emergencyTimeout);
-        return NextResponse.json({
-          response: edgeData.response,
-          model: edgeData.model,
-          provider: edgeData.provider,
-          codeGeneration: true,
-          isEdgeFunction: true,
-          searchResults: null,
-          searchEnabled: false
-        });
       }
     } catch (error) {
       console.error("Error in code detection or Edge Function routing:", error);
       isCodeRequest = false; // Fallback to regular processing if Edge Function fails
     }
 
-    // Standard chat parameters (code requests are handled by Edge Function)
+    // Standard chat parameters with enhanced settings for code fallback
     const chatParams = {
-      timeout: 15000,    // 15 second timeout for regular chat
-      maxTokens: 2500,   // Standard token limit for chat
-      temperature: temperature || 0.7
+      timeout: isCodeRequest ? 20000 : 15000,    // Slightly longer timeout for code requests
+      maxTokens: isCodeRequest ? 4000 : 2500,    // More tokens for code fallback
+      temperature: isCodeRequest ? 0.1 : (temperature || 0.7)  // Lower temperature for code
     };
 
     // Helper function to add timeout to fetch requests (optimized for serverless chat)
