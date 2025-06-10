@@ -87,6 +87,8 @@ type Model = {
   provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
   isCustom?: boolean
   customModelName?: string
+  enabled?: boolean
+  subModels?: string[] // Array of sub-model IDs that are enabled for this provider
 }
 
 type UserSettings = {
@@ -101,6 +103,7 @@ type UserSettings = {
   deepseekApiKey: string
   grokApiKey: string
   veo2ApiKey: string
+  enabledSubModels: { [provider: string]: string[] } // Track which sub-models are enabled per provider
 }
 
 type MainUIProps = {
@@ -146,7 +149,8 @@ export default function MainUI({
     geminiApiKey: "",
     deepseekApiKey: "",
     grokApiKey: "",
-    veo2ApiKey: ""
+    veo2ApiKey: "",
+    enabledSubModels: {}
   },
   isTyping = false,
   onSendMessage = () => {},
@@ -160,16 +164,83 @@ export default function MainUI({
   onRenameConversation = () => {},
   onRetryMessage = () => {},
 }: MainUIProps) {
-  // Initialize default models
-  const defaultModels: Model[] = [
-    { id: "openai-gpt4", name: "GPT-4", icon: "G4", provider: "openai" },
-    { id: "openai-gpt35", name: "GPT-3.5", icon: "G3", provider: "openai" },
-    { id: "claude-3", name: "Claude 3", icon: "C3", provider: "claude" },
-    { id: "gemini-2.5", name: "Gemini 2.5", icon: "G2", provider: "gemini" },
-    { id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" },
-    { id: "grok", name: "Grok", icon: "GK", provider: "grok" },
-    { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" },
-  ]
+  // Comprehensive model library with latest versions
+  const modelLibrary = {
+    openai: {
+      name: "OpenAI",
+      models: [
+        { id: "gpt-4.1", name: "GPT-4.1", description: "Latest flagship model with enhanced capabilities" },
+        { id: "gpt-4o", name: "GPT-4o", description: "Multimodal model with vision and audio" },
+        { id: "gpt-4", name: "GPT-4", description: "Previous generation model" },
+        { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Fast and cost-effective" }
+      ]
+    },
+    claude: {
+      name: "Anthropic (Claude)",
+      models: [
+        { id: "claude-opus-4", name: "Claude 4 Opus", description: "Most powerful model for complex tasks" },
+        { id: "claude-sonnet-4", name: "Claude 4 Sonnet", description: "Balanced performance and efficiency" },
+        { id: "claude-3.7-sonnet", name: "Claude 3.7 Sonnet", description: "Extended thinking capabilities" },
+        { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet", description: "High performance model" }
+      ]
+    },
+    gemini: {
+      name: "Google (Gemini + VEO2)",
+      models: [
+        { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Fast multimodal processing" },
+        { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Advanced reasoning capabilities" },
+        { id: "veo2", name: "VEO 2", description: "Video generation model" }
+      ]
+    },
+    deepseek: {
+      name: "DeepSeek",
+      models: [
+        { id: "deepseek-v3", name: "DeepSeek V3", description: "Latest reasoning model" },
+        { id: "deepseek-coder", name: "DeepSeek Coder", description: "Specialized for coding" }
+      ]
+    },
+    grok: {
+      name: "xAI (Grok)",
+      models: [
+        { id: "grok-3", name: "Grok 3", description: "Advanced reasoning with real-time data" },
+        { id: "grok-3-mini", name: "Grok 3 Mini", description: "Lightweight thinking model" },
+        { id: "grok-2", name: "Grok 2", description: "Previous generation model" }
+      ]
+    }
+  }
+
+  // Helper function to get model icons
+  const getModelIcon = (provider: string, modelId: string): string => {
+    const iconMap: { [key: string]: { [key: string]: string } } = {
+      openai: {
+        "gpt-4.1": "41",
+        "gpt-4o": "4O",
+        "gpt-4": "G4",
+        "gpt-3.5-turbo": "35"
+      },
+      claude: {
+        "claude-opus-4": "O4",
+        "claude-sonnet-4": "S4",
+        "claude-3.7-sonnet": "37",
+        "claude-3.5-sonnet": "35"
+      },
+      gemini: {
+        "gemini-2.5-flash": "2F",
+        "gemini-2.5-pro": "2P",
+        "veo2": "V2"
+      },
+      deepseek: {
+        "deepseek-v3": "D3",
+        "deepseek-coder": "DC"
+      },
+      grok: {
+        "grok-3": "G3",
+        "grok-3-mini": "3M",
+        "grok-2": "G2"
+      }
+    }
+    return iconMap[provider]?.[modelId] || "AI"
+  }
 
   // State
   const [theme, setTheme] = useState<"dark" | "light">("dark")
@@ -187,6 +258,8 @@ export default function MainUI({
   const [error, setError] = useState<string | null>(null)
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
+  const [editingProvider, setEditingProvider] = useState<string | null>(null) // Track which provider is being edited
+  const [tempSelectedModels, setTempSelectedModels] = useState<{ [provider: string]: string[] }>({}) // Temporary selection during editing
 
   // File upload state
   const [attachments, setAttachments] = useState<ProcessedFile[]>([])
@@ -372,7 +445,7 @@ export default function MainUI({
     }))
   }
 
-  // Add new model (save API keys directly to userSettings)
+  // Add new model (save API keys and enable sub-models)
   const handleAddModel = () => {
     if (!newModelApiKey.trim()) {
       setError("API key is required")
@@ -386,7 +459,7 @@ export default function MainUI({
       return
     }
 
-    // Save API keys directly to userSettings based on provider
+    // Save API key and open model selection
     let updatedSettings = { ...userSettings }
 
     if (newModelProvider === "openrouter") {
@@ -417,6 +490,13 @@ export default function MainUI({
           break
       }
       updatedSettings.openrouterEnabled = false
+      
+      // Initialize with all models enabled by default for the provider
+      const providerModels = modelLibrary[newModelProvider]?.models.map(m => m.id) || []
+      updatedSettings.enabledSubModels = {
+        ...updatedSettings.enabledSubModels,
+        [newModelProvider]: providerModels
+      }
     }
 
     onSaveSettings(updatedSettings)
@@ -427,24 +507,33 @@ export default function MainUI({
     setNewModelProvider("openai")
   }
 
-  // Remove model (clear API keys)
-  const handleRemoveModel = (modelId: string) => {
+  // Remove model (clear API keys and enabled sub-models)
+  const handleRemoveModel = (provider: string) => {
     let updatedSettings = { ...userSettings }
     
-    // If it's a default model, clear the API key
-    if (modelId === "deepseek") {
-      updatedSettings.deepseekApiKey = ""
-    } else if (modelId === "openai-gpt4" || modelId === "openai-gpt35") {
-      updatedSettings.openaiApiKey = ""
-    } else if (modelId === "claude-3") {
-      updatedSettings.claudeApiKey = ""
-    } else if (modelId === "gemini-2.5") {
-      updatedSettings.geminiApiKey = ""
-    } else if (modelId === "grok") {
-      updatedSettings.grokApiKey = ""
-    } else {
-      // Custom model - remove from models array
-      updatedSettings.models = userSettings.models.filter(m => m.id !== modelId)
+    // Clear the API key for the provider
+    switch (provider) {
+      case "openai":
+        updatedSettings.openaiApiKey = ""
+        break
+      case "claude":
+        updatedSettings.claudeApiKey = ""
+        break
+      case "gemini":
+        updatedSettings.geminiApiKey = ""
+        break
+      case "deepseek":
+        updatedSettings.deepseekApiKey = ""
+        break
+      case "grok":
+        updatedSettings.grokApiKey = ""
+        break
+    }
+    
+    // Clear enabled sub-models for the provider
+    updatedSettings.enabledSubModels = {
+      ...updatedSettings.enabledSubModels,
+      [provider]: []
     }
     
     onSaveSettings(updatedSettings)
@@ -705,6 +794,48 @@ export default function MainUI({
       .trim();
 
     return cleaned;
+  }
+
+  // Start editing a provider's model selection
+  const handleEditProvider = (provider: string) => {
+    setEditingProvider(provider)
+    setTempSelectedModels({
+      ...tempSelectedModels,
+      [provider]: [...(userSettings.enabledSubModels[provider] || [])]
+    })
+  }
+
+  // Toggle a sub-model selection during editing
+  const handleToggleSubModel = (provider: string, modelId: string) => {
+    const currentModels = tempSelectedModels[provider] || []
+    const updatedModels = currentModels.includes(modelId)
+      ? currentModels.filter(id => id !== modelId)
+      : [...currentModels, modelId]
+    
+    setTempSelectedModels({
+      ...tempSelectedModels,
+      [provider]: updatedModels
+    })
+  }
+
+  // Save the sub-model selection
+  const handleSaveModelSelection = (provider: string) => {
+    const updatedSettings = {
+      ...userSettings,
+      enabledSubModels: {
+        ...userSettings.enabledSubModels,
+        [provider]: tempSelectedModels[provider] || []
+      }
+    }
+    onSaveSettings(updatedSettings)
+    setEditingProvider(null)
+    setTempSelectedModels({})
+  }
+
+  // Cancel editing
+  const handleCancelModelSelection = () => {
+    setEditingProvider(null)
+    setTempSelectedModels({})
   }
 
   return (
@@ -1628,60 +1759,135 @@ export default function MainUI({
                         {/* Configured Models */}
                         <div>
                           <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Your Models</h4>
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             {(() => {
-                              // Get list of configured models based on API keys
-                              const configuredModels = []
-                              
-                              if (userSettings.deepseekApiKey) {
-                                configuredModels.push({ id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" })
-                              }
-                              if (userSettings.openaiApiKey) {
-                                configuredModels.push({ id: "openai-gpt4", name: "GPT-4", icon: "G4", provider: "openai" })
-                              }
-                              if (userSettings.claudeApiKey) {
-                                configuredModels.push({ id: "claude-3", name: "Claude 3", icon: "C3", provider: "claude" })
-                              }
-                              if (userSettings.geminiApiKey) {
-                                configuredModels.push({ id: "gemini-2.5", name: "Gemini 2.5 (incl. VEO2)", icon: "G2", provider: "gemini" })
-                              }
-                              if (userSettings.grokApiKey) {
-                                configuredModels.push({ id: "grok", name: "Grok", icon: "GK", provider: "grok" })
+                              // Get list of configured providers based on API keys
+                              type ConfiguredProvider = {
+                                provider: string
+                                name: string
+                                enabledModels: string[]
+                                allModels: Array<{ id: string; name: string; description: string }>
                               }
                               
-                              // Add custom models
-                              configuredModels.push(...userSettings.models)
+                              const configuredProviders: ConfiguredProvider[] = []
                               
-                              return configuredModels.length === 0 ? (
+                              Object.entries(modelLibrary).forEach(([provider, providerData]) => {
+                                const apiKeyField = `${provider}ApiKey` as keyof UserSettings
+                                const hasApiKey = userSettings[apiKeyField] as string
+                                const enabledModels = userSettings.enabledSubModels[provider] || []
+                                
+                                if (hasApiKey) {
+                                  configuredProviders.push({
+                                    provider,
+                                    name: providerData.name,
+                                    enabledModels,
+                                    allModels: providerData.models
+                                  })
+                                }
+                              })
+                              
+                              return configuredProviders.length === 0 ? (
                                 <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
                                   No models configured yet. Add your first model above.
                                 </p>
                               ) : (
-                                configuredModels.map((model) => (
+                                configuredProviders.map((config) => (
                                   <div
-                                    key={model.id}
-                                    className="flex items-center justify-between p-3 bg-white/50 dark:bg-gray-900/50 rounded-lg border border-gray-200/50 dark:border-gray-700/50"
+                                    key={config.provider}
+                                    className="p-4 bg-white/50 dark:bg-gray-900/50 rounded-lg border border-gray-200/50 dark:border-gray-700/50"
                                   >
-                                    <div className="flex items-center gap-3">
-                                      <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">
-                                        {model.icon}
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-white text-sm font-bold">
+                                          {config.provider.substring(0, 2).toUpperCase()}
+                                        </div>
+                                        <div>
+                                          <div className="font-medium text-gray-900 dark:text-gray-100">{config.name}</div>
+                                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                                            {config.enabledModels.length} of {config.allModels.length} models enabled
+                                          </div>
+                                        </div>
                                       </div>
-                                      <div>
-                                        <div className="font-medium text-gray-900 dark:text-gray-100">{model.name}</div>
-                                        <div className="text-sm text-gray-500 dark:text-gray-400 capitalize">{model.provider}</div>
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => handleEditProvider(config.provider)}
+                                          className="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                                        >
+                                          Edit Models
+                                        </button>
+                                        <button
+                                          onClick={() => handleRemoveModel(config.provider)}
+                                          className="p-1 text-red-500 hover:text-red-600 transition-colors"
+                                        >
+                                          <X className="w-4 h-4" />
+                                        </button>
                                       </div>
                                     </div>
-                                    <button
-                                      onClick={() => handleRemoveModel(model.id)}
-                                      className="text-red-500 hover:text-red-600 transition-colors"
-                                    >
-                                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+                                    
+                                    {/* Show enabled models */}
+                                    {config.enabledModels.length > 0 && (
+                                      <div className="flex flex-wrap gap-2">
+                                        {config.enabledModels.map((modelId: string) => {
+                                          const model = config.allModels.find((m: { id: string; name: string; description: string }) => m.id === modelId)
+                                          return model ? (
+                                            <span
+                                              key={modelId}
+                                              className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full"
+                                            >
+                                              {model.name}
+                                            </span>
+                                          ) : null
+                                        })}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Model selection interface when editing */}
+                                    {editingProvider === config.provider && (
+                                      <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
+                                        <h5 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Select Models to Enable</h5>
+                                        <div className="space-y-2 mb-3">
+                                          {config.allModels.map((model: { id: string; name: string; description: string }) => {
+                                            const isSelected = (tempSelectedModels[config.provider] || []).includes(model.id)
+                                            return (
+                                              <label
+                                                key={model.id}
+                                                className="flex items-start gap-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
+                                              >
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isSelected}
+                                                  onChange={() => handleToggleSubModel(config.provider, model.id)}
+                                                  className="mt-1 w-4 h-4 text-purple-500 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500"
+                                                />
+                                                <div className="flex-1">
+                                                  <div className="font-medium text-gray-900 dark:text-gray-100">{model.name}</div>
+                                                  <div className="text-sm text-gray-500 dark:text-gray-400">{model.description}</div>
+                                                </div>
+                                              </label>
+                                            )
+                                          })}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <button
+                                            onClick={() => handleSaveModelSelection(config.provider)}
+                                            className="px-3 py-1 text-sm bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+                                          >
+                                            Save
+                                          </button>
+                                          <button
+                                            onClick={handleCancelModelSelection}
+                                            className="px-3 py-1 text-sm bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 ))
                               )
                             })()}
-                </div>
+                          </div>
                         </div>
                       </>
                     )}

@@ -38,6 +38,8 @@ type Model = {
   provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
   isCustom?: boolean
   customModelName?: string
+  enabled?: boolean
+  subModels?: string[] // Array of sub-model IDs that are enabled for this provider
 }
 
 type UserSettings = {
@@ -52,6 +54,7 @@ type UserSettings = {
   deepseekApiKey: string
   grokApiKey: string
   veo2ApiKey: string
+  enabledSubModels: { [provider: string]: string[] } // Track which sub-models are enabled per provider
 }
 
 type Conversation = {
@@ -79,7 +82,8 @@ export default function Home() {
     geminiApiKey: "",
     deepseekApiKey: "",
     grokApiKey: "",
-    veo2ApiKey: ""
+    veo2ApiKey: "",
+    enabledSubModels: {}
   })
 
   // Load settings and set client flag on mount
@@ -101,7 +105,8 @@ export default function Home() {
             geminiApiKey: parsed.geminiApiKey || "",
             deepseekApiKey: parsed.deepseekApiKey || "",
             grokApiKey: parsed.grokApiKey || "",
-            veo2ApiKey: parsed.veo2ApiKey || ""
+            veo2ApiKey: parsed.veo2ApiKey || "",
+            enabledSubModels: parsed.enabledSubModels || {}
           }
         }
       } catch (error) {
@@ -119,7 +124,8 @@ export default function Home() {
         geminiApiKey: "",
         deepseekApiKey: "",
         grokApiKey: "",
-        veo2ApiKey: ""
+        veo2ApiKey: "",
+        enabledSubModels: {}
       }
     }
 
@@ -127,20 +133,117 @@ export default function Home() {
     setIsClient(true) // Set client to true after settings are loaded
   }, [])
 
-  // Default models (shown only if user hasn't configured API keys)
-  const defaultModels: Model[] = [
-    { id: "gpt-4", name: "GPT-4", icon: "AI", provider: "openai" },
-    { id: "claude-3", name: "Claude 3", icon: "C", provider: "claude" },
-    { id: "gemini-2.5", name: "Gemini 2.5", icon: "G", provider: "gemini" },
-    { id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" },
-    { id: "grok", name: "Grok", icon: "GK", provider: "grok" },
-    { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" }
-  ]
+  // Comprehensive model library with latest versions
+  const modelLibrary = {
+    openai: {
+      name: "OpenAI",
+      models: [
+        { id: "gpt-4.1", name: "GPT-4.1", description: "Latest flagship model with enhanced capabilities" },
+        { id: "gpt-4o", name: "GPT-4o", description: "Multimodal model with vision and audio" },
+        { id: "gpt-4", name: "GPT-4", description: "Previous generation model" },
+        { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Fast and cost-effective" }
+      ]
+    },
+    claude: {
+      name: "Anthropic (Claude)",
+      models: [
+        { id: "claude-opus-4", name: "Claude 4 Opus", description: "Most powerful model for complex tasks" },
+        { id: "claude-sonnet-4", name: "Claude 4 Sonnet", description: "Balanced performance and efficiency" },
+        { id: "claude-3.7-sonnet", name: "Claude 3.7 Sonnet", description: "Extended thinking capabilities" },
+        { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet", description: "High performance model" }
+      ]
+    },
+    gemini: {
+      name: "Google (Gemini + VEO2)",
+      models: [
+        { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Fast multimodal processing" },
+        { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Advanced reasoning capabilities" },
+        { id: "veo2", name: "VEO 2", description: "Video generation model" }
+      ]
+    },
+    deepseek: {
+      name: "DeepSeek",
+      models: [
+        { id: "deepseek-v3", name: "DeepSeek V3", description: "Latest reasoning model" },
+        { id: "deepseek-coder", name: "DeepSeek Coder", description: "Specialized for coding" }
+      ]
+    },
+    grok: {
+      name: "xAI (Grok)",
+      models: [
+        { id: "grok-3", name: "Grok 3", description: "Advanced reasoning with real-time data" },
+        { id: "grok-3-mini", name: "Grok 3 Mini", description: "Lightweight thinking model" },
+        { id: "grok-2", name: "Grok 2", description: "Previous generation model" }
+      ]
+    }
+  }
 
-  // Get available models (user configured + defaults without API keys)
-  const availableModels = userSettings.openrouterEnabled 
-    ? [{ id: "openrouter", name: userSettings.openrouterModelName || "OpenRouter", icon: "OR", provider: "openrouter" as const }]
-    : [...userSettings.models, ...defaultModels.filter(m => !userSettings.models.some(um => um.id === m.id))]
+  // Get available models based on user's enabled selections
+  const getAvailableModels = (): Model[] => {
+    if (userSettings.openrouterEnabled) {
+      return [{ id: "openrouter", name: userSettings.openrouterModelName || "OpenRouter", icon: "OR", provider: "openrouter" as const }]
+    }
+
+    const availableModels: Model[] = []
+
+    // Add models based on API keys and enabled sub-models
+    Object.entries(modelLibrary).forEach(([provider, providerData]) => {
+      const apiKeyField = `${provider}ApiKey` as keyof UserSettings
+      const hasApiKey = userSettings[apiKeyField] as string
+      const enabledSubModels = userSettings.enabledSubModels[provider] || []
+
+      if (hasApiKey && enabledSubModels.length > 0) {
+        providerData.models.forEach(model => {
+          if (enabledSubModels.includes(model.id)) {
+            availableModels.push({
+              id: model.id,
+              name: model.name,
+              icon: getModelIcon(provider, model.id),
+              provider: provider as any,
+              apiKey: hasApiKey
+            })
+          }
+        })
+      }
+    })
+
+    return availableModels
+  }
+
+  // Helper function to get model icons
+  const getModelIcon = (provider: string, modelId: string): string => {
+    const iconMap: { [key: string]: { [key: string]: string } } = {
+      openai: {
+        "gpt-4.1": "41",
+        "gpt-4o": "4O",
+        "gpt-4": "G4",
+        "gpt-3.5-turbo": "35"
+      },
+      claude: {
+        "claude-opus-4": "O4",
+        "claude-sonnet-4": "S4",
+        "claude-3.7-sonnet": "37",
+        "claude-3.5-sonnet": "35"
+      },
+      gemini: {
+        "gemini-2.5-flash": "2F",
+        "gemini-2.5-pro": "2P",
+        "veo2": "V2"
+      },
+      deepseek: {
+        "deepseek-v3": "D3",
+        "deepseek-coder": "DC"
+      },
+      grok: {
+        "grok-3": "G3",
+        "grok-3-mini": "3M",
+        "grok-2": "G2"
+      }
+    }
+    return iconMap[provider]?.[modelId] || "AI"
+  }
+
+  const availableModels = getAvailableModels()
 
   // Unified API calling function that uses our server-side route
   const callAI = async (messages: Message[], provider: string, apiKey: string, model?: string, customModelName?: string, webSearchEnabled?: boolean) => {
