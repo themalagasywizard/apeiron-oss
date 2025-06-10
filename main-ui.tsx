@@ -195,8 +195,7 @@ export default function MainUI({
     deepseek: {
       name: "DeepSeek",
       models: [
-        { id: "deepseek-v3", name: "DeepSeek V3", description: "Latest reasoning model" },
-        { id: "deepseek-coder", name: "DeepSeek Coder", description: "Specialized for coding" }
+        { id: "deepseek-v3", name: "DeepSeek V3", description: "Latest reasoning and coding model" }
       ]
     },
     grok: {
@@ -230,8 +229,7 @@ export default function MainUI({
         "veo2": "V2"
       },
       deepseek: {
-        "deepseek-v3": "D3",
-        "deepseek-coder": "DC"
+        "deepseek-v3": "D3"
       },
       grok: {
         "grok-3": "G3",

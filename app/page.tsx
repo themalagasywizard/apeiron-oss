@@ -164,8 +164,7 @@ export default function Home() {
     deepseek: {
       name: "DeepSeek",
       models: [
-        { id: "deepseek-v3", name: "DeepSeek V3", description: "Latest reasoning model" },
-        { id: "deepseek-coder", name: "DeepSeek Coder", description: "Specialized for coding" }
+        { id: "deepseek-v3", name: "DeepSeek V3", description: "Latest reasoning and coding model" }
       ]
     },
     grok: {
@@ -234,8 +233,7 @@ export default function Home() {
         "veo2": "V2"
       },
       deepseek: {
-        "deepseek-v3": "D3",
-        "deepseek-coder": "DC"
+        "deepseek-v3": "D3"
       },
       grok: {
         "grok-3": "G3",
@@ -533,12 +531,11 @@ export default function Home() {
           throw new Error(`API key required. Please configure ${selectedModelData.provider} in Settings > Models.`)
       }
 
-      // Call the appropriate AI endpoint based on code generation mode or DeepSeek provider
+      // Call the appropriate AI endpoint based on code generation mode
       let apiResult;
-      const shouldUseEdgeFunction = codeGenerationEnabled || selectedModelData.provider === "deepseek";
       
-      if (shouldUseEdgeFunction) {
-        // Use Edge Function for code generation or DeepSeek models (which are slower)
+      if (codeGenerationEnabled) {
+        // Use Edge Function for code generation when explicitly enabled
         apiResult = await callCodeGenerationAPI(allMessages, selectedModelData.provider, apiKey, modelName, customModelName)
       } else {
         // Use regular API with web search support
