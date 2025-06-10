@@ -11,8 +11,7 @@ type HTMLPreviewProps = {
 }
 
 export default function HTMLPreview({ htmlContent, filename = 'generated.html', onDownload }: HTMLPreviewProps) {
-  const [showPreview, setShowPreview] = useState(false)
-  const [showCode, setShowCode] = useState(true)
+  const [viewMode, setViewMode] = useState<'code' | 'preview'>('preview')
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // Sanitize HTML content for safe rendering
@@ -39,7 +38,7 @@ export default function HTMLPreview({ htmlContent, filename = 'generated.html', 
     if (onDownload) {
       onDownload(htmlContent, filename)
     } else {
-      // Default download behavior
+      // Default download behavior using original htmlContent
       const blob = new Blob([htmlContent], { type: 'text/html' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -53,9 +52,10 @@ export default function HTMLPreview({ htmlContent, filename = 'generated.html', 
   }
 
   const handleOpenInNewTab = () => {
+    // Always use the current htmlContent (not cached)
     const newWindow = window.open()
     if (newWindow) {
-      newWindow.document.write(sanitizedContent)
+      newWindow.document.write(htmlContent)
       newWindow.document.close()
     }
   }
@@ -73,10 +73,10 @@ export default function HTMLPreview({ htmlContent, filename = 'generated.html', 
   }
 
   React.useEffect(() => {
-    if (showPreview) {
+    if (viewMode === 'preview') {
       setTimeout(renderPreview, 100)
     }
-  }, [showPreview, sanitizedContent])
+  }, [viewMode, sanitizedContent])
 
   return (
     <div className="border border-gray-200/20 dark:border-gray-700/20 rounded-xl overflow-hidden bg-white/5 dark:bg-gray-800/20">
@@ -89,26 +89,6 @@ export default function HTMLPreview({ htmlContent, filename = 'generated.html', 
         </div>
         
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCode(!showCode)}
-            className="p-2 rounded-lg hover:bg-white/20 dark:hover:bg-gray-700/20 transition-colors"
-            title="Toggle code view"
-          >
-            <Code className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-          </button>
-          
-          <button
-            onClick={() => setShowPreview(!showPreview)}
-            className="p-2 rounded-lg hover:bg-white/20 dark:hover:bg-gray-700/20 transition-colors"
-            title="Toggle preview"
-          >
-            {showPreview ? (
-              <EyeOff className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-            ) : (
-              <Eye className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-            )}
-          </button>
-          
           <button
             onClick={handleOpenInNewTab}
             className="p-2 rounded-lg hover:bg-white/20 dark:hover:bg-gray-700/20 transition-colors"
@@ -128,27 +108,49 @@ export default function HTMLPreview({ htmlContent, filename = 'generated.html', 
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex flex-col lg:flex-row">
-        {/* Code View */}
-        {showCode && (
-          <div className="flex-1 min-h-[300px] max-h-[600px] overflow-auto">
+      {/* Full-size Toggle Button */}
+      <div className="p-4 border-b border-gray-200/20 dark:border-gray-700/20 bg-white/5 dark:bg-gray-800/10">
+        <button
+          onClick={() => setViewMode(viewMode === 'code' ? 'preview' : 'code')}
+          className={`w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
+            viewMode === 'preview'
+              ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg hover:shadow-blue-500/25'
+              : 'bg-gradient-to-r from-gray-500 to-gray-600 text-white shadow-lg hover:shadow-gray-500/25'
+          }`}
+        >
+          {viewMode === 'preview' ? (
+            <>
+              <Eye className="w-5 h-5" />
+              <span>Viewing Preview • Click to View Code</span>
+            </>
+          ) : (
+            <>
+              <Code className="w-5 h-5" />
+              <span>Viewing Code • Click to View Preview</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Content - Single View */}
+      <div className="relative">
+        {viewMode === 'code' ? (
+          /* Code View */
+          <div className="min-h-[400px] max-h-[600px] overflow-auto">
             <pre className="p-4 text-sm text-gray-800 dark:text-gray-200 bg-gray-50/50 dark:bg-gray-900/50">
               <code>{htmlContent}</code>
             </pre>
           </div>
-        )}
-        
-        {/* Preview */}
-        {showPreview && (
-          <div className={`${showCode ? 'flex-1' : 'w-full'} border-l border-gray-200/20 dark:border-gray-700/20`}>
+        ) : (
+          /* Preview View */
+          <div className="relative">
             <div className="p-4 bg-gray-100/50 dark:bg-gray-800/50 border-b border-gray-200/20 dark:border-gray-700/20">
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Live Preview</span>
             </div>
-            <div className="relative min-h-[300px] max-h-[600px] overflow-auto bg-white">
+            <div className="relative min-h-[400px] max-h-[600px] overflow-auto bg-white">
               <iframe
                 ref={iframeRef}
-                className="w-full h-full min-h-[300px] border-none"
+                className="w-full h-full min-h-[400px] border-none"
                 title="HTML Preview"
                 sandbox="allow-same-origin"
                 style={{ backgroundColor: 'white' }}
