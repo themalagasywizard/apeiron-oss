@@ -52,27 +52,31 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [isLoadingVideo, setIsLoadingVideo] = useState(false)
 
-  // Create authenticated video URL by adding API key as query parameter
+  // Helper function to create authenticated URL with API key
+  const createAuthenticatedUrl = (videoUrl: string): string => {
+    if (!apiKey) {
+      console.log("No API key available - returning original URL");
+      return videoUrl;
+    }
+
+    // Add API key directly to the video URL
+    const authUrl = videoUrl.includes('key=') 
+      ? videoUrl 
+      : videoUrl.includes('?') 
+        ? `${videoUrl}&key=${apiKey}`
+        : `${videoUrl}?key=${apiKey}`;
+    
+    return authUrl;
+  }
+
+  // Create authenticated video URL for playback
   const createAuthenticatedVideoUrl = async (videoUrl: string) => {
     console.log("Setting up authenticated video URL for playback...");
     console.log("Input video URL:", videoUrl);
     
-    if (!apiKey) {
-      console.log("No API key available - using direct URL (may fail for protected videos)");
-      setAuthenticatedVideoUrl(videoUrl);
-      setIsLoadingVideo(false);
-      return;
-    }
-
     try {
-      // Add API key directly to the video URL
-      const authUrl = videoUrl.includes('key=') 
-        ? videoUrl 
-        : videoUrl.includes('?') 
-          ? `${videoUrl}&key=${apiKey}`
-          : `${videoUrl}?key=${apiKey}`;
-      
-      console.log("Created authenticated video URL:", authUrl.replace(apiKey, 'API_KEY_HIDDEN'));
+      const authUrl = createAuthenticatedUrl(videoUrl);
+      console.log("Created authenticated video URL:", authUrl.replace(apiKey || '', 'API_KEY_HIDDEN'));
       setAuthenticatedVideoUrl(authUrl);
       setIsLoadingVideo(false);
       
@@ -263,30 +267,34 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       const filename = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`
       onDownload(currentVideoUrl, filename)
     } else if (currentVideoUrl) {
+      // Create authenticated URL for download
+      const downloadUrl = createAuthenticatedUrl(currentVideoUrl);
+      
       // Try multiple download strategies for better compatibility
       try {
         console.log("=== Video Download Debug Info ===");
-        console.log("Video URL:", currentVideoUrl);
-        console.log("Video URL length:", currentVideoUrl.length);
-        console.log("URL starts with:", currentVideoUrl.substring(0, 50));
+        console.log("Original Video URL:", currentVideoUrl);
+        console.log("Authenticated Download URL:", downloadUrl.replace(apiKey || '', 'API_KEY_HIDDEN'));
+        console.log("Video URL length:", downloadUrl.length);
+        console.log("URL starts with:", downloadUrl.substring(0, 50));
         
         // Check if this is a Google Storage URL (usually public)
-        const isGoogleStorage = currentVideoUrl.includes('storage.googleapis.com') || 
-                               currentVideoUrl.includes('googleusercontent.com');
+        const isGoogleStorage = downloadUrl.includes('storage.googleapis.com') || 
+                               downloadUrl.includes('googleusercontent.com');
         
         console.log("Is Google Storage URL:", isGoogleStorage);
-        console.log("Has googleapis:", currentVideoUrl.includes('googleapis'));
-        console.log("Has storage:", currentVideoUrl.includes('storage'));
+        console.log("Has googleapis:", downloadUrl.includes('googleapis'));
+        console.log("Has storage:", downloadUrl.includes('storage'));
+        console.log("Has API key:", downloadUrl.includes('key='));
         
         if (isGoogleStorage) {
           console.log("Detected Google Storage URL - using direct download approach");
         }
         
-        // Strategy 1: Try direct fetch first (for publicly accessible URLs)
-        // This is preferred since it doesn't require API authentication
-        console.log("Trying direct fetch download...");
+        // Strategy 1: Try authenticated fetch download
+        console.log("Trying authenticated fetch download...");
         try {
-          const response = await fetch(currentVideoUrl, {
+          const response = await fetch(downloadUrl, {
             mode: 'cors',
             credentials: 'omit'
           });
@@ -307,32 +315,32 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
             console.log("Direct fetch failed with status:", response.status);
           }
         } catch (directFetchError) {
-          console.log("Direct fetch failed:", directFetchError);
+          console.log("Authenticated fetch failed:", directFetchError);
         }
         
-        // Strategy 2: Try browser download with proper attributes
-        console.log("Trying browser download...");
+        // Strategy 2: Try browser download with authenticated URL
+        console.log("Trying browser download with authentication...");
         try {
           const link = document.createElement('a');
-          link.href = currentVideoUrl;
+          link.href = downloadUrl;
           link.target = '_blank';
           link.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
           link.rel = 'noopener noreferrer';
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          console.log("Browser download initiated");
+          console.log("Authenticated browser download initiated");
           return;
         } catch (browserDownloadError) {
-          console.log("Browser download failed:", browserDownloadError);
+          console.log("Authenticated browser download failed:", browserDownloadError);
         }
         
-        // Strategy 3: Force download by opening URL in new tab
-        console.log("Trying forced download via new tab...");
+        // Strategy 3: Force download by opening authenticated URL in new tab
+        console.log("Trying forced download via new tab with authentication...");
         try {
           // Create a temporary link to force download
           const link = document.createElement('a');
-          link.href = currentVideoUrl;
+          link.href = downloadUrl;
           link.target = '_blank';
           link.rel = 'noopener noreferrer';
           
@@ -357,11 +365,11 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
           console.log("Forced download failed:", forcedDownloadError);
         }
         
-        // Strategy 4: Final fallback - copy URL to clipboard and guide user
-        console.log("Using final fallback: clipboard + instructions");
+        // Strategy 4: Final fallback - copy authenticated URL to clipboard and guide user
+        console.log("Using final fallback: clipboard + instructions with authenticated URL");
         try {
-          await navigator.clipboard.writeText(currentVideoUrl);
-          const message = `All automated download methods failed, but the video URL has been copied to your clipboard!
+          await navigator.clipboard.writeText(downloadUrl);
+          const message = `All automated download methods failed, but the authenticated video URL has been copied to your clipboard!
 
 📋 Manual Download Steps:
 1. Open a new browser tab
@@ -375,9 +383,9 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
           alert(message);
         } catch (clipboardErr) {
           console.error("Clipboard access failed:", clipboardErr);
-          const message = `Download failed. Please manually copy this URL and open it in your browser:
+          const message = `Download failed. Please manually copy this authenticated URL and open it in your browser:
 
-${currentVideoUrl}
+${downloadUrl}
 
 Then right-click the video and select "Save video as..."`;
           alert(message);
@@ -385,7 +393,7 @@ Then right-click the video and select "Save video as..."`;
         
       } catch (err) {
         console.error("All download strategies failed:", err);
-        alert(`Download failed. Video URL: ${currentVideoUrl}\n\nPlease copy this URL and open it in your browser to access the video.`);
+        alert(`Download failed. Authenticated Video URL: ${downloadUrl}\n\nPlease copy this URL and open it in your browser to access the video.`);
       }
     }
   }
@@ -393,13 +401,16 @@ Then right-click the video and select "Save video as..."`;
   const handleCopyUrl = async () => {
     if (!currentVideoUrl) return;
     
+    // Create authenticated URL for copying
+    const authUrl = createAuthenticatedUrl(currentVideoUrl);
+    
     try {
-      await navigator.clipboard.writeText(currentVideoUrl);
-      alert("Video URL copied to clipboard! You can paste it in a browser to access the video directly.");
+      await navigator.clipboard.writeText(authUrl);
+      alert("Authenticated video URL copied to clipboard! You can paste it in a browser to access the video directly.");
     } catch (err) {
       console.error("Failed to copy URL:", err);
       // Fallback: show URL in alert for manual copying
-      alert(`Failed to copy automatically. Please copy this URL manually:\n\n${currentVideoUrl}`);
+      alert(`Failed to copy automatically. Please copy this authenticated URL manually:\n\n${authUrl}`);
     }
   }
 
