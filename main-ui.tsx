@@ -457,7 +457,7 @@ export default function MainUI({
     // Enhanced patterns for real VEO2 integration
     const videoPattern = /🎬.*?Video Generation.*?(Started|Complete|Initiated|Processing)/i
     const promptPattern = /\*\*Prompt:\*\*\s*(.+?)(?=\n|$)/i
-    const operationPattern = /Operation Name:\s*([^\s\n]+)/i
+    const operationPattern = /\*\*Operation Name:\*\*\s*([^\s\n]+)/i
     const videoUrlPattern = /Video URL:\s*(https?:\/\/[^\s\n]+)/i
     const statusPattern = /\*\*Status:\*\*\s*([^\n]+)/i
     
@@ -471,6 +471,7 @@ export default function MainUI({
     const isGenerating = content.includes('Video Generation Started') || 
                         content.includes('Generating Video') ||
                         content.includes('Processing with Google VEO 2') ||
+                        content.includes('Demo processing') ||
                         (statusMatch && statusMatch[1].toLowerCase().includes('processing'))
     
     return {

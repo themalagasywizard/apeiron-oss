@@ -165,6 +165,8 @@ export async function POST(request: NextRequest) {
 
 **Status:** Demo processing - VEO 2 integration ready
 
+**Operation Name:** ${mockOperationName}
+
 **Configuration:**
 - Duration: ${duration} seconds
 - Aspect Ratio: ${aspectRatio}
@@ -220,6 +222,8 @@ The production VEO 2 integration is ready and will work with a valid API key.`
 **Prompt:** ${prompt}
 
 **Status:** Processing with Google VEO 2
+
+**Operation Name:** ${operationName}
 
 **Configuration:**
 - Duration: ${duration} seconds
