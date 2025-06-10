@@ -52,37 +52,18 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [isLoadingVideo, setIsLoadingVideo] = useState(false)
 
-  // Create authenticated blob URL for video playback
+  // Use direct video URL for playback (no authentication needed)
   const createAuthenticatedVideoUrl = async (videoUrl: string) => {
-    if (!apiKey) {
-      console.log("No API key available for authenticated video loading - using direct URL");
-      setAuthenticatedVideoUrl(videoUrl);
-      return;
-    }
-
-    try {
-      setIsLoadingVideo(true);
-      console.log("Creating authenticated video URL via proxy...");
-      console.log("Input video URL:", videoUrl);
-      
-      // Use our video proxy endpoint to handle authentication
-      // Add timestamp to prevent browser caching of different videos
-      const timestamp = Date.now();
-      const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(videoUrl)}&key=${encodeURIComponent(apiKey)}&t=${timestamp}`;
-      console.log("Using proxy URL:", proxyUrl);
-      
-      setAuthenticatedVideoUrl(proxyUrl);
-      
-      console.log("Proxy video URL set successfully:", proxyUrl);
-      console.log("Component should now show video player with authenticated access");
-    } catch (err) {
-      console.error("Failed to create authenticated video URL:", err);
-      // Fallback to original URL
-      setAuthenticatedVideoUrl(videoUrl);
-    } finally {
-      setIsLoadingVideo(false);
-      console.log("Video loading state set to false");
-    }
+    console.log("Setting up direct video URL for playback...");
+    console.log("Input video URL:", videoUrl);
+    
+    // Always use direct URL - no proxy authentication needed
+    // Most VEO 2 generated videos are publicly accessible
+    setIsLoadingVideo(false);
+    setAuthenticatedVideoUrl(videoUrl);
+    
+    console.log("Direct video URL set successfully:", videoUrl);
+    console.log("Video player will use direct URL without authentication");
   }
 
   // Poll operation status for real VEO 2 operations
@@ -129,7 +110,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
           console.log("Setting currentVideoUrl to:", status.videoUrl);
           setCurrentVideoUrl(status.videoUrl)
           setIsPolling(false)
-          // Create authenticated video URL for playback
+          // Set up direct video URL for playback (no authentication needed)
           createAuthenticatedVideoUrl(status.videoUrl)
           console.log("Video state updated - should transition to video player")
         } else if (status.status === "failed") {
@@ -175,7 +156,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       setIsLoadingVideo(false);
       
       if (initialVideoUrl) {
-        // Also create authenticated URL for immediate playback
+        // Set up direct URL for immediate playback
         createAuthenticatedVideoUrl(initialVideoUrl);
       } else {
         setAuthenticatedVideoUrl(undefined);
@@ -692,9 +673,8 @@ Then right-click the video and select "Save video as..."`;
             onError={(e) => {
               console.error("Video loading error:", e);
               console.log("Failed video URL:", authenticatedVideoUrl || currentVideoUrl);
-              setError("Failed to load video. Try using the download button instead.");
+              setError("Failed to load video. The video URL may have expired or requires access permissions. Try using the Copy URL button to access it directly.");
             }}
-            crossOrigin="anonymous"
           >
             <source src={authenticatedVideoUrl || currentVideoUrl} type="video/mp4" />
             Your browser does not support the video tag.
