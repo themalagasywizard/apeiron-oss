@@ -76,81 +76,62 @@ export async function POST(request: NextRequest) {
                      lastUserMessage.includes("```");
 
       console.log("Code request detected:", isCodeRequest, "for message:", lastUserMessage.substring(0, 100));
+      
+      // Route code generation requests to Edge Function
+      if (isCodeRequest) {
+        console.log("Routing code generation request to Edge Function");
+        
+        const baseUrl = new URL(request.url).origin;
+        const edgeResponse = await fetch(`${baseUrl}/api/generate-code`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            messages,
+            provider,
+            apiKey,
+            model,
+            temperature,
+            customModelName
+          })
+        });
+
+        if (!edgeResponse.ok) {
+          const errorText = await edgeResponse.text();
+          console.error("Edge Function error:", errorText);
+          throw new Error(`Code generation failed: ${edgeResponse.status}`);
+        }
+
+        const edgeData = await edgeResponse.json();
+        
+        clearTimeout(emergencyTimeout);
+        return NextResponse.json({
+          response: edgeData.response,
+          model: edgeData.model,
+          provider: edgeData.provider,
+          codeGeneration: true,
+          isEdgeFunction: true,
+          searchResults: null,
+          searchEnabled: false
+        });
+      }
     } catch (error) {
-      console.error("Error in code detection:", error);
-      isCodeRequest = false; // Fallback to false if detection fails
+      console.error("Error in code detection or Edge Function routing:", error);
+      isCodeRequest = false; // Fallback to regular processing if Edge Function fails
     }
 
-    // Optimize parameters for code generation (ultra-conservative for serverless)
-    const getOptimizedParams = (baseTimeout: number, baseTokens: number) => {
-      try {
-        if (isCodeRequest) {
-          return {
-            timeout: Math.min(baseTimeout + 2000, 20000), // Add only 2 seconds for code, max 20s
-            maxTokens: Math.min(baseTokens * 1.5, 4000), // 1.5x tokens for code, max 4000
-            temperature: 0.1 // Lower temperature for more focused code output
-          };
-        }
-        return {
-          timeout: baseTimeout,
-          maxTokens: baseTokens,
-          temperature: temperature || 0.7
-        };
-      } catch (error) {
-        console.error("Error in parameter optimization:", error);
-        // Fallback to safe defaults
-        return {
-          timeout: baseTimeout,
-          maxTokens: baseTokens,
-          temperature: temperature || 0.7
-        };
-      }
+    // Standard chat parameters (code requests are handled by Edge Function)
+    const chatParams = {
+      timeout: 15000,    // 15 second timeout for regular chat
+      maxTokens: 2500,   // Standard token limit for chat
+      temperature: temperature || 0.7
     };
 
-    // Add code optimization instructions to messages
-    const optimizeMessagesForCode = (messages: any[]) => {
-      try {
-        if (!isCodeRequest || !Array.isArray(messages) || messages.length === 0) {
-          return messages;
-        }
-        
-        const optimizedMessages = [...messages];
-        const lastMessage = optimizedMessages[optimizedMessages.length - 1];
-        
-        if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
-          // Add code-focused instructions
-          const codeInstructions = `
-
-CODE GENERATION INSTRUCTIONS:
-- Focus primarily on providing working, complete code
-- Minimize explanatory text - let the code speak for itself
-- Use comments within the code for necessary explanations
-- Provide complete, functional examples that can be run immediately
-- For HTML/CSS/JS: provide a complete working example
-- For components: include all necessary imports and exports
-- Keep descriptions brief and to the point
-- Prioritize code quality and completeness over lengthy explanations
-
-User Request: ${lastMessage.content}`;
-
-          optimizedMessages[optimizedMessages.length - 1] = {
-            ...lastMessage,
-            content: codeInstructions
-          };
-        }
-        
-        return optimizedMessages;
-      } catch (error) {
-        console.error("Error in message optimization:", error);
-        // Return original messages if optimization fails
-        return messages;
-      }
-    };
-
-    // Helper function to add timeout to fetch requests (ultra-conservative for serverless)
-    const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 18000): Promise<Response> => {
-      // Emergency serverless protection - never exceed 20 seconds
-      const safeTimeout = Math.min(timeoutMs, 20000);
+    // Helper function to add timeout to fetch requests (optimized for serverless chat)
+    const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 15000): Promise<Response> => {
+      // Emergency serverless protection - never exceed 18 seconds for chat
+      const safeTimeout = Math.min(timeoutMs, 18000);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), safeTimeout);
@@ -165,7 +146,7 @@ User Request: ${lastMessage.content}`;
       } catch (error) {
         clearTimeout(timeoutId);
         if (error instanceof Error && error.name === 'AbortError') {
-          throw new Error(`Request timed out after ${safeTimeout / 1000} seconds. Serverless functions have strict time limits. Try a shorter request.`);
+          throw new Error(`Request timed out after ${safeTimeout / 1000} seconds. For code generation, the request was routed to our high-performance Edge Function.`);
         }
         throw error;
       }
@@ -269,9 +250,6 @@ Please provide a comprehensive response using the above search results.`;
 
     switch (provider) {
       case "openai":
-        const openaiParams = getOptimizedParams(15000, 2500);
-        const openaiMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
-        
         response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -280,17 +258,17 @@ Please provide a comprehensive response using the above search results.`;
           },
           body: JSON.stringify({
             model: model.includes("gpt-3.5") ? "gpt-3.5-turbo" : "gpt-4o",
-            messages: openaiMessages,
-            temperature: openaiParams.temperature,
-            max_tokens: openaiParams.maxTokens,
+            messages: messages,
+            temperature: chatParams.temperature,
+            max_tokens: chatParams.maxTokens,
             stream: false
           })
-        }, openaiParams.timeout);
+        }, chatParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`OpenAI request timed out. Serverless time limit reached. Try a shorter request.`);
+            throw new Error(`OpenAI request timed out. For code generation, try using keywords like 'code', 'html', or 'javascript' to route to our Edge Function.`);
           }
           throw new Error(`OpenAI is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -300,9 +278,6 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "claude":
-        const claudeParams = getOptimizedParams(15000, 3000);
-        const claudeMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
-        
         response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -312,16 +287,16 @@ Please provide a comprehensive response using the above search results.`;
           },
           body: JSON.stringify({
             model: "claude-3-opus-20240229",
-            max_tokens: claudeParams.maxTokens,
-            temperature: claudeParams.temperature,
-            messages: claudeMessages
+            max_tokens: chatParams.maxTokens,
+            temperature: chatParams.temperature,
+            messages: messages
           })
-        }, claudeParams.timeout);
+        }, chatParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`Claude request timed out. Serverless time limit reached. Try a shorter request.`);
+            throw new Error(`Claude request timed out. For code generation, try using keywords like 'code', 'html', or 'javascript' to route to our Edge Function.`);
           }
           throw new Error(`Claude is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -331,12 +306,6 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "gemini":
-        const geminiParams = getOptimizedParams(15000, 3000);
-        const geminiMessages = optimizeMessagesForCode(messages.map((m: any) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }]
-        })));
-        
         // Use Gemini 2.5 Flash Preview (latest model)
         response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
           method: "POST",
@@ -344,20 +313,23 @@ Please provide a comprehensive response using the above search results.`;
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            contents: geminiMessages,
+            contents: messages.map((m: any) => ({
+              role: m.role === "assistant" ? "model" : "user",
+              parts: [{ text: m.content }]
+            })),
             generationConfig: {
-              temperature: geminiParams.temperature,
-              maxOutputTokens: geminiParams.maxTokens,
+              temperature: chatParams.temperature,
+              maxOutputTokens: chatParams.maxTokens,
               topP: 0.95,
               topK: 40
             }
           })
-        }, geminiParams.timeout);
+        }, chatParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`Gemini request timed out. Serverless time limit reached. Try a shorter request.`);
+            throw new Error(`Gemini request timed out. For code generation, try using keywords like 'code', 'html', or 'javascript' to route to our Edge Function.`);
           }
           throw new Error(`Gemini 2.5 Flash is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -367,9 +339,6 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "deepseek":
-        const deepseekParams = getOptimizedParams(15000, 2500);
-        const deepseekMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
-        
         response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -378,17 +347,17 @@ Please provide a comprehensive response using the above search results.`;
           },
           body: JSON.stringify({
             model: "deepseek-chat",
-            messages: deepseekMessages,
-            temperature: deepseekParams.temperature,
-            max_tokens: deepseekParams.maxTokens,
+            messages: messages,
+            temperature: chatParams.temperature,
+            max_tokens: chatParams.maxTokens,
             stream: false
           })
-        }, deepseekParams.timeout);
+        }, chatParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`DeepSeek request timed out. Serverless time limit reached. Try a shorter request.`);
+            throw new Error(`DeepSeek request timed out. For code generation, try using keywords like 'code', 'html', or 'javascript' to route to our Edge Function.`);
           }
           throw new Error(`DeepSeek is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -398,9 +367,6 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "grok":
-        const grokParams = getOptimizedParams(15000, 2500);
-        const grokMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
-        
         response = await fetchWithTimeout("https://api.x.ai/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -409,17 +375,17 @@ Please provide a comprehensive response using the above search results.`;
           },
           body: JSON.stringify({
             model: "grok-beta",
-            messages: grokMessages,
-            temperature: grokParams.temperature,
-            max_tokens: grokParams.maxTokens,
+            messages: messages,
+            temperature: chatParams.temperature,
+            max_tokens: chatParams.maxTokens,
             stream: false
           })
-        }, grokParams.timeout);
+        }, chatParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`Grok request timed out. Serverless time limit reached. Try a shorter request.`);
+            throw new Error(`Grok request timed out. For code generation, try using keywords like 'code', 'html', or 'javascript' to route to our Edge Function.`);
           }
           throw new Error(`Grok is currently unavailable (${response.status}). Please try again in a moment.`);
         }
@@ -429,9 +395,6 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "openrouter":
-        const openrouterParams = getOptimizedParams(15000, 2500);
-        const openrouterMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
-        
         response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -442,17 +405,17 @@ Please provide a comprehensive response using the above search results.`;
           },
           body: JSON.stringify({
             model: customModelName || "meta-llama/llama-3.1-8b-instruct:free",
-            messages: openrouterMessages,
-            temperature: openrouterParams.temperature,
-            max_tokens: openrouterParams.maxTokens,
+            messages: messages,
+            temperature: chatParams.temperature,
+            max_tokens: chatParams.maxTokens,
             stream: false
           })
-        }, openrouterParams.timeout);
+        }, chatParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`OpenRouter request timed out. Serverless time limit reached. Try a shorter request.`);
+            throw new Error(`OpenRouter request timed out. For code generation, try using keywords like 'code', 'html', or 'javascript' to route to our Edge Function.`);
           }
           throw new Error(`OpenRouter is currently unavailable (${response.status}). Please try again in a moment.`);
         }
