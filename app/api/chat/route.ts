@@ -10,6 +10,83 @@ export async function POST(request: NextRequest) {
     let aiResponse = "";
     let searchResults = null;
 
+    // Detect if this is a code generation request
+    const lastUserMessage = messages[messages.length - 1]?.content?.toLowerCase() || "";
+    const isCodeRequest = lastUserMessage.includes("html") || 
+                         lastUserMessage.includes("css") || 
+                         lastUserMessage.includes("javascript") || 
+                         lastUserMessage.includes("js") ||
+                         lastUserMessage.includes("code") ||
+                         lastUserMessage.includes("function") ||
+                         lastUserMessage.includes("component") ||
+                         lastUserMessage.includes("website") ||
+                         lastUserMessage.includes("app") ||
+                         lastUserMessage.includes("build") ||
+                         lastUserMessage.includes("create") ||
+                         lastUserMessage.includes("develop") ||
+                         lastUserMessage.includes("program") ||
+                         lastUserMessage.includes("script") ||
+                         lastUserMessage.includes("react") ||
+                         lastUserMessage.includes("vue") ||
+                         lastUserMessage.includes("angular") ||
+                         lastUserMessage.includes("node") ||
+                         lastUserMessage.includes("python") ||
+                         lastUserMessage.includes("java") ||
+                         lastUserMessage.includes("php") ||
+                         lastUserMessage.includes("sql") ||
+                         lastUserMessage.includes("<") ||
+                         lastUserMessage.includes("```");
+
+    console.log("Code request detected:", isCodeRequest, "for message:", lastUserMessage.substring(0, 100));
+
+    // Optimize parameters for code generation
+    const getOptimizedParams = (baseTimeout: number, baseTokens: number) => {
+      if (isCodeRequest) {
+        return {
+          timeout: Math.min(baseTimeout + 5000, 28000), // Add 5 seconds for code, max 28s
+          maxTokens: Math.min(baseTokens * 2, 6000), // Double tokens for code, max 6000
+          temperature: 0.1 // Lower temperature for more focused code output
+        };
+      }
+      return {
+        timeout: baseTimeout,
+        maxTokens: baseTokens,
+        temperature: temperature || 0.7
+      };
+    };
+
+    // Add code optimization instructions to messages
+    const optimizeMessagesForCode = (messages: any[]) => {
+      if (!isCodeRequest) return messages;
+      
+      const optimizedMessages = [...messages];
+      const lastMessage = optimizedMessages[optimizedMessages.length - 1];
+      
+      if (lastMessage && lastMessage.role === "user") {
+        // Add code-focused instructions
+        const codeInstructions = `
+
+CODE GENERATION INSTRUCTIONS:
+- Focus primarily on providing working, complete code
+- Minimize explanatory text - let the code speak for itself
+- Use comments within the code for necessary explanations
+- Provide complete, functional examples that can be run immediately
+- For HTML/CSS/JS: provide a complete working example
+- For components: include all necessary imports and exports
+- Keep descriptions brief and to the point
+- Prioritize code quality and completeness over lengthy explanations
+
+User Request: ${lastMessage.content}`;
+
+        optimizedMessages[optimizedMessages.length - 1] = {
+          ...lastMessage,
+          content: codeInstructions
+        };
+      }
+      
+      return optimizedMessages;
+    };
+
     // Helper function to add timeout to fetch requests (optimized for serverless)
     const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 25000): Promise<Response> => {
       const controller = new AbortController();
@@ -129,6 +206,9 @@ Please provide a comprehensive response using the above search results.`;
 
     switch (provider) {
       case "openai":
+        const openaiParams = getOptimizedParams(25000, 3000);
+        const openaiMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        
         response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -137,12 +217,12 @@ Please provide a comprehensive response using the above search results.`;
           },
           body: JSON.stringify({
             model: model.includes("gpt-3.5") ? "gpt-3.5-turbo" : "gpt-4o",
-            messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
-            temperature: temperature || 0.7,
-            max_tokens: 3000, // Reduced for faster response in serverless
+            messages: openaiMessages,
+            temperature: openaiParams.temperature,
+            max_tokens: openaiParams.maxTokens,
             stream: false
           })
-        }, 25000); // 25 second timeout for serverless compatibility
+        }, openaiParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
@@ -157,6 +237,9 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "claude":
+        const claudeParams = getOptimizedParams(25000, 4000);
+        const claudeMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        
         response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -166,11 +249,11 @@ Please provide a comprehensive response using the above search results.`;
           },
           body: JSON.stringify({
             model: "claude-3-opus-20240229",
-            max_tokens: 4000,
-            temperature: temperature || 0.7,
-            messages: messages.map((m: any) => ({ role: m.role, content: m.content }))
+            max_tokens: claudeParams.maxTokens,
+            temperature: claudeParams.temperature,
+            messages: claudeMessages
           })
-        }, 25000); // 25 second timeout for serverless compatibility
+        }, claudeParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
@@ -185,6 +268,12 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "gemini":
+        const geminiParams = getOptimizedParams(25000, 4096);
+        const geminiMessages = optimizeMessagesForCode(messages.map((m: any) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }]
+        })));
+        
         // Use Gemini 2.5 Flash Preview (latest model)
         response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
           method: "POST",
@@ -192,18 +281,15 @@ Please provide a comprehensive response using the above search results.`;
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            contents: messages.map((m: any) => ({
-              role: m.role === "assistant" ? "model" : "user",
-              parts: [{ text: m.content }]
-            })),
+            contents: geminiMessages,
             generationConfig: {
-              temperature: temperature || 0.7,
-              maxOutputTokens: 4096, // Reduced for faster response
+              temperature: geminiParams.temperature,
+              maxOutputTokens: geminiParams.maxTokens,
               topP: 0.95,
               topK: 40
             }
           })
-        }, 25000); // 25 second timeout for serverless compatibility
+        }, geminiParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
@@ -218,6 +304,9 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "deepseek":
+        const deepseekParams = getOptimizedParams(25000, 3000);
+        const deepseekMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        
         response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -226,12 +315,12 @@ Please provide a comprehensive response using the above search results.`;
           },
           body: JSON.stringify({
             model: "deepseek-chat",
-            messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
-            temperature: temperature || 0.7,
-            max_tokens: 3000, // Reduced for faster response
+            messages: deepseekMessages,
+            temperature: deepseekParams.temperature,
+            max_tokens: deepseekParams.maxTokens,
             stream: false
           })
-        }, 25000); // 25 second timeout for serverless compatibility
+        }, deepseekParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
@@ -246,6 +335,9 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "grok":
+        const grokParams = getOptimizedParams(25000, 3000);
+        const grokMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        
         response = await fetchWithTimeout("https://api.x.ai/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -254,12 +346,12 @@ Please provide a comprehensive response using the above search results.`;
           },
           body: JSON.stringify({
             model: "grok-beta",
-            messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
-            temperature: temperature || 0.7,
-            max_tokens: 3000, // Reduced for faster response
+            messages: grokMessages,
+            temperature: grokParams.temperature,
+            max_tokens: grokParams.maxTokens,
             stream: false
           })
-        }, 25000); // 25 second timeout for serverless compatibility
+        }, grokParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
@@ -274,6 +366,9 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "openrouter":
+        const openrouterParams = getOptimizedParams(25000, 3000);
+        const openrouterMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        
         response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -284,12 +379,12 @@ Please provide a comprehensive response using the above search results.`;
           },
           body: JSON.stringify({
             model: customModelName || "meta-llama/llama-3.1-8b-instruct:free",
-            messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
-            temperature: temperature || 0.7,
-            max_tokens: 3000, // Reduced for faster response
+            messages: openrouterMessages,
+            temperature: openrouterParams.temperature,
+            max_tokens: openrouterParams.maxTokens,
             stream: false
           })
-        }, 25000); // 25 second timeout for serverless compatibility
+        }, openrouterParams.timeout);
 
         if (!response.ok) {
           const errorData = await response.text();
