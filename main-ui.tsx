@@ -199,11 +199,15 @@ export default function MainUI({
   // Code generation state
   const [codeGenerationEnabled, setCodeGenerationEnabled] = useState(false)
 
+  // Speech recognition state
+  const [isListening, setIsListening] = useState(false)
+
   // Use models from props (calculated in page.tsx with proper API key logic)
   const availableModels = models
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
+  const recognitionRef = useRef<any>(null)
 
   // Check if current model supports web search
   const isWebSearchCompatible = () => {
@@ -473,6 +477,88 @@ export default function MainUI({
     onToggleTheme()
     document.documentElement.classList.toggle("dark", newTheme === "dark")
   }
+
+  // Speech recognition functions
+  const startListening = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      setError('Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.')
+      setTimeout(() => setError(null), 5000)
+      return
+    }
+
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      const recognition = new SpeechRecognition()
+      
+      recognition.lang = 'en-US'
+      recognition.interimResults = true
+      recognition.continuous = false
+      recognition.maxAlternatives = 1
+
+      recognition.onstart = () => {
+        setIsListening(true)
+        setError(null)
+      }
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join('')
+        
+        setInputValue(transcript)
+      }
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error)
+        setIsListening(false)
+        
+        switch (event.error) {
+          case 'no-speech':
+            setError('No speech detected. Please try again.')
+            break
+          case 'audio-capture':
+            setError('Microphone not accessible. Please check permissions.')
+            break
+          case 'not-allowed':
+            setError('Microphone access denied. Please allow microphone access.')
+            break
+          default:
+            setError(`Speech recognition error: ${event.error}`)
+        }
+        setTimeout(() => setError(null), 5000)
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
+        recognitionRef.current = null
+      }
+
+      recognition.start()
+      recognitionRef.current = recognition
+    } catch (error) {
+      console.error('Failed to start speech recognition:', error)
+      setError('Failed to start speech recognition. Please try again.')
+      setTimeout(() => setError(null), 5000)
+      setIsListening(false)
+    }
+  }
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+    setIsListening(false)
+  }
+
+  // Cleanup speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+    }
+  }, [])
 
   // Detect video generation content
   const detectVideoContent = (content: string) => {
@@ -1245,11 +1331,16 @@ export default function MainUI({
               </button>
 
               <button
-                disabled={true}
-                className="h-[48px] w-[48px] rounded-xl bg-gray-200/50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed flex-shrink-0 flex items-center justify-center"
-                aria-label="Voice input (coming soon)"
+                onClick={isListening ? stopListening : startListening}
+                className={`h-[48px] w-[48px] rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-200 ${
+                  isListening
+                    ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg hover:shadow-red-500/25 animate-pulse"
+                    : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400 border border-gray-200/20 dark:border-gray-700/20"
+                }`}
+                aria-label={isListening ? "Stop voice input" : "Start voice input"}
+                title={isListening ? "Stop listening" : "Start voice input"}
               >
-                <Mic className="w-5 h-5" />
+                <Mic className={`w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
               </button>
             </div>
           </div>
