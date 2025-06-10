@@ -2,18 +2,10 @@
   command = "npm run build"
   publish = ".next"
 
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Edge Function for code generation
 [[edge_functions]]
   function = "generate-code"
-  path = "/api/generate-code"
-
-# Regular serverless functions
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-
-# Handle Next.js routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200 
+  path = "/api/generate-code" 

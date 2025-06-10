@@ -35,6 +35,7 @@ import {
   PanelLeftOpen,
   Search,
   Globe,
+  Code,
 } from "lucide-react"
 
 // Types
@@ -110,7 +111,7 @@ type MainUIProps = {
   currentModel?: string
   userSettings?: UserSettings
   isTyping?: boolean
-  onSendMessage?: (message: string, attachments?: ProcessedFile[], webSearchEnabled?: boolean) => void
+  onSendMessage?: (message: string, attachments?: ProcessedFile[], webSearchEnabled?: boolean, codeGenerationEnabled?: boolean) => void
   onSelectConversation?: (id: string) => void
   onSelectModel?: (id: string) => void
   onCreateConversation?: () => void
@@ -194,6 +195,9 @@ export default function MainUI({
 
   // Web search state
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+
+  // Code generation state
+  const [codeGenerationEnabled, setCodeGenerationEnabled] = useState(false)
 
   // Use models from props (calculated in page.tsx with proper API key logic)
   const availableModels = models
@@ -313,7 +317,7 @@ export default function MainUI({
   // Handle sending a message
   const handleSendMessage = () => {
     if (inputValue.trim() || attachments.length > 0) {
-      onSendMessage(inputValue, attachments.length > 0 ? attachments : undefined, webSearchEnabled)
+      onSendMessage(inputValue, attachments.length > 0 ? attachments : undefined, webSearchEnabled, codeGenerationEnabled)
       setInputValue("")
       setAttachments([])
     }
@@ -1170,6 +1174,22 @@ export default function MainUI({
                   </button>
                 </div>
               )}
+
+              {/* Code Generation Toggle Button */}
+              <div className="flex-shrink-0">
+                <button
+                  onClick={() => setCodeGenerationEnabled(!codeGenerationEnabled)}
+                  className={`h-[48px] w-[48px] rounded-xl border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
+                    codeGenerationEnabled
+                      ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:shadow-emerald-500/25"
+                      : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
+                  }`}
+                  title={codeGenerationEnabled ? "Code generation mode enabled - Uses Edge Function for longer processing" : "Enable code generation mode"}
+                  aria-label={codeGenerationEnabled ? "Disable code generation mode" : "Enable code generation mode"}
+                >
+                  <Code className="w-5 h-5" />
+                </button>
+              </div>
 
               {/* File Upload Button */}
               <div className="flex-shrink-0">

@@ -205,6 +205,78 @@ export default function Home() {
     }
   }
 
+  // Call the Edge Function for code generation (longer timeout, higher token limits)
+  const callCodeGenerationAPI = async (messages: Message[], provider: string, apiKey: string, model?: string, customModelName?: string) => {
+    try {
+      const response = await fetch("/api/generate-code", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          provider,
+          apiKey,
+          model,
+          temperature: userSettings.temperature,
+          customModelName
+        })
+      })
+      
+      // Get response text first to handle parsing errors better
+      const responseText = await response.text()
+      
+      if (!response.ok) {
+        // Try to parse error response
+        try {
+          const errorData = JSON.parse(responseText)
+          throw new Error(errorData.error || `Code generation error: ${response.statusText}`)
+        } catch (parseError) {
+          // If we can't parse the error response, use the status text
+          throw new Error(`Edge Function error (${response.status}): ${response.statusText}. ${responseText.length > 0 ? 'Invalid response format.' : 'Empty response.'}`)
+        }
+      }
+      
+      // Parse successful response
+      try {
+        if (!responseText || responseText.trim() === '') {
+          throw new Error(`Code generation returned an empty response. Please try again.`)
+        }
+        
+        const data = JSON.parse(responseText)
+        
+        // Add a flag to indicate this was generated using the Edge Function
+        return {
+          ...data,
+          codeGeneration: true,
+          edgeFunction: true
+        }
+      } catch (parseError) {
+        console.error('Edge Function JSON parse error:', parseError)
+        console.error('Response text (first 500 chars):', responseText.substring(0, 500))
+        
+        // Check if this looks like a partial response
+        if (responseText.includes('"response"') || responseText.includes('"content"') || responseText.includes('"message"')) {
+          throw new Error(`Code generation returned a partial response. The Edge Function may have hit resource limits. Please try with a shorter request.`)
+        }
+        
+        throw new Error(`Code generation returned an invalid response format. Please try again.`)
+      }
+    } catch (error) {
+      // Handle network errors and other fetch failures
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to the code generation endpoint. Please check your internet connection.')
+      }
+      
+      // Re-throw other errors with code generation context
+      if (error instanceof Error && !error.message.includes('Code generation') && !error.message.includes('Edge Function')) {
+        throw new Error(`Code generation failed: ${error.message}`)
+      }
+      
+      throw error
+    }
+  }
+
   // Find current conversation or create a default one
   const currentConversation = conversations.find((conv) => conv.id === currentConversationId) || {
     id: "default",
@@ -215,28 +287,31 @@ export default function Home() {
   }
 
   // Handle sending a message
-  const handleSendMessage = async (message: string, attachments?: ProcessedFile[], webSearchEnabled?: boolean) => {
-    // Start typing indicator
-    setIsTyping(true)
+  const handleSendMessage = async (message: string, attachments?: ProcessedFile[], webSearchEnabled?: boolean, codeGenerationEnabled?: boolean) => {
+    if (!message.trim() && (!attachments || attachments.length === 0)) {
+      return
+    }
 
+    // Ensure we have a valid conversation
     let workingConversationId = currentConversationId
     let workingConversations = conversations
 
-    // If no conversations exist, create the first one
-    if (conversations.length === 0 || !currentConversationId) {
-      const newId = `conv-${Date.now()}`
+    if (!workingConversationId || !workingConversations.find(c => c.id === workingConversationId)) {
+      workingConversationId = `conv-${Date.now()}`
       const newConversation = {
-        id: newId,
-        title: "New Conversation",
+        id: workingConversationId,
+        title: message.slice(0, 30) + (message.length > 30 ? "..." : ""),
         timestamp: new Date(),
         model: currentModel,
         messages: [],
       }
-      workingConversations = [newConversation]
-      workingConversationId = newId
+      workingConversations = [newConversation, ...conversations]
       setConversations(workingConversations)
       setCurrentConversationId(workingConversationId)
     }
+
+    // Start typing indicator
+    setIsTyping(true)
 
     // 1. Create the full message content with attachments
     let fullContent = message
@@ -349,8 +424,16 @@ export default function Home() {
           throw new Error(`API key required. Please configure ${selectedModelData.provider} in Settings > Models.`)
       }
 
-      // Call the unified AI API
-      const apiResult = await callAI(allMessages, selectedModelData.provider, apiKey, modelName, customModelName, webSearchEnabled)
+      // Call the appropriate AI endpoint based on code generation mode
+      let apiResult;
+      if (codeGenerationEnabled) {
+        // Use Edge Function for code generation
+        apiResult = await callCodeGenerationAPI(allMessages, selectedModelData.provider, apiKey, modelName, customModelName)
+      } else {
+        // Use regular API with web search support
+        apiResult = await callAI(allMessages, selectedModelData.provider, apiKey, modelName, customModelName, webSearchEnabled)
+      }
+      
       aiResponse = apiResult.response || apiResult
 
       // 5. Add the AI response message
