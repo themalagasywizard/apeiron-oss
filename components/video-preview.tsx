@@ -262,38 +262,94 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     if (currentVideoUrl && onDownload) {
       const filename = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`
       onDownload(currentVideoUrl, filename)
-    } else if (currentVideoUrl && apiKey) {
-      // Enhanced download using video proxy
+    } else if (currentVideoUrl) {
+      // Try multiple download strategies for better compatibility
       try {
-        console.log("Attempting authenticated download via proxy...");
-        const timestamp = Date.now();
-        const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(currentVideoUrl)}&key=${encodeURIComponent(apiKey)}&t=${timestamp}`;
+        console.log("Attempting video download...");
         
-        const response = await fetch(proxyUrl);
-        
-        if (!response.ok) {
-          throw new Error(`Download failed: ${response.status}`);
+        // Strategy 1: Try authenticated download via proxy if API key is available
+        if (apiKey) {
+          console.log("Trying authenticated download via proxy...");
+          const timestamp = Date.now();
+          const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(currentVideoUrl)}&key=${encodeURIComponent(apiKey)}&t=${timestamp}`;
+          
+          const response = await fetch(proxyUrl);
+          
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            console.log("Download completed successfully via proxy");
+            return;
+          } else {
+            // Try to get better error message from proxy
+            try {
+              const errorData = await response.json();
+              if (errorData.message) {
+                console.log("Proxy error:", errorData.message);
+                // Show user-friendly error message
+                alert(errorData.message);
+                return; // Don't try other methods if we have a clear error message
+              }
+            } catch (parseError) {
+              // Continue with other methods if we can't parse the error
+            }
+            console.log("Proxy download failed, trying direct methods...");
+          }
         }
         
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        window.URL.revokeObjectURL(url)
-        console.log("Download completed successfully via proxy");
+        // Strategy 2: Try direct fetch (for publicly accessible URLs)
+        console.log("Trying direct fetch download...");
+        try {
+          const response = await fetch(currentVideoUrl, {
+            mode: 'cors',
+            credentials: 'omit'
+          });
+          
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            console.log("Download completed successfully via direct fetch");
+            return;
+          }
+        } catch (directFetchError) {
+          console.log("Direct fetch failed:", directFetchError);
+        }
+        
+        // Strategy 3: Open in new tab as fallback
+        console.log("Using fallback: opening video in new tab...");
+        const link = document.createElement('a');
+        link.href = currentVideoUrl;
+        link.target = '_blank';
+        link.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
       } catch (err) {
-        console.error("Authenticated download failed:", err);
-        // Fallback to direct link
-        console.log("Trying direct download fallback...");
-        window.open(currentVideoUrl, '_blank');
+        console.error("All download strategies failed:", err);
+        // Final fallback: copy URL to clipboard and show user message
+        try {
+          await navigator.clipboard.writeText(currentVideoUrl);
+          alert('Download failed, but the video URL has been copied to your clipboard. You can paste it in your browser to access the video.');
+        } catch (clipboardErr) {
+          console.error("Clipboard access failed:", clipboardErr);
+          alert(`Download failed. Please copy this URL manually: ${currentVideoUrl}`);
+        }
       }
-    } else if (currentVideoUrl) {
-      // Basic fallback
-      window.open(currentVideoUrl, '_blank');
     }
   }
 

@@ -46,8 +46,47 @@ export async function GET(request: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Video fetch failed:", response.status, errorText);
+      
+      // Check if it's a Google API error
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error && errorJson.error.message) {
+          const errorMessage = errorJson.error.message;
+          
+          // Handle specific Google API errors
+          if (errorMessage.includes('Generative Language API has not been used') || 
+              errorMessage.includes('SERVICE_DISABLED')) {
+            return NextResponse.json(
+              { 
+                error: "Google API access issue",
+                message: "The video cannot be downloaded due to API access restrictions. You can try right-clicking the video and selecting 'Save video as...' or contact support.",
+                details: "API_ACCESS_DENIED"
+              },
+              { status: 403 }
+            );
+          }
+          
+          if (errorMessage.includes('PERMISSION_DENIED')) {
+            return NextResponse.json(
+              { 
+                error: "Permission denied",
+                message: "Access to this video is restricted. Try downloading directly from the browser.",
+                details: "PERMISSION_DENIED"
+              },
+              { status: 403 }
+            );
+          }
+        }
+      } catch (parseError) {
+        // Error text is not JSON, continue with generic error
+      }
+      
       return NextResponse.json(
-        { error: `Failed to fetch video: ${response.status}` },
+        { 
+          error: `Failed to fetch video: ${response.status}`,
+          message: "Video download failed. You can try accessing the video directly in your browser.",
+          details: errorText.substring(0, 200) // Limit error details length
+        },
         { status: response.status }
       );
     }
