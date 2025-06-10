@@ -48,6 +48,12 @@ type Message = {
   model?: string
   provider?: string
   isError?: boolean
+  searchResults?: Array<{
+    title: string
+    url: string
+    snippet: string
+    timestamp: string
+  }>
   retryData?: {
     originalMessage: string
     attachments?: ProcessedFile[]
@@ -763,10 +769,33 @@ export default function MainUI({
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/`(.*?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">$1</code>')
-      // Handle web search results
+      // Handle web search results - convert numbered citations with actual links
+      .replace(/\[(\d+)\]/g, '<a href="#source-$1" class="text-xs align-super bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded-sm no-underline hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer" onclick="scrollToSource($1)">$1</a>')
+      // Handle legacy source format  
       .replace(/\[source:\s*(\d+)]/g, '<a href="#source-$1" class="text-xs align-super bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1 py-0.5 rounded-sm no-underline">$1</a>')
-      // Handle markdown links
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-purple-500 hover:underline">$1</a>')
+      // Enhanced markdown links handling - make them more prominent for citations
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+        // Check if this looks like a web search result citation
+        if (text.match(/^\d+$/) || text.toLowerCase().includes('source') || url.includes('http')) {
+          return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium transition-colors"><span>${text}</span><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg></a>`;
+        } else {
+          // Regular markdown link
+          return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-purple-500 hover:text-purple-700 dark:hover:text-purple-300 hover:underline transition-colors">${text}</a>`;
+        }
+      })
+      // Handle website names that should be clickable (look for common website patterns)
+      .replace(/\b([A-Za-z0-9-]+\.(?:com|org|net|edu|gov|co\.uk|io|ai|tech|dev|app))\b/g, '<a href="https://$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors">$1</a>')
+      // Handle phrases like "According to [Website Name]" and make the website name clickable
+      .replace(/\b(according to|source:|from|via|on|at)\s+([A-Z][a-zA-Z\s&]+?)(?=\s*[,.:]|\s*$)/gi, (match, prefix, siteName) => {
+        // Only process if it looks like a website name (has capital letters and reasonable length)
+        if (siteName.length > 3 && siteName.length < 50 && /[A-Z]/.test(siteName)) {
+          const cleanSiteName = siteName.trim().replace(/[,.:;]$/, '');
+          // Try to create a reasonable URL from the site name
+          const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(cleanSiteName)}`;
+          return `${prefix} <a href="${searchUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline font-medium transition-colors">${cleanSiteName}</a>`;
+        }
+        return match;
+      })
       // Handle code blocks with proper escaping and language detection
       .replace(/```([\w+-]*)\n?([\s\S]*?)```/g, (match, lang, code) => {
         // Escape HTML entities in code to prevent parsing issues
@@ -1296,6 +1325,48 @@ export default function MainUI({
                       )
                     }
                   })()}
+
+                  {/* Web Search Results Sources */}
+                  {message.searchResults && message.searchResults.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-gray-200/20 dark:border-gray-600/20">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Globe className="w-4 h-4 text-blue-500" />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sources</span>
+                      </div>
+                      <div className="grid gap-2">
+                        {message.searchResults.map((result, index) => (
+                          <a
+                            key={`${result.url}-${index}`}
+                            href={result.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex items-start gap-3 p-3 bg-white/30 dark:bg-gray-800/30 hover:bg-white/50 dark:hover:bg-gray-800/50 border border-gray-200/30 dark:border-gray-600/30 rounded-lg transition-all hover:shadow-sm"
+                            id={`source-${index + 1}`}
+                          >
+                            <div className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xs font-medium">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
+                                  {result.title}
+                                </h4>
+                                <svg className="w-3 h-3 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                </svg>
+                              </div>
+                              <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-1">
+                                {result.snippet}
+                              </p>
+                              <div className="text-xs text-gray-500 dark:text-gray-500 truncate">
+                                {new URL(result.url).hostname}
+                              </div>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Retry button for error messages */}
                   {message.isError && message.retryData && (

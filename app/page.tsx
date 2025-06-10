@@ -13,6 +13,12 @@ type Message = {
   model?: string
   provider?: string
   isError?: boolean
+  searchResults?: Array<{
+    title: string
+    url: string
+    snippet: string
+    timestamp: string
+  }>
   retryData?: {
     originalMessage: string
     attachments?: ProcessedFile[]
@@ -552,6 +558,7 @@ export default function Home() {
         timestamp: new Date(),
         model: typeof apiResult === 'object' ? apiResult.model : modelName,
         provider: typeof apiResult === 'object' ? apiResult.provider : selectedModelData.provider,
+        searchResults: typeof apiResult === 'object' && apiResult.searchResults ? apiResult.searchResults : undefined
       }
       
       setConversations(prevConvos => prevConvos.map(conv => {
