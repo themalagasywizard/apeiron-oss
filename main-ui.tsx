@@ -757,6 +757,24 @@ export default function MainUI({
     }
   }
 
+  // Helper function to safely get hostname from URL
+  const getHostnameFromUrl = (url: string): string => {
+    try {
+      // Check if URL is valid and not empty
+      if (!url || typeof url !== 'string') {
+        return 'Unknown source';
+      }
+      
+      // Add protocol if missing
+      const urlToTest = url.startsWith('http') ? url : `https://${url}`;
+      const urlObj = new URL(urlToTest);
+      return urlObj.hostname;
+    } catch (error) {
+      console.warn('Invalid URL:', url);
+      return 'Unknown source';
+    }
+  }
+
   // Format message content
   const formatMessageContent = (content: string) => {
     // Clean up content for minimalist formatting
@@ -1334,36 +1352,43 @@ export default function MainUI({
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sources</span>
                       </div>
                       <div className="grid gap-2">
-                        {message.searchResults.map((result, index) => (
-                          <a
-                            key={`${result.url}-${index}`}
-                            href={result.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group flex items-start gap-3 p-3 bg-white/30 dark:bg-gray-800/30 hover:bg-white/50 dark:hover:bg-gray-800/50 border border-gray-200/30 dark:border-gray-600/30 rounded-lg transition-all hover:shadow-sm"
-                            id={`source-${index + 1}`}
-                          >
-                            <div className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xs font-medium">
-                              {index + 1}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
-                                  {result.title}
-                                </h4>
-                                <svg className="w-3 h-3 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                                </svg>
+                        {message.searchResults.map((result, index) => {
+                          // Validate URL before rendering
+                          const isValidUrl = result.url && typeof result.url === 'string' && result.url.trim().length > 0;
+                          const safeUrl = isValidUrl ? (result.url.startsWith('http') ? result.url : `https://${result.url}`) : '#';
+                          
+                          return (
+                            <a
+                              key={`${result.url}-${index}`}
+                              href={safeUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`group flex items-start gap-3 p-3 bg-white/30 dark:bg-gray-800/30 hover:bg-white/50 dark:hover:bg-gray-800/50 border border-gray-200/30 dark:border-gray-600/30 rounded-lg transition-all hover:shadow-sm ${!isValidUrl ? 'cursor-not-allowed opacity-75' : ''}`}
+                              id={`source-${index + 1}`}
+                              onClick={!isValidUrl ? (e) => e.preventDefault() : undefined}
+                            >
+                              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xs font-medium">
+                                {index + 1}
                               </div>
-                              <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-1">
-                                {result.snippet}
-                              </p>
-                              <div className="text-xs text-gray-500 dark:text-gray-500 truncate">
-                                {new URL(result.url).hostname}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
+                                    {result.title}
+                                  </h4>
+                                  <svg className="w-3 h-3 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                  </svg>
+                                </div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-1">
+                                  {result.snippet}
+                                </p>
+                                <div className="text-xs text-gray-500 dark:text-gray-500 truncate">
+                                  {getHostnameFromUrl(result.url)}
+                                </div>
                               </div>
-                            </div>
-                          </a>
-                        ))}
+                            </a>
+                          )
+                        })}
                       </div>
                     </div>
                   )}
