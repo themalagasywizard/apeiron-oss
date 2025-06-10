@@ -59,15 +59,17 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
 
     try {
       setIsLoadingVideo(true);
-      console.log("Creating authenticated video URL...");
+      console.log("Creating authenticated video URL via proxy...");
       console.log("Input video URL:", videoUrl);
       
-      // For Google VEO 2 files, they should work directly with the existing download URL
-      // since the API already returns a properly signed URL
-      setAuthenticatedVideoUrl(videoUrl);
+      // Use our video proxy endpoint to handle authentication
+      const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(videoUrl)}&key=${encodeURIComponent(apiKey)}`;
+      console.log("Using proxy URL:", proxyUrl);
       
-      console.log("Authenticated video URL set successfully:", videoUrl);
-      console.log("Component should now show video player");
+      setAuthenticatedVideoUrl(proxyUrl);
+      
+      console.log("Proxy video URL set successfully:", proxyUrl);
+      console.log("Component should now show video player with authenticated access");
     } catch (err) {
       console.error("Failed to create authenticated video URL:", err);
       // Fallback to original URL
@@ -205,18 +207,12 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       const filename = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`
       onDownload(currentVideoUrl, filename)
     } else if (currentVideoUrl && apiKey) {
-      // Enhanced download with API key for Google's authenticated files
+      // Enhanced download using video proxy
       try {
-        console.log("Attempting authenticated download...");
-        const authUrl = currentVideoUrl.includes('?') 
-          ? `${currentVideoUrl}&key=${apiKey}` 
-          : `${currentVideoUrl}?key=${apiKey}`;
+        console.log("Attempting authenticated download via proxy...");
+        const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(currentVideoUrl)}&key=${encodeURIComponent(apiKey)}`;
         
-        const response = await fetch(authUrl, {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-          }
-        });
+        const response = await fetch(proxyUrl);
         
         if (!response.ok) {
           throw new Error(`Download failed: ${response.status}`);
@@ -231,7 +227,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         a.click()
         document.body.removeChild(a)
         window.URL.revokeObjectURL(url)
-        console.log("Download completed successfully");
+        console.log("Download completed successfully via proxy");
       } catch (err) {
         console.error("Authenticated download failed:", err);
         // Fallback to direct link
