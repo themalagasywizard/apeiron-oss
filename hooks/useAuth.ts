@@ -42,6 +42,59 @@ export function useAuth() {
     const getInitialSession = async () => {
       try {
         console.log('Getting initial session...')
+        
+        // Check if we have a code parameter for PKCE flow
+        const urlParams = new URLSearchParams(window.location.search)
+        const code = urlParams.get('code')
+        
+        if (code) {
+          console.log('Found auth code, attempting PKCE exchange...')
+          try {
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+            
+            if (error) {
+              console.error('PKCE exchange error:', error)
+              // Clean up the URL
+              window.history.replaceState({}, document.title, window.location.pathname)
+              setAuthState(prev => ({ ...prev, error: error.message, loading: false }))
+              return
+            }
+            
+            if (data.session?.user) {
+              console.log('PKCE exchange successful, user authenticated:', data.session.user.id)
+              // Clean up the URL
+              cleanUpUrl()
+              window.history.replaceState({}, document.title, window.location.pathname)
+              
+              // Fetch user profile
+              const { data: userProfile, error: profileError } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', data.session.user.id)
+                .single()
+
+              if (profileError && profileError.code !== 'PGRST116') {
+                console.error('Error fetching user profile:', profileError)
+              }
+
+              clearTimeout(authTimeout)
+              setAuthState({
+                user: data.session.user,
+                userProfile: userProfile || null,
+                session: data.session,
+                loading: false,
+                error: null
+              })
+              return
+            }
+          } catch (pkceError) {
+            console.error('PKCE exchange failed:', pkceError)
+            // Clean up the URL and continue with normal session check
+            window.history.replaceState({}, document.title, window.location.pathname)
+          }
+        }
+        
+        // Normal session check
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {

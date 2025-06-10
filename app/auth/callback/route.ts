@@ -1,35 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
+  const error = searchParams.get('error')
   
+  // If there's an error, redirect to error page
+  if (error) {
+    console.error('OAuth error:', error)
+    return NextResponse.redirect(`https://t3-oss.netlify.app/auth/error?message=${encodeURIComponent(error)}`)
+  }
+  
+  // For PKCE flow, let the client-side handle the code exchange
+  // Just redirect to production with the code parameter intact
   if (code) {
-    try {
-      // Create a server-side supabase client for the code exchange
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          auth: {
-            flowType: 'pkce'
-          }
-        }
-      )
-      
-      const { error } = await supabase.auth.exchangeCodeForSession(code)
-      
-      if (error) {
-        console.error('Auth callback error:', error)
-        return NextResponse.redirect(`https://t3-oss.netlify.app/auth/error?message=${encodeURIComponent(error.message)}`)
-      }
-    } catch (error) {
-      console.error('Unexpected auth error:', error)
-      return NextResponse.redirect(`https://t3-oss.netlify.app/auth/error?message=Authentication failed`)
-    }
+    return NextResponse.redirect(`https://t3-oss.netlify.app/?code=${code}`)
   }
 
-  // Always redirect to production URL after successful authentication
+  // Fallback redirect to production
   return NextResponse.redirect('https://t3-oss.netlify.app/')
 } 
