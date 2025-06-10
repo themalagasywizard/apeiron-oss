@@ -874,7 +874,7 @@ export default function MainUI({
                              videoUrl={videoDetection.videoUrl || undefined}
                              isGenerating={videoDetection.isGenerating || false}
                              operationName={videoDetection.operationName || undefined}
-                             apiKey={userSettings.veo2ApiKey || undefined}
+                             apiKey={userSettings.veo2ApiKey || userSettings.geminiApiKey || undefined}
                              videoTitle={`VEO2 Generated Video`}
                              onDownload={(videoUrl, filename) => {
                                // Trigger download
