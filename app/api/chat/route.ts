@@ -73,12 +73,35 @@ Please provide a comprehensive response using the above search results.`;
       }
       
       try {
-        return JSON.parse(text);
+        const parsed = JSON.parse(text);
+        return parsed;
       } catch (parseError) {
         console.error(`${providerName} JSON parse error:`, parseError);
-        console.error(`${providerName} response text:`, text);
-        throw new Error(`${providerName} returned an invalid response. Please try again.`);
+        console.error(`${providerName} response text (first 500 chars):`, text.substring(0, 500));
+        
+        // Try to extract any meaningful content from the response
+        if (text.includes('"content"') || text.includes('"text"') || text.includes('"message"')) {
+          // This looks like it might be a partial JSON response
+          throw new Error(`${providerName} returned a partial response. This often happens with very long code outputs. Please try with a smaller request or retry.`);
+        }
+        
+        throw new Error(`${providerName} returned an invalid response format. Please try again.`);
       }
+    };
+
+    // Helper function to validate and clean AI responses, especially for code
+    const cleanAIResponse = (response: string, providerName: string): string => {
+      if (!response || typeof response !== 'string') {
+        throw new Error(`${providerName} returned an invalid response type. Please try again.`);
+      }
+      
+      // Ensure the response is properly terminated (not cut off)
+      const trimmed = response.trim();
+      if (trimmed.length === 0) {
+        throw new Error(`${providerName} returned an empty response. Please try again.`);
+      }
+      
+      return trimmed;
     };
 
     switch (provider) {
@@ -103,7 +126,7 @@ Please provide a comprehensive response using the above search results.`;
         }
 
         const openaiData = await safeJsonParse(response, "OpenAI");
-        aiResponse = openaiData.choices[0]?.message?.content || "OpenAI didn't provide a response. Please try again.";
+        aiResponse = cleanAIResponse(openaiData.choices[0]?.message?.content || "OpenAI didn't provide a response. Please try again.", "OpenAI");
         break;
 
       case "claude":
@@ -128,7 +151,7 @@ Please provide a comprehensive response using the above search results.`;
         }
 
         const claudeData = await safeJsonParse(response, "Claude");
-        aiResponse = claudeData.content[0]?.text || "Claude didn't provide a response. Please try again.";
+        aiResponse = cleanAIResponse(claudeData.content[0]?.text || "Claude didn't provide a response. Please try again.", "Claude");
         break;
 
       case "gemini":
@@ -158,7 +181,7 @@ Please provide a comprehensive response using the above search results.`;
         }
 
         const geminiData = await safeJsonParse(response, "Gemini 2.5 Flash");
-        aiResponse = geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini 2.5 Flash didn't provide a response. Please try again.";
+        aiResponse = cleanAIResponse(geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini 2.5 Flash didn't provide a response. Please try again.", "Gemini 2.5 Flash");
         break;
 
       case "deepseek":
@@ -182,7 +205,7 @@ Please provide a comprehensive response using the above search results.`;
         }
 
         const deepseekData = await safeJsonParse(response, "DeepSeek");
-        aiResponse = deepseekData.choices[0]?.message?.content || "DeepSeek didn't provide a response. Please try again.";
+        aiResponse = cleanAIResponse(deepseekData.choices[0]?.message?.content || "DeepSeek didn't provide a response. Please try again.", "DeepSeek");
         break;
 
       case "grok":
@@ -206,7 +229,7 @@ Please provide a comprehensive response using the above search results.`;
         }
 
         const grokData = await safeJsonParse(response, "Grok");
-        aiResponse = grokData.choices[0]?.message?.content || "Grok didn't provide a response. Please try again.";
+        aiResponse = cleanAIResponse(grokData.choices[0]?.message?.content || "Grok didn't provide a response. Please try again.", "Grok");
         break;
 
       case "openrouter":
@@ -232,7 +255,7 @@ Please provide a comprehensive response using the above search results.`;
         }
 
         const openrouterData = await safeJsonParse(response, "OpenRouter");
-        aiResponse = openrouterData.choices[0]?.message?.content || "OpenRouter didn't provide a response. Please try again.";
+        aiResponse = cleanAIResponse(openrouterData.choices[0]?.message?.content || "OpenRouter didn't provide a response. Please try again.", "OpenRouter");
         break;
 
       case "veo2":
@@ -262,7 +285,7 @@ Please provide a comprehensive response using the above search results.`;
         }
 
         const veo2Data = await safeJsonParse(response, "VEO2");
-        aiResponse = veo2Data.data?.message || "Video generation initiated with VEO2";
+        aiResponse = cleanAIResponse(veo2Data.data?.message || "Video generation initiated with VEO2", "VEO2");
         break;
 
       default:
@@ -284,4 +307,4 @@ Please provide a comprehensive response using the above search results.`;
       { status: 500 }
     );
   }
-} 
+}

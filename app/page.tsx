@@ -54,90 +54,18 @@ type UserSettings = {
   veo2ApiKey: string
 }
 
-// Sample data for demonstration
-const sampleConversations = [
-  {
-    id: "conv1",
-    title: "Understanding Quantum Computing",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-    model: "gpt-4",
-    messages: [
-      {
-        id: "msg1",
-        content: "Can you explain quantum computing in simple terms?",
-        role: "user" as const,
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-      },
-      {
-        id: "msg2",
-        content:
-          "Quantum computing uses quantum bits or 'qubits' that can exist in multiple states at once, unlike classical bits that are either 0 or 1. This allows quantum computers to process certain types of problems much faster than traditional computers. Think of it like being able to try many solutions simultaneously instead of one at a time.",
-        role: "assistant" as const,
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2 + 30000),
-      },
-    ],
-  },
-  {
-    id: "conv2",
-    title: "AI Ethics Discussion",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-    model: "claude",
-    messages: [
-      {
-        id: "msg3",
-        content: "What are the main ethical concerns with advanced AI?",
-        role: "user" as const,
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-      },
-      {
-        id: "msg4",
-        content:
-          "The main ethical concerns with advanced AI include:\n\n1. **Privacy and surveillance** - AI systems can process vast amounts of personal data\n2. **Bias and fairness** - AI can perpetuate or amplify existing biases\n3. **Autonomy and decision-making** - Questions about AI making important decisions\n4. **Job displacement** - Automation potentially replacing human workers\n5. **Security risks** - Potential for misuse or unintended consequences\n6. **Accountability** - Determining responsibility when AI systems cause harm",
-        role: "assistant" as const,
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 + 45000),
-      },
-    ],
-  },
-  {
-    id: "conv3",
-    title: "Machine Learning Project Ideas",
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 72), // 3 days ago
-    model: "gemini",
-    messages: [
-      {
-        id: "msg5",
-        content: "I'm learning ML. What are some beginner-friendly project ideas?",
-        role: "user" as const,
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 72),
-      },
-      {
-        id: "msg6",
-        content:
-          "Here are some beginner-friendly machine learning project ideas:\n\n1. **Image classification** - Build a model to identify objects in images\n2. **Sentiment analysis** - Analyze text to determine emotional tone\n3. **Price prediction** - Create a model to predict house or product prices\n4. **Music genre classifier** - Identify music genres from audio samples\n5. **Recommendation system** - Build a simple movie or book recommender\n\nStart with well-documented datasets like MNIST for handwritten digits or IMDb reviews for sentiment analysis.",
-        role: "assistant" as const,
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 72 + 60000),
-      },
-    ],
-  },
-]
-
-const sampleProjects = [
-  {
-    id: "proj1",
-    name: "Research Papers",
-    conversations: ["conv1"],
-  },
-  {
-    id: "proj2",
-    name: "Personal Projects",
-    conversations: ["conv2", "conv3"],
-  },
-]
+type Conversation = {
+  id: string
+  title: string
+  timestamp: Date
+  model: string
+  messages: Message[]
+}
 
 export default function Home() {
   const [isClient, setIsClient] = useState(false)
-  const [conversations, setConversations] = useState(sampleConversations)
-  const [currentConversationId, setCurrentConversationId] = useState("conv1")
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [currentConversationId, setCurrentConversationId] = useState("")
   const [currentModel, setCurrentModel] = useState("gpt-4")
   const [isTyping, setIsTyping] = useState(false)
   const [userSettings, setUserSettings] = useState<UserSettings>({
@@ -241,13 +169,36 @@ export default function Home() {
     return data
   }
 
-  // Find current conversation
-  const currentConversation = conversations.find((conv) => conv.id === currentConversationId) || conversations[0]
+  // Find current conversation or create a default one
+  const currentConversation = conversations.find((conv) => conv.id === currentConversationId) || {
+    id: "default",
+    title: "New Conversation",
+    timestamp: new Date(),
+    model: currentModel,
+    messages: [],
+  }
 
   // Handle sending a message
   const handleSendMessage = async (message: string, attachments?: ProcessedFile[], webSearchEnabled?: boolean) => {
     // Start typing indicator
     setIsTyping(true)
+
+    // If no conversations exist, create the first one
+    if (conversations.length === 0 || !currentConversationId) {
+      const newId = `conv-${Date.now()}`
+      const newConversation = {
+        id: newId,
+        title: "New Conversation",
+        timestamp: new Date(),
+        model: currentModel,
+        messages: [],
+      }
+      setConversations([newConversation])
+      setCurrentConversationId(newId)
+      
+      // Continue with the new conversation
+      return handleSendMessage(message, attachments, webSearchEnabled)
+    }
 
     // 1. Create the full message content with attachments
     let fullContent = message
@@ -477,7 +428,7 @@ export default function Home() {
   return (
     <MainUI
       conversations={conversations}
-      projects={sampleProjects}
+      projects={[]}
       currentConversation={currentConversation}
       currentModel={currentModel}
       userSettings={userSettings}
