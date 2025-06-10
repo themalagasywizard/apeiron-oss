@@ -319,10 +319,13 @@ export function generateCompletePage(options: {
 
 // Utility function to detect HTML code in AI responses
 export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlContent?: string; filename?: string } {
-  // Look for HTML patterns in the content
+  console.log("Detecting HTML in content:", content.substring(0, 200) + "...");
+  
+  // Look for HTML patterns in the content (more comprehensive)
   const htmlPatterns = [
     /```html\s*([\s\S]*?)\s*```/gi,
     /```\s*(<!DOCTYPE html[\s\S]*?<\/html>)\s*```/gi,
+    /```\s*(<!doctype html[\s\S]*?<\/html>)\s*```/gi,
     /<(!DOCTYPE html|html|head|body|header|nav|main|section|article|footer)[\s\S]*?>/gi
   ]
 
@@ -338,10 +341,13 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
 
   // Extract HTML content
   for (const pattern of htmlPatterns) {
+    pattern.lastIndex = 0; // Reset regex state
     const match = pattern.exec(content)
     if (match) {
       htmlContent = (match[1] || match[0]).trim()
       hasHTML = true
+      console.log("HTML detected! Length:", htmlContent.length);
+      console.log("HTML preview:", htmlContent.substring(0, 100) + "...");
       break
     }
   }
@@ -359,6 +365,7 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
         if (potentialCSS.includes('{') && potentialCSS.includes('}') && 
             (potentialCSS.includes(':') || potentialCSS.includes('body') || potentialCSS.includes('html'))) {
           cssContent = potentialCSS
+          console.log("CSS detected! Length:", cssContent.length);
           break
         }
       }
@@ -366,6 +373,7 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
 
     // If we have both HTML and CSS, merge them
     if (cssContent && htmlContent) {
+      console.log("Merging CSS into HTML...");
       // Check if HTML already has embedded styles
       if (!htmlContent.includes('<style>') && !htmlContent.includes('<style ')) {
         // Find the head tag and insert the CSS
@@ -378,6 +386,7 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
           // Insert CSS into head
           htmlContent = beforeHead + headContent + 
             `\n    <style>\n        ${cssContent}\n    </style>\n` + afterHead
+          console.log("CSS merged into HTML head");
         } else {
           // If no head tag found, try to add it
           const htmlTagMatch = htmlContent.match(/(<html[^>]*>)/i)
@@ -387,6 +396,7 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
             const after = htmlContent.substring(insertPoint)
             htmlContent = before + 
               `\n<head>\n    <style>\n        ${cssContent}\n    </style>\n</head>` + after
+            console.log("CSS added with new head tag");
           }
         }
       }
@@ -401,6 +411,8 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
       filename = titleMatch[1].replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-').toLowerCase() + '.html'
     }
 
+    console.log("Final HTML detection result:", { hasHTML: true, filename });
+    
     return {
       hasHTML: true,
       htmlContent,
@@ -408,5 +420,6 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
     }
   }
 
+  console.log("No HTML detected");
   return { hasHTML: false }
 } 

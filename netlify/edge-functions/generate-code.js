@@ -83,34 +83,51 @@ export default async (request, context) => {
         if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
           const codeInstructions = `
 
-ADVANCED CODE GENERATION INSTRUCTIONS:
-- Focus PRIMARILY on providing complete, working, production-ready code
-- Minimize explanatory text - let the code be self-documenting
-- Use comprehensive comments within the code for necessary explanations
-- Provide complete, functional examples that can be run immediately
-- For HTML/CSS/JS: provide a complete working example with all necessary dependencies
-- For components: include all necessary imports, exports, and prop types
-- For applications: include file structure, configuration, and setup instructions
-- Keep descriptions brief and to the point - focus on implementation details
-- Prioritize code quality, completeness, and best practices over lengthy explanations
-- Include error handling and edge cases in the code
-- Use modern syntax and current best practices
+CRITICAL CODE GENERATION MODE - FOLLOW EXACTLY:
 
-SPECIFIC HTML/CSS INSTRUCTIONS:
-- ALWAYS embed CSS within <style> tags inside the HTML <head> section
-- NEVER provide separate CSS files or blocks - integrate ALL styles into the HTML
-- Create complete, self-contained HTML files that work immediately when opened
-- Include responsive design and modern CSS practices
-- Add proper meta tags, viewport settings, and semantic HTML structure
-- Ensure all images, fonts, and resources are either embedded or use CDN links
-- Test that the HTML file would work completely standalone
-- Include interactive JavaScript within <script> tags if needed
-- Use modern CSS features like Flexbox, Grid, and CSS Variables
-- Optimize for both desktop and mobile viewing
+YOU ARE IN CODE GENERATION MODE. YOUR PRIMARY TASK IS TO GENERATE CLEAN, WORKING CODE WITH MINIMAL EXPLANATORY TEXT.
 
-CRITICAL: For any web-related request, provide a SINGLE, complete HTML file with embedded styles and scripts.
+MANDATORY RULES:
+1. Start your response with working code inside code blocks
+2. NO lengthy explanations before the code
+3. NO tutorials or step-by-step instructions
+4. NO marketing language or descriptions
+5. MINIMAL text outside of code blocks
 
-User Request: ${lastMessage.content}`;
+FOR HTML/CSS REQUESTS:
+- IMMEDIATELY provide a complete HTML file with embedded CSS
+- Put ALL CSS inside <style> tags in the <head> section
+- NO separate CSS blocks or files
+- NO explanations about "how to use this code"
+- NO descriptions of features
+- COMPLETE, working, standalone HTML file that opens in any browser
+- Include proper DOCTYPE, html, head, and body structure
+- Add responsive meta tags and modern CSS practices
+- Use semantic HTML and proper accessibility features
+
+RESPONSE FORMAT FOR HTML:
+\`\`\`html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Title</title>
+    <style>
+        /* ALL YOUR CSS GOES HERE */
+    </style>
+</head>
+<body>
+    <!-- ALL YOUR HTML CONTENT GOES HERE -->
+</body>
+</html>
+\`\`\`
+
+CRITICAL: Do NOT provide any explanatory text before or after the code. Just provide the complete working HTML file.
+
+USER REQUEST: ${lastMessage.content}
+
+RESPOND WITH WORKING CODE ONLY:`;
 
           optimizedMessages[optimizedMessages.length - 1] = {
             ...lastMessage,

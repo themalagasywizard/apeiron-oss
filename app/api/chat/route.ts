@@ -121,25 +121,51 @@ export async function POST(request: NextRequest) {
           // Add code-focused instructions
           const codeInstructions = `
 
-CODE GENERATION INSTRUCTIONS:
-- Focus primarily on providing working, complete code
-- Minimize explanatory text - let the code speak for itself
-- Use comments within the code for necessary explanations
-- Provide complete, functional examples that can be run immediately
-- For HTML/CSS/JS: provide a complete working example
-- For components: include all necessary imports and exports
-- Keep descriptions brief and to the point
-- Prioritize code quality and completeness over lengthy explanations
+CRITICAL CODE GENERATION MODE - FOLLOW EXACTLY:
 
-HTML/CSS SPECIFIC INSTRUCTIONS:
-- ALWAYS embed CSS within <style> tags inside the HTML <head> section
-- NEVER provide separate CSS files or blocks - integrate ALL styles into the HTML
-- Create complete, self-contained HTML files that work immediately when opened
-- Include responsive design and modern CSS practices
-- Use embedded JavaScript within <script> tags if needed
-- Optimize for both desktop and mobile viewing
+YOU ARE IN CODE GENERATION MODE. YOUR PRIMARY TASK IS TO GENERATE CLEAN, WORKING CODE WITH MINIMAL EXPLANATORY TEXT.
 
-User Request: ${lastMessage.content}`;
+MANDATORY RULES:
+1. Start your response with working code inside code blocks
+2. NO lengthy explanations before the code
+3. NO tutorials or step-by-step instructions
+4. NO marketing language or descriptions
+5. MINIMAL text outside of code blocks
+
+FOR HTML/CSS REQUESTS:
+- IMMEDIATELY provide a complete HTML file with embedded CSS
+- Put ALL CSS inside <style> tags in the <head> section
+- NO separate CSS blocks or files
+- NO explanations about "how to use this code"
+- NO descriptions of features
+- COMPLETE, working, standalone HTML file that opens in any browser
+- Include proper DOCTYPE, html, head, and body structure
+- Add responsive meta tags and modern CSS practices
+- Use semantic HTML and proper accessibility features
+
+RESPONSE FORMAT FOR HTML:
+\`\`\`html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Title</title>
+    <style>
+        /* ALL YOUR CSS GOES HERE */
+    </style>
+</head>
+<body>
+    <!-- ALL YOUR HTML CONTENT GOES HERE -->
+</body>
+</html>
+\`\`\`
+
+CRITICAL: Do NOT provide any explanatory text before or after the code. Just provide the complete working HTML file.
+
+USER REQUEST: ${lastMessage.content}
+
+RESPOND WITH WORKING CODE ONLY:`;
 
           optimizedMessages[optimizedMessages.length - 1] = {
             ...lastMessage,
