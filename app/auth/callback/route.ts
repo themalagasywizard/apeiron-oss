@@ -19,6 +19,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Determine the redirect URL - use production URL for deployed app
+  const isProduction = new URL(request.url).hostname !== 'localhost'
+  const redirectUrl = isProduction ? 'https://t3-oss.netlify.app/' : origin
+  
   // Redirect to home page after successful authentication
-  return NextResponse.redirect(origin)
+  return NextResponse.redirect(redirectUrl)
 } 

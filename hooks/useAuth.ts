@@ -21,6 +21,17 @@ export function useAuth() {
   })
 
   useEffect(() => {
+    // Clean up URL fragments after auth
+    const cleanUpUrl = () => {
+      if (typeof window !== 'undefined') {
+        const currentUrl = window.location.href
+        if (currentUrl.includes('#access_token=') || currentUrl.includes('#error=')) {
+          // Clean up the URL by removing the fragment
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+        }
+      }
+    }
+
     // Get initial session
     const getInitialSession = async () => {
       try {
@@ -32,6 +43,9 @@ export function useAuth() {
         }
 
         if (session?.user) {
+          // Clean up URL after successful authentication
+          cleanUpUrl()
+          
           // Fetch user profile
           const { data: userProfile, error: profileError } = await supabase
             .from('users')
@@ -74,6 +88,9 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
+          // Clean up URL after successful authentication
+          cleanUpUrl()
+          
           // Fetch user profile
           const { data: userProfile } = await supabase
             .from('users')
@@ -107,10 +124,16 @@ export function useAuth() {
     try {
       setAuthState(prev => ({ ...prev, loading: true, error: null }))
       
+      // Determine the redirect URL - use production URL for deployed app
+      const isProduction = window.location.hostname !== 'localhost'
+      const redirectUrl = isProduction 
+        ? 'https://t3-oss.netlify.app/auth/callback'
+        : `${window.location.origin}/auth/callback`
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
+          redirectTo: redirectUrl
         }
       })
 

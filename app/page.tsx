@@ -122,6 +122,15 @@ export default function Home() {
 
   // Load settings and set client flag on mount
   useEffect(() => {
+    // Clean up URL fragments immediately if present
+    const cleanUpUrlFragments = () => {
+      const currentUrl = window.location.href
+      if (currentUrl.includes('#access_token=') || currentUrl.includes('#error=')) {
+        // Clean up the URL by removing the fragment
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+      }
+    }
+
     const loadSettings = (): UserSettings => {
       // No need to check for window here, useEffect only runs on client
       try {
@@ -163,6 +172,9 @@ export default function Home() {
       }
     }
 
+    // Clean up URL fragments first
+    cleanUpUrlFragments()
+    
     setUserSettings(loadSettings())
     setIsClient(true) // Set client to true after settings are loaded
   }, [])
