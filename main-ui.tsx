@@ -83,7 +83,7 @@ type Model = {
   name: string
   icon: string
   apiKey?: string
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
   isCustom?: boolean
   customModelName?: string
 }
@@ -99,6 +99,7 @@ type UserSettings = {
   geminiApiKey: string
   deepseekApiKey: string
   grokApiKey: string
+  veo2ApiKey: string
 }
 
 type MainUIProps = {
@@ -143,7 +144,8 @@ export default function MainUI({
     claudeApiKey: "",
     geminiApiKey: "",
     deepseekApiKey: "",
-    grokApiKey: ""
+    grokApiKey: "",
+    veo2ApiKey: ""
   },
   isTyping = false,
   onSendMessage = () => {},
@@ -162,9 +164,10 @@ export default function MainUI({
     { id: "openai-gpt4", name: "GPT-4", icon: "G4", provider: "openai" },
     { id: "openai-gpt35", name: "GPT-3.5", icon: "G3", provider: "openai" },
     { id: "claude-3", name: "Claude 3", icon: "C3", provider: "claude" },
-    { id: "gemini-2.5", name: "Gemini 2.5 (includes VEO2)", icon: "G2", provider: "gemini" },
+    { id: "gemini-2.5", name: "Gemini 2.5", icon: "G2", provider: "gemini" },
     { id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" },
     { id: "grok", name: "Grok", icon: "GK", provider: "grok" },
+    { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" },
   ]
 
   // State
@@ -514,8 +517,22 @@ export default function MainUI({
       .replace(/\[source:\s*(\d+)]/g, '<a href="#source-$1" class="text-xs align-super bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1 py-0.5 rounded-sm no-underline">$1</a>')
       // Handle markdown links
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-purple-500 hover:underline">$1</a>')
-      // Handle code blocks
-      .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto my-4"><code class="font-mono text-sm">$1</code></pre>')
+      // Handle code blocks with proper escaping and language detection
+      .replace(/```([\w+-]*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+        // Escape HTML entities in code to prevent parsing issues
+        const escapedCode = code
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#x27;');
+        
+        // Add language-specific styling
+        const languageClass = lang ? `language-${lang.toLowerCase()}` : '';
+        const languageLabel = lang ? `<span class="absolute top-2 right-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">${lang}</span>` : '';
+        
+        return `<div class="relative"><pre class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto my-4 ${languageClass}"><code class="font-mono text-sm">${escapedCode}</code></pre>${languageLabel}</div>`;
+      })
       // Handle bullet points with proper spacing
       .replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li class="mb-2">$1</li>')
       // Handle numbered lists
@@ -895,7 +912,7 @@ export default function MainUI({
                              videoUrl={videoDetection.videoUrl || undefined}
                              isGenerating={videoDetection.isGenerating || false}
                              operationName={videoDetection.operationName || undefined}
-                             apiKey={userSettings.geminiApiKey || undefined}
+                             apiKey={userSettings.veo2ApiKey || userSettings.geminiApiKey || undefined}
                              videoTitle={`VEO2 Generated Video`}
                              onDownload={(videoUrl, filename) => {
                                // Trigger download
@@ -1381,10 +1398,9 @@ export default function MainUI({
                               >
                                 <option value="openai">OpenAI</option>
                                 <option value="claude">Anthropic (Claude)</option>
-                                <option value="gemini">Google (Gemini)</option>
+                                <option value="gemini">Google (Gemini + VEO2)</option>
                                 <option value="deepseek">DeepSeek</option>
                                 <option value="grok">Grok (xAI)</option>
-                                <option value="veo2">Google VEO 2 (Video)</option>
                                 <option value="openrouter">OpenRouter</option>
                               </select>
                             </div>
@@ -1453,7 +1469,7 @@ export default function MainUI({
                                 configuredModels.push({ id: "claude-3", name: "Claude 3", icon: "C3", provider: "claude" })
                               }
                               if (userSettings.geminiApiKey) {
-                                configuredModels.push({ id: "gemini-2.5", name: "Gemini 2.5", icon: "G2", provider: "gemini" })
+                                configuredModels.push({ id: "gemini-2.5", name: "Gemini 2.5 (incl. VEO2)", icon: "G2", provider: "gemini" })
                               }
                               if (userSettings.grokApiKey) {
                                 configuredModels.push({ id: "grok", name: "Grok", icon: "GK", provider: "grok" })

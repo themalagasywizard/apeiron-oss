@@ -68,55 +68,16 @@ Please provide a comprehensive response using the above search results.`;
     // Helper function to safely parse JSON with fallback
     const safeJsonParse = async (response: Response, providerName: string) => {
       const text = await response.text();
-      
-      // Check for empty response
       if (!text || text.trim() === '') {
-        console.error(`${providerName} returned empty response`);
-        throw new Error(`${providerName} returned an empty response. This usually indicates a server error. Please try again.`);
+        throw new Error(`${providerName} returned an empty response. Please try again.`);
       }
       
-      // Check for HTML error pages (common with 5xx errors)
-      if (text.trim().startsWith('<')) {
-        console.error(`${providerName} returned HTML instead of JSON:`, text.substring(0, 200));
-        throw new Error(`${providerName} returned an error page instead of a valid response. Please try again later.`);
-      }
-      
-      // Try to parse JSON
       try {
-        const parsed = JSON.parse(text);
-        
-        // Additional validation for known API response formats
-        if (providerName === "OpenAI" && !parsed.choices) {
-          console.error(`${providerName} returned invalid format:`, parsed);
-          throw new Error(`${providerName} returned an unexpected response format. Please try again.`);
-        }
-        
-        if (providerName === "Claude" && !parsed.content) {
-          console.error(`${providerName} returned invalid format:`, parsed);
-          throw new Error(`${providerName} returned an unexpected response format. Please try again.`);
-        }
-        
-        if (providerName === "Gemini 2.5 Flash" && !parsed.candidates) {
-          console.error(`${providerName} returned invalid format:`, parsed);
-          throw new Error(`${providerName} returned an unexpected response format. Please try again.`);
-        }
-        
-        return parsed;
-        
+        return JSON.parse(text);
       } catch (parseError) {
         console.error(`${providerName} JSON parse error:`, parseError);
-        console.error(`${providerName} response text (first 500 chars):`, text.substring(0, 500));
-        
-        // More specific error messages based on the parse error
-        if (parseError instanceof SyntaxError) {
-          if (parseError.message.includes('Unexpected end of JSON input')) {
-            throw new Error(`${providerName} response was cut off. This usually indicates a network issue. Please try again.`);
-          } else if (parseError.message.includes('Unexpected token')) {
-            throw new Error(`${providerName} returned malformed data. This may be a temporary server issue. Please try again.`);
-          }
-        }
-        
-        throw new Error(`${providerName} returned an invalid response format. Please try again later.`);
+        console.error(`${providerName} response text:`, text);
+        throw new Error(`${providerName} returned an invalid response. Please try again.`);
       }
     };
 
@@ -272,6 +233,36 @@ Please provide a comprehensive response using the above search results.`;
 
         const openrouterData = await safeJsonParse(response, "OpenRouter");
         aiResponse = openrouterData.choices[0]?.message?.content || "OpenRouter didn't provide a response. Please try again.";
+        break;
+
+      case "veo2":
+        // VEO2 video generation using dedicated endpoint
+        const prompt = messages[messages.length - 1]?.content || "";
+        
+        // Construct the VEO2 endpoint URL properly
+        const baseUrl = new URL(request.url).origin;
+        const veo2Url = `${baseUrl}/api/veo2`;
+        
+        response = await fetch(veo2Url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            prompt: prompt,
+            apiKey: apiKey,
+            duration: 8, // Use number instead of string
+            aspectRatio: "16:9"
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.text();
+          throw new Error(`VEO2 is currently unavailable (${response.status}). Please try again in a moment.`);
+        }
+
+        const veo2Data = await safeJsonParse(response, "VEO2");
+        aiResponse = veo2Data.data?.message || "Video generation initiated with VEO2";
         break;
 
       default:
