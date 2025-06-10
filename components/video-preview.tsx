@@ -66,7 +66,9 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       console.log("Input video URL:", videoUrl);
       
       // Use our video proxy endpoint to handle authentication
-      const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(videoUrl)}&key=${encodeURIComponent(apiKey)}`;
+      // Add timestamp to prevent browser caching of different videos
+      const timestamp = Date.now();
+      const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(videoUrl)}&key=${encodeURIComponent(apiKey)}&t=${timestamp}`;
       console.log("Using proxy URL:", proxyUrl);
       
       setAuthenticatedVideoUrl(proxyUrl);
@@ -264,7 +266,8 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       // Enhanced download using video proxy
       try {
         console.log("Attempting authenticated download via proxy...");
-        const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(currentVideoUrl)}&key=${encodeURIComponent(apiKey)}`;
+        const timestamp = Date.now();
+        const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(currentVideoUrl)}&key=${encodeURIComponent(apiKey)}&t=${timestamp}`;
         
         const response = await fetch(proxyUrl);
         
@@ -500,6 +503,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
           </div>
         ) : (
           <video
+            key={authenticatedVideoUrl || currentVideoUrl} // Force re-render when URL changes
             ref={setVideoRef}
             className="w-full aspect-video bg-black"
             controls={false}

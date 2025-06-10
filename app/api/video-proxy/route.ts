@@ -56,14 +56,19 @@ export async function GET(request: NextRequest) {
     const videoBuffer = await response.arrayBuffer();
     console.log("Video buffer size:", videoBuffer.byteLength, "bytes");
 
-    // Return the video with proper headers
+    // Return the video with headers that prevent caching but allow streaming
     return new NextResponse(videoBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'video/mp4',
         'Content-Length': videoBuffer.byteLength.toString(),
-        'Cache-Control': 'public, max-age=3600',
+        // Prevent caching to ensure new videos are always fetched
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
         'Accept-Ranges': 'bytes',
+        // Add ETag based on video URL to help with conditional requests
+        'ETag': `"${Buffer.from(videoUrl).toString('base64')}"`,
       },
     });
 
