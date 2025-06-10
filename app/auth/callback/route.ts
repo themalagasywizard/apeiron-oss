@@ -1,21 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   
   if (code) {
     try {
+      // Create a server-side supabase client for the code exchange
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          auth: {
+            flowType: 'pkce'
+          }
+        }
+      )
+      
       const { error } = await supabase.auth.exchangeCodeForSession(code)
       
       if (error) {
         console.error('Auth callback error:', error)
-        return NextResponse.redirect(`${origin}/auth/error?message=${encodeURIComponent(error.message)}`)
+        return NextResponse.redirect(`https://t3-oss.netlify.app/auth/error?message=${encodeURIComponent(error.message)}`)
       }
     } catch (error) {
       console.error('Unexpected auth error:', error)
-      return NextResponse.redirect(`${origin}/auth/error?message=Authentication failed`)
+      return NextResponse.redirect(`https://t3-oss.netlify.app/auth/error?message=Authentication failed`)
     }
   }
 
