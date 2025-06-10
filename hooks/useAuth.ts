@@ -124,11 +124,8 @@ export function useAuth() {
     try {
       setAuthState(prev => ({ ...prev, loading: true, error: null }))
       
-      // Determine the redirect URL - use production URL for deployed app
-      const isProduction = window.location.hostname !== 'localhost'
-      const redirectUrl = isProduction 
-        ? 'https://t3-oss.netlify.app/auth/callback'
-        : `${window.location.origin}/auth/callback`
+      // Always use production URL for OAuth redirect
+      const redirectUrl = 'https://t3-oss.netlify.app/auth/callback'
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
