@@ -262,185 +262,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     }
   }
 
-  const handleDownload = async () => {
-    if (currentVideoUrl && onDownload) {
-      const filename = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`
-      onDownload(currentVideoUrl, filename)
-    } else if (currentVideoUrl) {
-      const filename = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
-      
-      try {
-        console.log("=== Video Download (No-Auth Method) ===");
-        console.log("Video element available:", !!videoRef);
-        console.log("Video src:", videoRef?.src);
-        console.log("Video current time:", videoRef?.currentTime);
-        console.log("Video duration:", videoRef?.duration);
-        
-        // Strategy 1: Try to download directly from video element (no API calls)
-        if (videoRef && videoRef.src) {
-          console.log("Attempting to download from video element...");
-          try {
-            // Method 1: Try to create a blob from the video element
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            if (ctx) {
-              // This won't work for cross-origin videos, but let's try
-              canvas.width = videoRef.videoWidth || 1920;
-              canvas.height = videoRef.videoHeight || 1080;
-              
-              try {
-                ctx.drawImage(videoRef, 0, 0, canvas.width, canvas.height);
-                // If we get here, the video is same-origin and we could potentially record it
-                console.log("Video appears to be same-origin, but full video download via canvas requires recording");
-              } catch (canvasError) {
-                console.log("Canvas method failed (expected for cross-origin):", canvasError);
-              }
-            }
-            
-            // Method 2: Try direct link download from video src
-            console.log("Trying direct download from video src...");
-            const link = document.createElement('a');
-            link.href = videoRef.src;
-            link.download = filename;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            console.log("Direct video element download initiated");
-            
-            // Show instructions
-            setTimeout(() => {
-              alert(`Download attempt completed! 
 
-If the download didn't start automatically:
-1. Right-click on the video player above
-2. Select "Save video as..." or "Download video"
-3. Choose your download location
-4. The file will be saved as: ${filename}
-
-💡 Tip: Most browsers allow right-click downloading directly from video players.`);
-            }, 1000);
-            
-            return;
-          } catch (videoDownloadError) {
-            console.log("Video element download failed:", videoDownloadError);
-          }
-        }
-        
-        // Strategy 2: Browser right-click method (most reliable)
-        console.log("Showing right-click download instructions...");
-        const message = `📥 Easy Download Method:
-
-1. Right-click directly on the video player above
-2. Select "Save video as..." or "Download video" 
-3. Choose your download location
-4. The video will be saved as: ${filename}
-
-🎯 This method works without any API calls!
-
-Alternative method:
-• Some browsers show a download icon when you hover over the video
-• Look for a "⋯" (three dots) menu on the video player
-
-💡 If right-click is disabled, try:
-• Ctrl+Right Click (Windows) 
-• Cmd+Right Click (Mac)`;
-        
-        alert(message);
-        
-        // Strategy 3: Try to enable right-click context menu on video
-        if (videoRef) {
-          videoRef.oncontextmenu = null; // Remove any context menu blocking
-          videoRef.style.pointerEvents = 'auto';
-          
-          // Add a temporary visual indicator
-          const originalBorder = videoRef.style.border;
-          videoRef.style.border = '3px solid #10B981';
-          videoRef.style.borderRadius = '8px';
-          
-          setTimeout(() => {
-            if (videoRef) {
-              videoRef.style.border = originalBorder;
-              videoRef.style.borderRadius = '';
-            }
-          }, 3000);
-          
-          console.log("Video element prepared for right-click download");
-        }
-        
-      } catch (err) {
-        console.error("All download methods failed:", err);
-        
-        // Final fallback: Show comprehensive download instructions
-        const message = `📥 Manual Download Guide:
-
-Since automated download failed, please use these reliable methods:
-
-🎯 Method 1 - Right-click the video:
-1. Right-click directly on the video player
-2. Select "Save video as..." or "Download video"
-3. Choose your download location
-
-🎯 Method 2 - Browser video controls:
-1. Look for a download button on the video player
-2. Click the "⋯" (three dots) menu if available
-3. Select download option
-
-🎯 Method 3 - Browser menu:
-1. While video is playing, go to browser menu
-2. Select "Tools" > "Developer Tools" 
-3. Go to "Network" tab, find the video file
-4. Right-click the video file and download
-
-💡 File will be saved as: ${filename}`;
-        
-        alert(message);
-      }
-    }
-  }
-
-  const handleCopyUrl = async () => {
-    if (!currentVideoUrl) return;
-    
-    try {
-      // First try to copy the video element's src (which should be authenticated)
-      const urlToCopy = videoRef?.src || createAuthenticatedUrl(currentVideoUrl);
-      
-      await navigator.clipboard.writeText(urlToCopy);
-      
-      const message = `✅ Video URL copied to clipboard!
-
-🎯 How to use this URL:
-1. Paste it in a new browser tab
-2. Wait for the video to load
-3. Right-click on the video
-4. Select "Save video as..." to download
-
-💡 This URL includes authentication and should work directly in your browser.`;
-      
-      alert(message);
-    } catch (err) {
-      console.error("Failed to copy URL:", err);
-      
-      // Fallback: show URL in alert for manual copying
-      const urlToShow = videoRef?.src || createAuthenticatedUrl(currentVideoUrl);
-      const message = `📋 Manual Copy Required:
-
-Please copy this URL manually:
-
-${urlToShow}
-
-🎯 How to use:
-1. Copy the URL above
-2. Paste it in a new browser tab  
-3. Right-click the video and select "Save video as..."`;
-      
-      alert(message);
-    }
-  }
 
   // Show error state
   if (error) {
@@ -685,24 +507,7 @@ ${urlToShow}
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCopyUrl}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-              title="Copy video URL to clipboard"
-            >
-              <Copy className="w-4 h-4" />
-              Copy URL
-            </button>
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-2 px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-              title="Download video - No API authentication required!"
-            >
-              <Download className="w-4 h-4" />
-              Right-Click Download
-            </button>
-          </div>
+
         </div>
       </div>
 
@@ -801,7 +606,7 @@ ${urlToShow}
         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 border border-blue-200 dark:border-blue-800">
           <Download className="w-3 h-3 text-blue-500" />
           <span>
-            💡 <strong>Easy Download:</strong> Right-click on the video above and select "Save video as..." - no API authentication needed!
+            💡 <strong>Easy Download:</strong> Click the fullscreen button, then right-click on the video and select "Save video as..." - no API authentication needed!
           </span>
         </div>
       </div>
