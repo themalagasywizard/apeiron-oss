@@ -4,6 +4,11 @@ import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { formatFileSize } from "@/lib/file-utils"
+import ModelLogo from "@/components/model-logos"
+import HTMLPreview from "@/components/html-preview"
+import VideoPreview from "@/components/video-preview"
+import { detectHTMLInContent } from "@/lib/html-templates"
 import {
   Menu,
   X,
@@ -21,6 +26,16 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  Paperclip,
+  FileImage,
+  FileText,
+  Loader2,
+  Download,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  Globe,
+  Code,
 } from "lucide-react"
 
 // Types
@@ -29,6 +44,25 @@ type Message = {
   content: string
   role: "user" | "assistant"
   timestamp: Date
+  attachments?: ProcessedFile[]
+  model?: string
+  provider?: string
+  isError?: boolean
+  retryData?: {
+    originalMessage: string
+    attachments?: ProcessedFile[]
+  }
+}
+
+type ProcessedFile = {
+  id: string
+  name: string
+  type: string
+  size: number
+  url?: string
+  extractedText?: string
+  thumbnailUrl?: string
+  uploadedAt: string
 }
 
 type Conversation = {
@@ -49,6 +83,24 @@ type Model = {
   id: string
   name: string
   icon: string
+  apiKey?: string
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
+  isCustom?: boolean
+  customModelName?: string
+}
+
+type UserSettings = {
+  temperature: number
+  models: Model[]
+  openrouterEnabled: boolean
+  openrouterApiKey: string
+  openrouterModelName: string
+  openaiApiKey: string
+  claudeApiKey: string
+  geminiApiKey: string
+  deepseekApiKey: string
+  grokApiKey: string
+  veo2ApiKey: string
 }
 
 type MainUIProps = {
@@ -57,7 +109,9 @@ type MainUIProps = {
   models?: Model[]
   currentConversation?: Conversation
   currentModel?: string
-  onSendMessage?: (message: string) => void
+  userSettings?: UserSettings
+  isTyping?: boolean
+  onSendMessage?: (message: string, attachments?: ProcessedFile[], webSearchEnabled?: boolean, codeGenerationEnabled?: boolean) => void
   onSelectConversation?: (id: string) => void
   onSelectModel?: (id: string) => void
   onCreateConversation?: () => void
@@ -65,16 +119,14 @@ type MainUIProps = {
   onToggleTheme?: () => void
   onLogout?: () => void
   onSaveSettings?: (settings: any) => void
+  onRenameConversation?: (id: string, newTitle: string) => void
+  onRetryMessage?: (messageId: string) => void
 }
 
 export default function MainUI({
   conversations = [],
   projects = [],
-  models = [
-    { id: "gpt-4", name: "GPT-4", icon: "G4" },
-    { id: "claude", name: "Claude", icon: "C" },
-    { id: "gemini", name: "Gemini", icon: "GM" },
-  ],
+  models = [],
   currentConversation = {
     id: "default",
     title: "New Conversation",
@@ -83,6 +135,20 @@ export default function MainUI({
     messages: [],
   },
   currentModel = "gpt-4",
+  userSettings = {
+    temperature: 0.7,
+    models: [],
+    openrouterEnabled: false,
+    openrouterApiKey: "",
+    openrouterModelName: "",
+    openaiApiKey: "",
+    claudeApiKey: "",
+    geminiApiKey: "",
+    deepseekApiKey: "",
+    grokApiKey: "",
+    veo2ApiKey: ""
+  },
+  isTyping = false,
   onSendMessage = () => {},
   onSelectConversation = () => {},
   onSelectModel = () => {},
@@ -91,22 +157,63 @@ export default function MainUI({
   onToggleTheme = () => {},
   onLogout = () => {},
   onSaveSettings = () => {},
+  onRenameConversation = () => {},
+  onRetryMessage = () => {},
 }: MainUIProps) {
+  // Initialize default models
+  const defaultModels: Model[] = [
+    { id: "openai-gpt4", name: "GPT-4", icon: "G4", provider: "openai" },
+    { id: "openai-gpt35", name: "GPT-3.5", icon: "G3", provider: "openai" },
+    { id: "claude-3", name: "Claude 3", icon: "C3", provider: "claude" },
+    { id: "gemini-2.5", name: "Gemini 2.5", icon: "G2", provider: "gemini" },
+    { id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" },
+    { id: "grok", name: "Grok", icon: "GK", provider: "grok" },
+    { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" },
+  ]
+
   // State
   const [theme, setTheme] = useState<"dark" | "light">("dark")
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [inputValue, setInputValue] = useState("")
-  const [isTyping, setIsTyping] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [apiKey, setApiKey] = useState("")
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [temperature, setTemperature] = useState(0.7)
+
+  const [settingsTab, setSettingsTab] = useState<"general" | "models">("general")
+  const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter">("openai")
+  const [newModelApiKey, setNewModelApiKey] = useState("")
+  const [newModelCustomName, setNewModelCustomName] = useState("")
+  const [showNewModelApiKey, setShowNewModelApiKey] = useState(false)
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState("")
+
+  // File upload state
+  const [attachments, setAttachments] = useState<ProcessedFile[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
+
+  // Web search state
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+
+  // Code generation state
+  const [codeGenerationEnabled, setCodeGenerationEnabled] = useState(false)
+
+  // Speech recognition state
+  const [isListening, setIsListening] = useState(false)
+
+  // Use models from props (calculated in page.tsx with proper API key logic)
+  const availableModels = models
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
+  const recognitionRef = useRef<any>(null)
+
+  // Check if current model supports web search
+  const isWebSearchCompatible = () => {
+    const currentModelData = availableModels.find(m => m.id === currentModel)
+    return currentModelData && (currentModelData.provider === "gemini" || currentModelData.provider === "grok")
+  }
 
   // Check if mobile on mount and window resize
   useEffect(() => {
@@ -130,16 +237,93 @@ export default function MainUI({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [currentConversation.messages])
 
+  // Disable web search when switching to incompatible models
+  useEffect(() => {
+    if (!isWebSearchCompatible() && webSearchEnabled) {
+      setWebSearchEnabled(false)
+    }
+  }, [currentModel])
+
+  // Handle file upload
+  const handleFileUpload = async (file: File) => {
+    if (!file) return
+
+    setIsUploading(true)
+    setError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed')
+      }
+
+      // Add the processed file to attachments
+      setAttachments(prev => [...prev, result.file])
+    } catch (error) {
+      console.error('Upload error:', error)
+      setError(error instanceof Error ? error.message : 'Failed to upload file')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  // Handle file input change
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        handleFileUpload(files[i])
+      }
+    }
+    // Reset the input
+    e.target.value = ''
+  }
+
+  // Remove attachment
+  const removeAttachment = (attachmentId: string) => {
+    setAttachments(prev => prev.filter(att => att.id !== attachmentId))
+  }
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+
+    const files = Array.from(e.dataTransfer.files)
+    files.forEach(file => {
+      handleFileUpload(file)
+    })
+  }
+
   // Handle sending a message
   const handleSendMessage = () => {
-    if (inputValue.trim()) {
-      onSendMessage(inputValue)
+    if (inputValue.trim() || attachments.length > 0) {
+      onSendMessage(inputValue, attachments.length > 0 ? attachments : undefined, webSearchEnabled, codeGenerationEnabled)
       setInputValue("")
-      // Simulate AI typing
-      setIsTyping(true)
-      setTimeout(() => {
-        setIsTyping(false)
-      }, 2000)
+      setAttachments([])
     }
   }
 
@@ -151,6 +335,35 @@ export default function MainUI({
     }
   }
 
+  // Handle conversation renaming
+  const handleStartRename = (conversationId: string, currentTitle: string) => {
+    setEditingConversationId(conversationId)
+    setEditingTitle(currentTitle)
+  }
+
+  const handleSaveRename = () => {
+    if (editingConversationId && editingTitle.trim()) {
+      onRenameConversation(editingConversationId, editingTitle.trim())
+    }
+    setEditingConversationId(null)
+    setEditingTitle("")
+  }
+
+  const handleCancelRename = () => {
+    setEditingConversationId(null)
+    setEditingTitle("")
+  }
+
+  const handleRenameKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      handleSaveRename()
+    } else if (e.key === "Escape") {
+      e.preventDefault()
+      handleCancelRename()
+    }
+  }
+
   // Toggle project expansion
   const toggleProject = (projectId: string) => {
     setExpandedProjects((prev) => ({
@@ -159,15 +372,102 @@ export default function MainUI({
     }))
   }
 
-  // Save settings
-  const handleSaveSettings = () => {
-    onSaveSettings({ apiKey, temperature, theme })
-    setSettingsOpen(false)
-    // Simulate error for demonstration
-    if (apiKey === "invalid") {
-      setError("Invalid API key. Please check and try again.")
-      setTimeout(() => setError(null), 5000)
+  // Add new model (save API keys directly to userSettings)
+  const handleAddModel = () => {
+    if (!newModelApiKey.trim()) {
+      setError("API key is required")
+      setTimeout(() => setError(null), 3000)
+      return
     }
+
+    if (newModelProvider === "openrouter" && !newModelCustomName.trim()) {
+      setError("Model name is required for OpenRouter")
+      setTimeout(() => setError(null), 3000)
+      return
+    }
+
+    // Save API keys directly to userSettings based on provider
+    let updatedSettings = { ...userSettings }
+
+    if (newModelProvider === "openrouter") {
+      updatedSettings = {
+        ...userSettings,
+        openrouterEnabled: true,
+        openrouterApiKey: newModelApiKey,
+        openrouterModelName: newModelCustomName,
+        models: [] // Clear other models when OpenRouter is enabled
+      }
+    } else {
+      // Store API keys in the correct field based on provider
+      switch (newModelProvider) {
+        case "openai":
+          updatedSettings.openaiApiKey = newModelApiKey
+          break
+        case "claude":
+          updatedSettings.claudeApiKey = newModelApiKey
+          break
+        case "gemini":
+          updatedSettings.geminiApiKey = newModelApiKey
+          break
+        case "deepseek":
+          updatedSettings.deepseekApiKey = newModelApiKey
+          break
+        case "grok":
+          updatedSettings.grokApiKey = newModelApiKey
+          break
+      }
+      updatedSettings.openrouterEnabled = false
+    }
+
+    onSaveSettings(updatedSettings)
+
+    // Reset form
+    setNewModelApiKey("")
+    setNewModelCustomName("")
+    setNewModelProvider("openai")
+  }
+
+  // Remove model (clear API keys)
+  const handleRemoveModel = (modelId: string) => {
+    let updatedSettings = { ...userSettings }
+    
+    // If it's a default model, clear the API key
+    if (modelId === "deepseek") {
+      updatedSettings.deepseekApiKey = ""
+    } else if (modelId === "openai-gpt4" || modelId === "openai-gpt35") {
+      updatedSettings.openaiApiKey = ""
+    } else if (modelId === "claude-3") {
+      updatedSettings.claudeApiKey = ""
+    } else if (modelId === "gemini-2.5") {
+      updatedSettings.geminiApiKey = ""
+    } else if (modelId === "grok") {
+      updatedSettings.grokApiKey = ""
+    } else {
+      // Custom model - remove from models array
+      updatedSettings.models = userSettings.models.filter(m => m.id !== modelId)
+    }
+    
+    onSaveSettings(updatedSettings)
+  }
+
+  // Toggle OpenRouter
+  const handleToggleOpenRouter = (enabled: boolean) => {
+    const updatedSettings = {
+      ...userSettings,
+      openrouterEnabled: enabled,
+      models: enabled ? [] : userSettings.models
+    }
+    onSaveSettings(updatedSettings)
+  }
+
+  // Save general settings
+  const handleSaveGeneralSettings = () => {
+    const updatedSettings = {
+      ...userSettings,
+      temperature: userSettings.temperature
+    }
+    onSaveSettings(updatedSettings)
+    setSettingsOpen(false)
   }
 
   // Toggle theme
@@ -178,54 +478,251 @@ export default function MainUI({
     document.documentElement.classList.toggle("dark", newTheme === "dark")
   }
 
+  // Speech recognition functions
+  const startListening = async () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      setError('Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.')
+      setTimeout(() => setError(null), 5000)
+      return
+    }
+
+    try {
+      // First, request microphone permission explicitly
+      console.log('Requesting microphone permission...')
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      console.log('Microphone permission granted')
+      
+      // Stop the stream immediately - we just needed permission
+      stream.getTracks().forEach(track => track.stop())
+
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      const recognition = new SpeechRecognition()
+      
+      recognition.lang = 'en-US'
+      recognition.interimResults = true
+      recognition.continuous = true  // Keep listening until manually stopped
+      recognition.maxAlternatives = 1
+
+      recognition.onstart = () => {
+        setIsListening(true)
+        setError(null)
+        console.log('Speech recognition started - speak now!')
+        // Clear any existing text when starting new session
+        setInputValue('')
+      }
+
+      recognition.onresult = (event: any) => {
+        console.log('Speech recognition result received!')
+        let transcript = ''
+        
+        // Get all results and combine them
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript
+        }
+        
+        console.log('Transcript:', transcript)
+        setInputValue(transcript.trim())
+      }
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error)
+        
+        // Handle specific errors differently
+        switch (event.error) {
+          case 'no-speech':
+            console.log('No speech detected - please speak louder or closer to microphone')
+            // Don't stop - just wait for speech
+            return
+          case 'audio-capture':
+            setError('Microphone not accessible. Please check your microphone and permissions.')
+            setIsListening(false)
+            break
+          case 'not-allowed':
+            setError('Microphone access denied. Please allow microphone access in your browser.')
+            setIsListening(false)
+            break
+          case 'network':
+            setError('Network error. Please check your connection.')
+            setIsListening(false)
+            break
+          case 'aborted':
+            // User manually stopped, no error needed
+            console.log('Speech recognition aborted by user')
+            setIsListening(false)
+            break
+          default:
+            setError(`Speech recognition error: ${event.error}`)
+            setIsListening(false)
+        }
+        
+        if (event.error !== 'aborted' && event.error !== 'no-speech') {
+          setTimeout(() => setError(null), 5000)
+        }
+      }
+
+      recognition.onend = () => {
+        console.log('Speech recognition ended')
+        
+        // If we're still supposed to be listening and it wasn't manually stopped
+        if (isListening && recognitionRef.current) {
+          console.log('Attempting to restart speech recognition...')
+          // Add a small delay before restarting to prevent rapid loops
+          setTimeout(() => {
+            if (isListening && recognitionRef.current) {
+              try {
+                recognitionRef.current.start()
+              } catch (error) {
+                console.error('Failed to restart recognition:', error)
+                setIsListening(false)
+                setError('Speech recognition stopped unexpectedly. Please try again.')
+                setTimeout(() => setError(null), 3000)
+              }
+            }
+          }, 500) // Increased delay to prevent rapid restarts
+        } else {
+          setIsListening(false)
+          recognitionRef.current = null
+        }
+      }
+
+      recognition.start()
+      recognitionRef.current = recognition
+      
+    } catch (error) {
+      console.error('Failed to start speech recognition:', error)
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        setError('Microphone access denied. Please allow microphone access and try again.')
+      } else if (error instanceof Error && error.name === 'NotFoundError') {
+        setError('No microphone found. Please connect a microphone and try again.')
+      } else {
+        setError('Failed to start speech recognition. Please check your microphone and try again.')
+      }
+      setTimeout(() => setError(null), 5000)
+      setIsListening(false)
+    }
+  }
+
+  const stopListening = () => {
+    console.log('Stopping speech recognition...')
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+    setIsListening(false)
+  }
+
+  // Cleanup speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+    }
+  }, [])
+
+  // Detect video generation content
+  const detectVideoContent = (content: string) => {
+    // Enhanced patterns for real VEO2 integration
+    const videoPattern = /🎬.*?Video Generation.*?(Started|Complete|Initiated|Processing)/i
+    const promptPattern = /\*\*Prompt:\*\*\s*(.+?)(?=\n|$)/i
+    const operationPattern = /\*\*Operation Name:\*\*\s*([^\s\n]+)/i
+    const videoUrlPattern = /Video URL:\s*(https?:\/\/[^\s\n]+)/i
+    const statusPattern = /\*\*Status:\*\*\s*([^\n]+)/i
+    
+    const hasVideo = videoPattern.test(content)
+    const promptMatch = content.match(promptPattern)
+    const operationMatch = content.match(operationPattern)
+    const videoUrlMatch = content.match(videoUrlPattern)
+    const statusMatch = content.match(statusPattern)
+    
+    // Check if it's currently generating/processing
+    const isGenerating = content.includes('Video Generation Started') || 
+                        content.includes('Generating Video') ||
+                        content.includes('Processing with Google VEO 2') ||
+                        content.includes('Demo processing') ||
+                        (statusMatch && statusMatch[1].toLowerCase().includes('processing'))
+    
+    return {
+      hasVideo,
+      prompt: promptMatch ? promptMatch[1].trim() : null,
+      isGenerating,
+      operationName: operationMatch ? operationMatch[1].trim() : null,
+      videoUrl: videoUrlMatch ? videoUrlMatch[1].trim() : null
+    }
+  }
+
+  // Format message content
+  const formatMessageContent = (content: string) => {
+    // Clean up content for minimalist formatting
+    const cleaned = content
+      // Remove all emojis
+      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+      // Remove excessive hashtags and replace with clean headers
+      .replace(/^#{1,6}\s+/gm, '')
+      // Clean markdown formatting to HTML
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">$1</code>')
+      // Handle web search results
+      .replace(/\[source:\s*(\d+)]/g, '<a href="#source-$1" class="text-xs align-super bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1 py-0.5 rounded-sm no-underline">$1</a>')
+      // Handle markdown links
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-purple-500 hover:underline">$1</a>')
+      // Handle code blocks with proper escaping and language detection
+      .replace(/```([\w+-]*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+        // Escape HTML entities in code to prevent parsing issues
+        const escapedCode = code
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#x27;');
+        
+        // Add language-specific styling
+        const languageClass = lang ? `language-${lang.toLowerCase()}` : '';
+        const languageLabel = lang ? `<span class="absolute top-2 right-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">${lang}</span>` : '';
+        
+        return `<div class="relative"><pre class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto my-4 ${languageClass}"><code class="font-mono text-sm">${escapedCode}</code></pre>${languageLabel}</div>`;
+      })
+      // Handle bullet points with proper spacing
+      .replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li class="mb-2">$1</li>')
+      // Handle numbered lists
+      .replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li class="mb-2">$1</li>')
+      // Convert multiple line breaks to paragraph breaks
+      .replace(/\n\s*\n/g, '</p><p class="mb-4">')
+      // Convert single line breaks to line breaks
+      .replace(/\n/g, '<br/>')
+      // Wrap content in paragraph tags
+      .replace(/^/, '<p class="mb-4">')
+      .replace(/$/, '</p>')
+      // Wrap list items in ul tags
+      .replace(/(<li class="mb-2">.*?<\/li>)/g, (match) => {
+        return '<ul class="list-disc list-inside space-y-2 mb-4 ml-4">' + match + '</ul>';
+      })
+      // Clean up empty paragraphs
+      .replace(/<p class="mb-4">\s*<\/p>/g, '')
+      // Fix multiple consecutive paragraph breaks
+      .replace(/(<\/p>)(\s*<p class="mb-4">)/g, '$1$2')
+      .trim();
+
+    return cleaned;
+  }
+
   return (
     <div
-      className={`font-inter h-screen flex flex-col ${theme === "dark" ? "dark bg-gradient-to-br from-gray-900 to-gray-800" : "bg-gradient-to-br from-gray-50 to-white"}`}
+      className={`font-inter h-screen flex ${theme === "dark" ? "dark bg-gradient-to-br from-gray-900 to-gray-800" : "bg-gradient-to-br from-gray-50 to-white"}`}
     >
-      {/* Top Bar */}
-      <header className="h-16 px-4 flex items-center justify-between border-b backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 sticky top-0 z-10">
-        {isMobile && (
+      <div className="flex flex-1 overflow-hidden">
+        {/* Mobile Menu Button (only visible when sidebar is closed) */}
+        {isMobile && !sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
+            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-gray-800/90 transition-colors shadow-lg"
             aria-label="Open sidebar"
           >
             <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
           </button>
         )}
 
-        <div className="flex-1 flex justify-center md:justify-start">
-          {!isMobile && (
-            <h1 className="text-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
-              AI Chat
-            </h1>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          >
-            {theme === "dark" ? <Sun className="w-5 h-5 text-gray-200" /> : <Moon className="w-5 h-5 text-gray-700" />}
-          </button>
-
-          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium">
-            U
-          </div>
-
-          <button
-            onClick={onLogout}
-            className="p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors md:ml-2"
-            aria-label="Log out"
-          >
-            <LogOut className="w-5 h-5 text-gray-700 dark:text-gray-200" />
-          </button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <AnimatePresence>
           {sidebarOpen && (
@@ -241,15 +738,29 @@ export default function MainUI({
                 border-r border-gray-200/20 dark:border-gray-700/20
               `}
             >
-              <div className="flex items-center justify-between p-4 border-b border-gray-200/20 dark:border-gray-700/20">
-                <div></div>
+              {/* Sidebar Header with Title and Controls */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200/20 dark:border-gray-700/20 h-[60px]">
+                <h1 className="text-lg font-bold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
+                  AI Chat
+                </h1>
+                <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="p-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
-                  aria-label="Close sidebar"
-                >
-                  <X className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+                    onClick={toggleTheme}
+                    className="p-1.5 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
+                    aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                  >
+                    {theme === "dark" ? <Sun className="w-4 h-4 text-gray-200" /> : <Moon className="w-4 h-4 text-gray-700" />}
                 </button>
+
+                  {/* Toggle Sidebar Button */}
+                  <button
+                    onClick={() => setSidebarOpen(false)}
+                    className="p-1.5 rounded-lg hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors ml-1"
+                    aria-label="Toggle sidebar"
+                  >
+                    {sidebarOpen ? <PanelLeftClose className="w-4 h-4 text-gray-700 dark:text-gray-200" /> : <PanelLeftOpen className="w-4 h-4 text-gray-700 dark:text-gray-200" />}
+                  </button>
+                </div>
               </div>
 
               {/* Conversation History */}
@@ -268,31 +779,48 @@ export default function MainUI({
 
                   <div className="mt-2 space-y-1">
                     {conversations.map((conversation) => (
-                      <button
+                      <div
                         key={conversation.id}
-                        onClick={() => onSelectConversation(conversation.id)}
                         className={`
                           w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-200
-                          hover:bg-white/20 dark:hover:bg-gray-800/40
+                          hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer
                           ${
                             currentConversation.id === conversation.id
                               ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
                               : "bg-transparent"
                           }
                         `}
+                        onClick={() => onSelectConversation(conversation.id)}
                       >
-                        <div className="font-medium text-gray-800 dark:text-gray-200 truncate">
+                        {editingConversationId === conversation.id ? (
+                          <input
+                            type="text"
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onKeyDown={handleRenameKeyPress}
+                            onBlur={handleSaveRename}
+                            className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <div 
+                            className="font-medium text-gray-800 dark:text-gray-200 truncate"
+                            title="Double-click to rename conversation"
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              handleStartRename(conversation.id, conversation.title);
+                            }}
+                          >
                           {conversation.title}
                         </div>
-                        <div className="flex items-center justify-between mt-1">
+                        )}
+                        <div className="mt-1">
                           <span className="text-xs text-gray-500 dark:text-gray-400">
                             {new Date(conversation.timestamp).toLocaleDateString()}
                           </span>
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
-                            {models.find((m) => m.id === conversation.model)?.name || conversation.model}
-                          </span>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -337,12 +865,12 @@ export default function MainUI({
                               if (!conv) return null
 
                               return (
-                                <button
+                                <div
                                   key={conv.id}
                                   onClick={() => onSelectConversation(conv.id)}
                                   className={`
                                     w-full text-left px-3 py-1.5 rounded-lg text-xs transition-all duration-200
-                                    hover:bg-white/20 dark:hover:bg-gray-800/40
+                                    hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer
                                     ${
                                       currentConversation.id === conv.id
                                         ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
@@ -350,10 +878,30 @@ export default function MainUI({
                                     }
                                   `}
                                 >
-                                  <div className="font-medium text-gray-800 dark:text-gray-200 truncate">
+                                  {editingConversationId === conv.id ? (
+                                    <input
+                                      type="text"
+                                      value={editingTitle}
+                                      onChange={(e) => setEditingTitle(e.target.value)}
+                                      onKeyDown={handleRenameKeyPress}
+                                      onBlur={handleSaveRename}
+                                      className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-xs"
+                                      autoFocus
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  ) : (
+                                    <div 
+                                      className="font-medium text-gray-800 dark:text-gray-200 truncate"
+                                      title="Double-click to rename conversation"
+                                      onDoubleClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStartRename(conv.id, conv.title);
+                                      }}
+                                    >
                                     {conv.title}
                                   </div>
-                                </button>
+                                  )}
+                                </div>
                               )
                             })}
                           </div>
@@ -364,11 +912,17 @@ export default function MainUI({
                 </div>
               </div>
 
+              {/* Profile and Settings Section */}
+              <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 h-[72px] flex items-center gap-3">
+                {/* Profile Button */}
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium shadow-lg">
+                  U
+              </div>
+
               {/* Settings Button */}
-              <div className="p-4 border-t border-gray-200/20 dark:border-gray-700/20">
                 <button
                   onClick={() => setSettingsOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 p-2 rounded-lg bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
+                  className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
                   aria-label="Open settings"
                 >
                   <Settings className="w-4 h-4" />
@@ -379,28 +933,19 @@ export default function MainUI({
           )}
         </AnimatePresence>
 
-        {/* Main Chat Panel */}
-        <main className="flex-1 flex flex-col overflow-hidden">
-          {/* Chat Header */}
-          <div className="px-4 py-3 border-b backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 flex items-center justify-between">
-            <div className="flex items-center">
+        {/* Desktop Sidebar Toggle (only visible when sidebar is closed on desktop) */}
               {!isMobile && !sidebarOpen && (
                 <button
                   onClick={() => setSidebarOpen(true)}
-                  className="p-2 mr-2 rounded-full hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
+            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-gray-800/90 transition-colors shadow-lg"
                   aria-label="Open sidebar"
                 >
-                  <Menu className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+            <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
                 </button>
               )}
 
-              <h2 className="font-medium text-gray-800 dark:text-gray-200">{currentConversation.title}</h2>
-
-              <div className="ml-3 px-2 py-1 text-xs rounded-full bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
-                {models.find((m) => m.id === currentConversation.model)?.name || currentConversation.model}
-              </div>
-            </div>
-          </div>
+        {/* Main Chat Panel */}
+        <main className="flex-1 flex flex-col overflow-hidden">
 
           {/* Error Alert */}
           <AnimatePresence>
@@ -438,7 +983,193 @@ export default function MainUI({
                     }
                   `}
                 >
-                  <div className="prose dark:prose-invert prose-sm">{message.content}</div>
+                  {/* Model icon and name for assistant messages */}
+                  {message.role === "assistant" && (
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200/30 dark:border-gray-600/30">
+                      <ModelLogo 
+                        provider={(message.provider as "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter") || "openai"} 
+                        size="sm"
+                      />
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        {(() => {
+                          const model = availableModels.find(m => m.id === message.model || m.provider === message.provider);
+                          return model?.name || message.provider || 'AI';
+                        })()}
+                      </span>
+                    </div>
+                  )}
+                  {/* Attachments */}
+                  {message.attachments && message.attachments.length > 0 && (
+                    <div className="mb-3 space-y-2">
+                      {message.attachments.map((attachment) => (
+                        <div
+                          key={attachment.id}
+                          className={`
+                            flex items-center gap-3 p-3 rounded-lg border 
+                            ${
+                              message.role === "user"
+                                ? "bg-white/20 border-white/30"
+                                : "bg-gray-100/50 dark:bg-gray-700/30 border-gray-200/30 dark:border-gray-600/30"
+                            }
+                          `}
+                        >
+                          {attachment.type.startsWith('image/') ? (
+                            <>
+                              <FileImage className="w-5 h-5 flex-shrink-0" />
+                              {attachment.url && (
+                                <img
+                                  src={attachment.url}
+                                  alt={attachment.name}
+                                  className="w-16 h-16 object-cover rounded-lg"
+                                />
+                              )}
+                            </>
+                          ) : (
+                            <FileText className="w-5 h-5 flex-shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">{attachment.name}</div>
+                            <div className="text-xs opacity-70">
+                              {formatFileSize(attachment.size)}
+                            </div>
+                          </div>
+                          {attachment.url && (
+                            <a
+                              href={attachment.url}
+                              download={attachment.name}
+                              className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                            >
+                              <Download className="w-4 h-4" />
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Message content */}
+                  {message.content && (() => {
+                    const htmlDetection = detectHTMLInContent(message.content)
+                    const videoDetection = detectVideoContent(message.content)
+                    
+                    if (videoDetection.hasVideo) {
+                      return (
+                        <div className="space-y-4">
+                          {/* Video Preview Component */}
+                                                     <VideoPreview 
+                             key={`video-${message.id}-${videoDetection.operationName || 'no-op'}`}
+                             prompt={videoDetection.prompt || message.content}
+                             videoUrl={videoDetection.videoUrl || undefined}
+                             isGenerating={videoDetection.isGenerating || false}
+                             operationName={videoDetection.operationName || undefined}
+                             apiKey={userSettings.veo2ApiKey || userSettings.geminiApiKey || undefined}
+                             videoTitle={`VEO2 Generated Video`}
+                             onDownload={(videoUrl, filename) => {
+                               // Trigger download
+                               const a = document.createElement('a')
+                               a.href = videoUrl
+                               a.download = filename
+                               document.body.appendChild(a)
+                               a.click()
+                               document.body.removeChild(a)
+                             }}
+                             onError={(error) => {
+                               console.error('VEO2 Video Error:', error)
+                             }}
+                           />
+                          
+                          {/* Regular message content without video markers */}
+                          <div 
+                            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+                              message.isError ? 'text-red-600 dark:text-red-400' : ''
+                            }`}
+                            dangerouslySetInnerHTML={{ 
+                              __html: formatMessageContent(message.content) 
+                            }}
+                          />
+                        </div>
+                      )
+                    } else if (htmlDetection.hasHTML && htmlDetection.htmlContent) {
+                      return (
+                        <div className="space-y-4">
+                          {/* Regular message content without HTML */}
+                          <div 
+                            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+                              message.isError ? 'text-red-600 dark:text-red-400' : ''
+                            }`}
+                            dangerouslySetInnerHTML={{ 
+                              __html: formatMessageContent(message.content.replace(/```html[\s\S]*?```/gi, '').replace(/```[\s\S]*?```/gi, '').trim()) 
+                            }}
+                          />
+                          
+                          {/* HTML Preview Component */}
+                          <HTMLPreview 
+                            htmlContent={htmlDetection.htmlContent}
+                            filename={htmlDetection.filename}
+                            onDownload={async (content, filename) => {
+                              try {
+                                // Save to database
+                                const response = await fetch('/api/html-code', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    title: filename.replace('.html', ''),
+                                    htmlContent: content,
+                                    isPublic: false,
+                                    tags: ['ai-generated'],
+                                    templateType: 'complete'
+                                  })
+                                })
+                                
+                                if (response.ok) {
+                                  const result = await response.json()
+                                  console.log('HTML code saved:', result.data.id)
+                                }
+                              } catch (error) {
+                                console.error('Failed to save HTML code:', error)
+                              }
+                              
+                              // Trigger download
+                              const blob = new Blob([content], { type: 'text/html' })
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = filename
+                              document.body.appendChild(a)
+                              a.click()
+                              document.body.removeChild(a)
+                              URL.revokeObjectURL(url)
+                            }}
+                          />
+                        </div>
+                      )
+                    } else {
+                      return (
+                        <div 
+                          className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+                            message.isError ? 'text-red-600 dark:text-red-400' : ''
+                          }`}
+                          dangerouslySetInnerHTML={{ __html: formatMessageContent(message.content) }}
+                        />
+                      )
+                    }
+                  })()}
+
+                  {/* Retry button for error messages */}
+                  {message.isError && message.retryData && (
+                    <div className="mt-3 pt-3 border-t border-gray-200/20 dark:border-gray-600/20">
+                      <button
+                        onClick={() => onRetryMessage(message.id)}
+                        className="flex items-center gap-2 px-3 py-2 text-sm bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Try Again
+                      </button>
+                    </div>
+                  )}
+                  
                   <div
                     className={`
                     text-xs mt-2 
@@ -451,11 +1182,23 @@ export default function MainUI({
               </motion.div>
             ))}
 
-            {/* Typing Indicator */}
+            {/* Typing Indicator with Model Logo */}
             {isTyping && (
               <div className="flex justify-start">
                 <div className="bg-white/20 dark:bg-gray-800/40 rounded-2xl p-4 border border-gray-200/20 dark:border-gray-700/20">
-                  <div className="flex space-x-2">
+                  <div className="flex items-center space-x-3">
+                    {/* Model Logo */}
+                    <ModelLogo 
+                      provider={(() => {
+                        const model = availableModels.find(m => m.id === currentModel);
+                        return model?.provider || "openai";
+                      })()} 
+                      isLoading={true} 
+                      size="sm" 
+                    />
+                    
+                    {/* Typing Animation */}
+                    <div className="flex items-center space-x-1">
                     <motion.div
                       animate={{ scale: [1, 1.2, 1] }}
                       transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0 }}
@@ -471,6 +1214,12 @@ export default function MainUI({
                       transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.5, repeatDelay: 0.4 }}
                       className="w-2 h-2 rounded-full bg-gray-500 dark:bg-gray-400"
                     />
+                    </div>
+                    
+                    {/* Model Name */}
+                    <span className="text-xs text-gray-600 dark:text-gray-400 ml-2">
+                      {availableModels.find(m => m.id === currentModel)?.name || 'AI'} is thinking...
+                    </span>
                   </div>
                 </div>
               </div>
@@ -480,18 +1229,67 @@ export default function MainUI({
           </div>
 
           {/* Input Area */}
-          <div className="p-4 border-t border-gray-200/20 dark:border-gray-700/20 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30">
-            <div className="flex items-end gap-3">
+          <div 
+            className={`px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 relative ${
+              isDragOver ? 'bg-purple-500/10 border-purple-500/50' : ''
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {/* Drag overlay */}
+            {isDragOver && (
+              <div className="absolute inset-0 bg-purple-500/20 border-2 border-dashed border-purple-500 rounded-lg flex items-center justify-center z-10">
+                <div className="text-purple-400 text-center">
+                  <Paperclip className="w-8 h-8 mx-auto mb-2" />
+                  <p className="text-sm font-medium">Drop files here to upload</p>
+                </div>
+              </div>
+            )}
+            {/* Attachments Preview */}
+            {attachments.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {attachments.map((attachment) => (
+                  <div
+                    key={attachment.id}
+                    className="flex items-center gap-2 bg-white/20 dark:bg-gray-800/40 rounded-lg p-2 text-sm text-gray-800 dark:text-gray-200"
+                  >
+                    {attachment.type.startsWith('image/') ? (
+                      <>
+                        <FileImage className="w-4 h-4 flex-shrink-0" />
+                        {attachment.url && (
+                          <img
+                            src={attachment.url}
+                            alt={attachment.name}
+                            className="w-8 h-8 object-cover rounded"
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <FileText className="w-4 h-4 flex-shrink-0" />
+                    )}
+                    <span className="truncate max-w-[100px]">{attachment.name}</span>
+                    <button
+                      onClick={() => removeAttachment(attachment.id)}
+                      className="text-gray-500 hover:text-red-500 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 w-full min-h-[48px]">
               <div className="flex-shrink-0">
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Model</label>
                 <div className="relative">
                   <select
                     value={currentModel}
                     onChange={(e) => onSelectModel(e.target.value)}
-                    className="h-[50px] w-36 px-3 pr-8 rounded-xl bg-white/20 dark:bg-gray-800/40 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    className="h-[48px] w-36 px-3 pr-8 rounded-xl bg-white/20 dark:bg-gray-800/40 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                     aria-label="Select AI model"
                   >
-                    {models.map((model) => (
+                    {availableModels.map((model) => (
                       <option key={model.id} value={model.id}>
                         {model.name}
                       </option>
@@ -501,6 +1299,63 @@ export default function MainUI({
                 </div>
               </div>
 
+              {/* Web Search Toggle Button (only for compatible models) */}
+              {isWebSearchCompatible() && (
+                <div className="flex-shrink-0">
+                  <button
+                    onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                    className={`h-[48px] w-[48px] rounded-xl border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
+                      webSearchEnabled
+                        ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg hover:shadow-blue-500/25"
+                        : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
+                    }`}
+                    title={webSearchEnabled ? "Web search enabled" : "Enable web search"}
+                    aria-label={webSearchEnabled ? "Disable web search" : "Enable web search"}
+                  >
+                    {webSearchEnabled ? (
+                      <Globe className="w-5 h-5" />
+                    ) : (
+                      <Search className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Code Generation Toggle Button */}
+              <div className="flex-shrink-0">
+                <button
+                  onClick={() => setCodeGenerationEnabled(!codeGenerationEnabled)}
+                  className={`h-[48px] w-[48px] rounded-xl border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
+                    codeGenerationEnabled
+                      ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:shadow-emerald-500/25"
+                      : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
+                  }`}
+                  title={codeGenerationEnabled ? "Code generation mode enabled - Uses Edge Function for longer processing" : "Enable code generation mode"}
+                  aria-label={codeGenerationEnabled ? "Disable code generation mode" : "Enable code generation mode"}
+                >
+                  <Code className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* File Upload Button */}
+              <div className="flex-shrink-0">
+                <label className="h-[48px] w-[48px] rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 border border-gray-200/20 dark:border-gray-700/20 transition-colors cursor-pointer flex items-center justify-center">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,application/pdf,.txt,.doc,.docx"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                    aria-label="Upload files"
+                  />
+                  {isUploading ? (
+                    <Loader2 className="w-5 h-5 text-gray-600 dark:text-gray-400 animate-spin" />
+                  ) : (
+                    <Paperclip className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  )}
+                </label>
+              </div>
+
               <div className="flex-1 bg-white/20 dark:bg-gray-800/40 rounded-xl border border-gray-200/20 dark:border-gray-700/20 overflow-hidden focus-within:ring-2 focus-within:ring-purple-500/50">
                 <textarea
                   ref={chatInputRef}
@@ -508,11 +1363,11 @@ export default function MainUI({
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyPress}
                   placeholder="Ask anything..."
-                  className="w-full p-3 bg-transparent text-gray-800 dark:text-gray-200 resize-none focus:outline-none"
+                  className="w-full px-4 py-3 bg-transparent text-gray-800 dark:text-gray-200 resize-none focus:outline-none"
                   rows={1}
                   style={{
                     height: "auto",
-                    minHeight: "50px",
+                    minHeight: "48px",
                     maxHeight: "200px",
                   }}
                   aria-label="Message input"
@@ -521,11 +1376,11 @@ export default function MainUI({
 
               <button
                 onClick={handleSendMessage}
-                disabled={!inputValue.trim()}
+                disabled={!inputValue.trim() && attachments.length === 0}
                 className={`
-                  h-[50px] w-[50px] rounded-xl flex-shrink-0 transition-all duration-200 flex items-center justify-center
+                  h-[48px] w-[48px] rounded-xl flex-shrink-0 transition-all duration-200 flex items-center justify-center
                   ${
-                    inputValue.trim()
+                    inputValue.trim() || attachments.length > 0
                       ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-purple-500/25"
                       : "bg-gray-200/50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed"
                   }
@@ -536,11 +1391,19 @@ export default function MainUI({
               </button>
 
               <button
-                disabled={true}
-                className="h-[50px] w-[50px] rounded-xl bg-gray-200/50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed flex-shrink-0 flex items-center justify-center"
-                aria-label="Voice input (coming soon)"
+                onClick={isListening ? stopListening : startListening}
+                className={`h-[48px] w-[48px] rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-200 relative ${
+                  isListening
+                    ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg hover:shadow-red-500/25"
+                    : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400 border border-gray-200/20 dark:border-gray-700/20"
+                }`}
+                aria-label={isListening ? "Click to stop voice input" : "Click to start voice input"}
+                title={isListening ? "🎤 Listening... Click to stop" : "🎤 Click to start voice input"}
               >
-                <Mic className="w-5 h-5" />
+                <Mic className={`w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
+                {isListening && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-ping"></div>
+                )}
               </button>
             </div>
           </div>
@@ -555,7 +1418,11 @@ export default function MainUI({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-center p-4"
+            style={{ 
+              alignItems: 'flex-end',
+              paddingBottom: '84px' // Height of input area + padding
+            }}
             onClick={() => setSettingsOpen(false)}
           >
             <motion.div
@@ -563,46 +1430,46 @@ export default function MainUI({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-md bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden"
+              className="w-full max-w-2xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden max-h-[80vh] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Header */}
               <div className="p-5 border-b border-gray-200/20 dark:border-gray-700/20">
                 <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200">Settings</h3>
-              </div>
-
-              <div className="p-5 space-y-6">
-                {/* API Key */}
-                <div className="space-y-2">
-                  <label htmlFor="api-key" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    API Key
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="api-key"
-                      type={showApiKey ? "text" : "password"}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      className="w-full p-2 pr-10 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                      placeholder="Enter your API key"
-                    />
+                
+                {/* Tabs */}
+                <div className="flex gap-1 mt-4 bg-gray-100/50 dark:bg-gray-900/50 rounded-lg p-1">
                     <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                      aria-label={showApiKey ? "Hide API key" : "Show API key"}
-                    >
-                      {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    onClick={() => setSettingsTab("general")}
+                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                      settingsTab === "general"
+                        ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                    }`}
+                  >
+                    General
+                  </button>
+                  <button
+                    onClick={() => setSettingsTab("models")}
+                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                      settingsTab === "models"
+                        ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                    }`}
+                  >
+                    Models
                     </button>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Your API key is stored locally and never sent to our servers.
-                  </p>
                 </div>
 
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-5">
+                {settingsTab === "general" && (
+                  <div className="space-y-6">
                 {/* Temperature */}
                 <div className="space-y-2">
                   <label htmlFor="temperature" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Temperature: {temperature.toFixed(1)}
+                        Temperature: {userSettings.temperature.toFixed(1)}
                   </label>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500 dark:text-gray-400">Deterministic</span>
@@ -612,48 +1479,217 @@ export default function MainUI({
                       min="0"
                       max="1"
                       step="0.1"
-                      value={temperature}
-                      onChange={(e) => setTemperature(Number.parseFloat(e.target.value))}
+                          value={userSettings.temperature}
+                          onChange={(e) => {
+                            const updatedSettings = { ...userSettings, temperature: Number.parseFloat(e.target.value) }
+                            onSaveSettings(updatedSettings)
+                          }}
                       className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500"
                     />
                     <span className="text-xs text-gray-500 dark:text-gray-400">Creative</span>
                   </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Controls randomness in AI responses. Lower values are more focused, higher values are more creative.
+                      </p>
                 </div>
+                  </div>
+                )}
 
-                {/* Theme */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Theme</label>
-                  <div className="flex gap-2">
+                {settingsTab === "models" && (
+                  <div className="space-y-6">
+                    {/* OpenRouter Toggle */}
+                    <div className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100">OpenRouter Mode</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Use OpenRouter to access multiple models with one API key</p>
+                        </div>
                     <button
-                      onClick={() => setTheme("light")}
-                      className={`
-                        flex-1 p-3 rounded-lg border transition-all duration-200
-                        ${
-                          theme === "light"
-                            ? "border-purple-500 bg-purple-500/10 text-purple-700 dark:text-purple-300"
-                            : "border-gray-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300"
-                        }
-                      `}
-                    >
-                      Light
+                          onClick={() => handleToggleOpenRouter(!userSettings.openrouterEnabled)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            userSettings.openrouterEnabled ? "bg-purple-500" : "bg-gray-200 dark:bg-gray-700"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              userSettings.openrouterEnabled ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
                     </button>
+                      </div>
+                      
+                      {userSettings.openrouterEnabled && (
+                        <div className="space-y-3 pt-3 border-t border-gray-200/50 dark:border-gray-700/50">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              OpenRouter API Key
+                            </label>
+                            <input
+                              type="password"
+                              value={userSettings.openrouterApiKey}
+                              onChange={(e) => {
+                                const updatedSettings = { ...userSettings, openrouterApiKey: e.target.value }
+                                onSaveSettings(updatedSettings)
+                              }}
+                              className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                              placeholder="sk-or-..."
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Model Name
+                            </label>
+                            <input
+                              type="text"
+                              value={userSettings.openrouterModelName}
+                              onChange={(e) => {
+                                const updatedSettings = { ...userSettings, openrouterModelName: e.target.value }
+                                onSaveSettings(updatedSettings)
+                              }}
+                              className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                              placeholder="anthropic/claude-3-opus"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {!userSettings.openrouterEnabled && (
+                      <>
+                        {/* Add New Model */}
+                        <div className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-lg">
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Add New Model</h4>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Provider
+                              </label>
+                              <select
+                                value={newModelProvider}
+                                onChange={(e) => setNewModelProvider(e.target.value as any)}
+                                className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                              >
+                                <option value="openai">OpenAI</option>
+                                <option value="claude">Anthropic (Claude)</option>
+                                <option value="gemini">Google (Gemini + VEO2)</option>
+                                <option value="deepseek">DeepSeek</option>
+                                <option value="grok">Grok (xAI)</option>
+                                <option value="openrouter">OpenRouter</option>
+                              </select>
+                            </div>
+
+                            {newModelProvider === "openrouter" && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                  Model Name
+                                </label>
+                                <input
+                                  type="text"
+                                  value={newModelCustomName}
+                                  onChange={(e) => setNewModelCustomName(e.target.value)}
+                                  className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                                  placeholder="anthropic/claude-3-opus"
+                                />
+                              </div>
+                            )}
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                API Key
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type={showNewModelApiKey ? "text" : "password"}
+                                  value={newModelApiKey}
+                                  onChange={(e) => setNewModelApiKey(e.target.value)}
+                                  className="w-full p-2 pr-10 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                                  placeholder="Enter API key"
+                                />
                     <button
-                      onClick={() => setTheme("dark")}
-                      className={`
-                        flex-1 p-3 rounded-lg border transition-all duration-200
-                        ${
-                          theme === "dark"
-                            ? "border-purple-500 bg-purple-500/10 text-purple-700 dark:text-purple-300"
-                            : "border-gray-200/50 dark:border-gray-700/50 bg-white/50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300"
-                        }
-                      `}
-                    >
-                      Dark
+                                  type="button"
+                                  onClick={() => setShowNewModelApiKey(!showNewModelApiKey)}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                                >
+                                  {showNewModelApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={handleAddModel}
+                              className="w-full px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                            >
+                              Add Model
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Configured Models */}
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Your Models</h4>
+                          <div className="space-y-2">
+                            {(() => {
+                              // Get list of configured models based on API keys
+                              const configuredModels = []
+                              
+                              if (userSettings.deepseekApiKey) {
+                                configuredModels.push({ id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" })
+                              }
+                              if (userSettings.openaiApiKey) {
+                                configuredModels.push({ id: "openai-gpt4", name: "GPT-4", icon: "G4", provider: "openai" })
+                              }
+                              if (userSettings.claudeApiKey) {
+                                configuredModels.push({ id: "claude-3", name: "Claude 3", icon: "C3", provider: "claude" })
+                              }
+                              if (userSettings.geminiApiKey) {
+                                configuredModels.push({ id: "gemini-2.5", name: "Gemini 2.5 (incl. VEO2)", icon: "G2", provider: "gemini" })
+                              }
+                              if (userSettings.grokApiKey) {
+                                configuredModels.push({ id: "grok", name: "Grok", icon: "GK", provider: "grok" })
+                              }
+                              
+                              // Add custom models
+                              configuredModels.push(...userSettings.models)
+                              
+                              return configuredModels.length === 0 ? (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                                  No models configured yet. Add your first model above.
+                                </p>
+                              ) : (
+                                configuredModels.map((model) => (
+                                  <div
+                                    key={model.id}
+                                    className="flex items-center justify-between p-3 bg-white/50 dark:bg-gray-900/50 rounded-lg border border-gray-200/50 dark:border-gray-700/50"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                                        {model.icon}
+                                      </div>
+                                      <div>
+                                        <div className="font-medium text-gray-900 dark:text-gray-100">{model.name}</div>
+                                        <div className="text-sm text-gray-500 dark:text-gray-400 capitalize">{model.provider}</div>
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => handleRemoveModel(model.id)}
+                                      className="text-red-500 hover:text-red-600 transition-colors"
+                                    >
+                                      <X className="w-4 h-4" />
                     </button>
                   </div>
+                                ))
+                              )
+                            })()}
                 </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
+              {/* Footer */}
               <div className="p-5 border-t border-gray-200/20 dark:border-gray-700/20 flex justify-end gap-3">
                 <button
                   onClick={() => setSettingsOpen(false)}
@@ -662,7 +1698,7 @@ export default function MainUI({
                   Cancel
                 </button>
                 <button
-                  onClick={handleSaveSettings}
+                  onClick={handleSaveGeneralSettings}
                   className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-medium shadow-lg hover:shadow-purple-500/25 transition-all"
                 >
                   Save

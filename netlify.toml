@@ -1,0 +1,11 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Edge Function for code generation
+[[edge_functions]]
+  function = "generate-code"
+  path = "/api/generate-code" 
