@@ -52,25 +52,29 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   // Create authenticated blob URL for video playback
   const createAuthenticatedVideoUrl = async (videoUrl: string) => {
     if (!apiKey) {
-      console.log("No API key available for authenticated video loading");
+      console.log("No API key available for authenticated video loading - using direct URL");
+      setAuthenticatedVideoUrl(videoUrl);
       return;
     }
 
     try {
       setIsLoadingVideo(true);
       console.log("Creating authenticated video URL...");
+      console.log("Input video URL:", videoUrl);
       
       // For Google VEO 2 files, they should work directly with the existing download URL
       // since the API already returns a properly signed URL
       setAuthenticatedVideoUrl(videoUrl);
       
-      console.log("Authenticated video URL set:", videoUrl);
+      console.log("Authenticated video URL set successfully:", videoUrl);
+      console.log("Component should now show video player");
     } catch (err) {
       console.error("Failed to create authenticated video URL:", err);
       // Fallback to original URL
       setAuthenticatedVideoUrl(videoUrl);
     } finally {
       setIsLoadingVideo(false);
+      console.log("Video loading state set to false");
     }
   }
 
@@ -115,10 +119,12 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
 
         if (status.status === "completed" && status.videoUrl) {
           console.log("Video generation completed! URL:", status.videoUrl);
+          console.log("Setting currentVideoUrl to:", status.videoUrl);
           setCurrentVideoUrl(status.videoUrl)
           setIsPolling(false)
           // Create authenticated video URL for playback
           createAuthenticatedVideoUrl(status.videoUrl)
+          console.log("Video state updated - should transition to video player")
         } else if (status.status === "failed") {
           console.log("Video generation failed:", status.error);
           setError(status.error || "Video generation failed")
@@ -268,8 +274,8 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     )
   }
 
-  // Show processing state with real progress
-  if (isGenerating || (operationStatus?.status === "processing" && !currentVideoUrl)) {
+  // Show processing state with real progress (only if no video URL available)
+  if ((isGenerating || operationStatus?.status === "processing") && !currentVideoUrl && !authenticatedVideoUrl) {
     const progress = operationStatus?.progress || 0
     const isRealOperation = operationName && apiKey
 
@@ -350,6 +356,16 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     )
   }
 
+  // Debug: Log current state for troubleshooting
+  console.log("VideoPreview Render State:", {
+    isGenerating,
+    operationStatus: operationStatus?.status,
+    currentVideoUrl: currentVideoUrl ? `${currentVideoUrl.substring(0, 50)}...` : "null",
+    authenticatedVideoUrl: authenticatedVideoUrl ? `${authenticatedVideoUrl.substring(0, 50)}...` : "null",
+    error,
+    isPolling
+  });
+
   // Show completion state without video
   if (!currentVideoUrl && !authenticatedVideoUrl) {
     return (
@@ -382,6 +398,9 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   }
 
   // Show video player
+  console.log("🎬 RENDERING VIDEO PLAYER - Video URL available!");
+  console.log("Using video URL:", authenticatedVideoUrl || currentVideoUrl);
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
