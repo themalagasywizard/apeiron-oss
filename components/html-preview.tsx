@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef } from 'react'
-import { Download, Eye, EyeOff, Code, ExternalLink, Shield } from 'lucide-react'
+import { Download, Eye, Code, ExternalLink, Shield } from 'lucide-react'
 import DOMPurify from 'isomorphic-dompurify'
 
 type HTMLPreviewProps = {
@@ -11,7 +11,7 @@ type HTMLPreviewProps = {
 }
 
 export default function HTMLPreview({ htmlContent, filename = 'generated.html', onDownload }: HTMLPreviewProps) {
-  const [viewMode, setViewMode] = useState<'code' | 'preview'>('preview')
+  const [viewMode, setViewMode] = useState<'code' | 'preview'>('code')
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // Sanitize HTML content for safe rendering
@@ -90,6 +90,28 @@ export default function HTMLPreview({ htmlContent, filename = 'generated.html', 
         
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setViewMode(viewMode === 'code' ? 'preview' : 'code')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 font-medium ${
+              viewMode === 'preview'
+                ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                : 'bg-gray-500 hover:bg-gray-600 text-white'
+            }`}
+            title={viewMode === 'code' ? 'View Preview' : 'View Code'}
+          >
+            {viewMode === 'preview' ? (
+              <>
+                <Code className="w-4 h-4" />
+                <span className="text-sm">Code</span>
+              </>
+            ) : (
+              <>
+                <Eye className="w-4 h-4" />
+                <span className="text-sm">Preview</span>
+              </>
+            )}
+          </button>
+          
+          <button
             onClick={handleOpenInNewTab}
             className="p-2 rounded-lg hover:bg-white/20 dark:hover:bg-gray-700/20 transition-colors"
             title="Open in new tab"
@@ -108,49 +130,25 @@ export default function HTMLPreview({ htmlContent, filename = 'generated.html', 
         </div>
       </div>
 
-      {/* Full-size Toggle Button */}
-      <div className="p-4 border-b border-gray-200/20 dark:border-gray-700/20 bg-white/5 dark:bg-gray-800/10">
-        <button
-          onClick={() => setViewMode(viewMode === 'code' ? 'preview' : 'code')}
-          className={`w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
-            viewMode === 'preview'
-              ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg hover:shadow-blue-500/25'
-              : 'bg-gradient-to-r from-gray-500 to-gray-600 text-white shadow-lg hover:shadow-gray-500/25'
-          }`}
-        >
-          {viewMode === 'preview' ? (
-            <>
-              <Eye className="w-5 h-5" />
-              <span>Viewing Preview • Click to View Code</span>
-            </>
-          ) : (
-            <>
-              <Code className="w-5 h-5" />
-              <span>Viewing Code • Click to View Preview</span>
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Content - Single View */}
-      <div className="relative">
+      {/* Content - Same Size for Both Views */}
+      <div className="relative min-h-[400px] max-h-[600px]">
         {viewMode === 'code' ? (
           /* Code View */
-          <div className="min-h-[400px] max-h-[600px] overflow-auto">
-            <pre className="p-4 text-sm text-gray-800 dark:text-gray-200 bg-gray-50/50 dark:bg-gray-900/50">
+          <div className="h-full overflow-auto">
+            <pre className="p-4 text-sm text-gray-800 dark:text-gray-200 bg-gray-50/50 dark:bg-gray-900/50 h-full">
               <code>{htmlContent}</code>
             </pre>
           </div>
         ) : (
           /* Preview View */
-          <div className="relative">
-            <div className="p-4 bg-gray-100/50 dark:bg-gray-800/50 border-b border-gray-200/20 dark:border-gray-700/20">
+          <div className="h-full">
+            <div className="p-3 bg-gray-100/50 dark:bg-gray-800/50 border-b border-gray-200/20 dark:border-gray-700/20">
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Live Preview</span>
             </div>
-            <div className="relative min-h-[400px] max-h-[600px] overflow-auto bg-white">
+            <div className="relative h-[calc(100%-52px)] overflow-auto bg-white">
               <iframe
                 ref={iframeRef}
-                className="w-full h-full min-h-[400px] border-none"
+                className="w-full h-full border-none"
                 title="HTML Preview"
                 sandbox="allow-same-origin"
                 style={{ backgroundColor: 'white' }}
