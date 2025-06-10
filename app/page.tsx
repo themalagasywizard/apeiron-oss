@@ -144,29 +144,65 @@ export default function Home() {
 
   // Unified API calling function that uses our server-side route
   const callAI = async (messages: Message[], provider: string, apiKey: string, model?: string, customModelName?: string, webSearchEnabled?: boolean) => {
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-        provider,
-        apiKey,
-        model,
-        temperature: userSettings.temperature,
-        customModelName,
-        webSearchEnabled
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          provider,
+          apiKey,
+          model,
+          temperature: userSettings.temperature,
+          customModelName,
+          webSearchEnabled
+        })
       })
-    })
-    
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || `API error: ${response.statusText}`)
+      
+      // Get response text first to handle parsing errors better
+      const responseText = await response.text()
+      
+      if (!response.ok) {
+        // Try to parse error response
+        try {
+          const errorData = JSON.parse(responseText)
+          throw new Error(errorData.error || `API error: ${response.statusText}`)
+        } catch (parseError) {
+          // If we can't parse the error response, use the status text
+          throw new Error(`API error (${response.status}): ${response.statusText}. ${responseText.length > 0 ? 'Invalid response format.' : 'Empty response.'}`)
+        }
+      }
+      
+      // Parse successful response
+      try {
+        if (!responseText || responseText.trim() === '') {
+          throw new Error(`${provider} returned an empty response. Please try again.`)
+        }
+        
+        const data = JSON.parse(responseText)
+        return data
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError)
+        console.error('Response text (first 500 chars):', responseText.substring(0, 500))
+        
+        // Check if this looks like a partial response
+        if (responseText.includes('"response"') || responseText.includes('"content"') || responseText.includes('"message"')) {
+          throw new Error(`${provider} returned a partial response. This often happens with very long outputs. Please try with a shorter request.`)
+        }
+        
+        throw new Error(`${provider} returned an invalid response format. Please try again.`)
+      }
+    } catch (error) {
+      // Handle network errors and other fetch failures
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to the API. Please check your internet connection.')
+      }
+      
+      // Re-throw other errors
+      throw error
     }
-    
-    const data = await response.json()
-    return data
   }
 
   // Find current conversation or create a default one
