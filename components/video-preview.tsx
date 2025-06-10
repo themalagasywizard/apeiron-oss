@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Download, Play, Pause, Volume2, VolumeX, Maximize2, Minimize2, AlertCircle, CheckCircle } from 'lucide-react'
 
@@ -40,6 +40,9 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   const [isMuted, setIsMuted] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null)
+  
+  // Add ref to track polling timeout for cleanup
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Real-time operation tracking
   const [operationStatus, setOperationStatus] = useState<OperationStatus | null>(null)
@@ -136,7 +139,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
           console.log("Video still processing, progress:", status.progress, "%. Continuing to poll...");
           // Continue polling
           setIsPolling(false); // Reset polling state so next poll can start
-          setTimeout(() => {
+          pollingTimeoutRef.current = setTimeout(() => {
             console.log("Scheduling next poll in 5 seconds...");
             pollOperationStatus();
           }, 5000) // Poll every 5 seconds
@@ -201,12 +204,28 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     console.log("isPolling:", isPolling);
 
     if (operationName && apiKey && !currentVideoUrl && !error && !isPolling) {
-      console.log("Starting initial poll...");
-      pollOperationStatus()
+      console.log("Starting initial poll for operation:", operationName);
+      // Add a small delay to prevent race conditions
+      setTimeout(() => {
+        pollOperationStatus()
+      }, 100);
     } else {
       console.log("Polling conditions not met, skipping");
     }
   }, [operationName, apiKey, currentVideoUrl, error])
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      console.log("VideoPreview component unmounting, cleaning up polling for:", operationName);
+      setIsPolling(false);
+      // Clear any pending timeout
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
+    };
+  }, [operationName])
 
   const handlePlayPause = () => {
     if (videoRef) {

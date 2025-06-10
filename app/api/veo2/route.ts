@@ -133,11 +133,13 @@ export async function POST(request: NextRequest) {
     // Validate input parameters
     validateParameters(prompt, apiKey, duration, aspectRatio);
 
+    console.log("=== NEW VEO 2 VIDEO GENERATION REQUEST ===");
     console.log("Starting VEO 2 video generation:", {
       prompt: prompt.substring(0, 100) + "...",
       duration,
       aspectRatio,
-      personGeneration
+      personGeneration,
+      timestamp: new Date().toISOString()
     });
 
     // Check if this is a demo request (no API key or demo key)
@@ -202,6 +204,11 @@ The production VEO 2 integration is ready and will work with a valid API key.`
     if (!operationName) {
       throw new Error("No operation name returned from VEO 2 API");
     }
+
+    console.log("=== NEW OPERATION CREATED ===");
+    console.log("Operation Name:", operationName);
+    console.log("For prompt:", prompt.substring(0, 50) + "...");
+    console.log("=== ================== ===");
 
     const response = {
       success: true,

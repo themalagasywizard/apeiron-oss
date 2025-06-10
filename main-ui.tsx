@@ -871,6 +871,7 @@ export default function MainUI({
                         <div className="space-y-4">
                           {/* Video Preview Component */}
                                                      <VideoPreview 
+                             key={`video-${message.id}-${videoDetection.operationName || 'no-op'}`}
                              prompt={videoDetection.prompt || message.content}
                              videoUrl={videoDetection.videoUrl || undefined}
                              isGenerating={videoDetection.isGenerating || false}
