@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Download, Play, Pause, Volume2, VolumeX, Maximize2, Minimize2, AlertCircle, CheckCircle } from 'lucide-react'
+import { Download, Play, Pause, Volume2, VolumeX, Maximize2, Minimize2, AlertCircle, CheckCircle, Copy, ExternalLink } from 'lucide-react'
 
 interface VideoPreviewProps {
   videoUrl?: string
@@ -265,12 +265,18 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     } else if (currentVideoUrl) {
       // Try multiple download strategies for better compatibility
       try {
-        console.log("Attempting video download...");
+        console.log("=== Video Download Debug Info ===");
         console.log("Video URL:", currentVideoUrl);
+        console.log("Video URL length:", currentVideoUrl.length);
+        console.log("URL starts with:", currentVideoUrl.substring(0, 50));
         
         // Check if this is a Google Storage URL (usually public)
         const isGoogleStorage = currentVideoUrl.includes('storage.googleapis.com') || 
                                currentVideoUrl.includes('googleusercontent.com');
+        
+        console.log("Is Google Storage URL:", isGoogleStorage);
+        console.log("Has googleapis:", currentVideoUrl.includes('googleapis'));
+        console.log("Has storage:", currentVideoUrl.includes('storage'));
         
         if (isGoogleStorage) {
           console.log("Detected Google Storage URL - using direct download approach");
@@ -321,51 +327,79 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
           console.log("Browser download failed:", browserDownloadError);
         }
         
-        // Strategy 3: Try authenticated download via proxy only if direct methods fail
-        // Skip proxy for Google Storage URLs since they're usually public
-        if (apiKey && !isGoogleStorage) {
-          console.log("Trying authenticated download via proxy as fallback...");
-          try {
-            const timestamp = Date.now();
-            const proxyUrl = `/api/video-proxy?url=${encodeURIComponent(currentVideoUrl)}&key=${encodeURIComponent(apiKey)}&t=${timestamp}`;
-            
-            const response = await fetch(proxyUrl);
-            
-            if (response.ok) {
-              const blob = await response.blob();
-              const url = window.URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              window.URL.revokeObjectURL(url);
-              console.log("Download completed successfully via proxy");
-              return;
-            } else {
-              console.log("Proxy download failed with status:", response.status);
-              // Don't show error alert here since we have other fallbacks
-            }
-          } catch (proxyError) {
-            console.log("Proxy download failed:", proxyError);
-          }
+        // Strategy 3: Force download by opening URL in new tab
+        console.log("Trying forced download via new tab...");
+        try {
+          // Create a temporary link to force download
+          const link = document.createElement('a');
+          link.href = currentVideoUrl;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          
+          // Add download attribute to suggest filename
+          const filename = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`;
+          link.download = filename;
+          
+          // Try to trigger download
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          console.log("Forced download initiated");
+          
+          // Show user instructions since the download might open in a new tab
+          setTimeout(() => {
+            alert(`Download initiated! If the video opens in a new tab instead of downloading:\n\n1. Right-click on the video\n2. Select "Save video as..."\n3. Choose your download location\n\nFilename: ${filename}`);
+          }, 1000);
+          
+          return;
+        } catch (forcedDownloadError) {
+          console.log("Forced download failed:", forcedDownloadError);
         }
         
         // Strategy 4: Final fallback - copy URL to clipboard and guide user
         console.log("Using final fallback: clipboard + instructions");
         try {
           await navigator.clipboard.writeText(currentVideoUrl);
-          alert(`Download via app failed, but the video URL has been copied to your clipboard!\n\nTo download manually:\n1. Paste the URL in a new browser tab\n2. Right-click the video and select "Save video as..."\n3. Choose your download location`);
+          const message = `All automated download methods failed, but the video URL has been copied to your clipboard!
+
+📋 Manual Download Steps:
+1. Open a new browser tab
+2. Paste the URL (Ctrl+V)
+3. Wait for the video to load
+4. Right-click on the video
+5. Select "Save video as..."
+6. Choose your download location
+
+💡 Tip: The video should download as an MP4 file.`;
+          alert(message);
         } catch (clipboardErr) {
           console.error("Clipboard access failed:", clipboardErr);
-          alert(`Download failed. Please copy this URL manually and open it in your browser:\n\n${currentVideoUrl}\n\nThen right-click the video and select "Save video as..."`);
+          const message = `Download failed. Please manually copy this URL and open it in your browser:
+
+${currentVideoUrl}
+
+Then right-click the video and select "Save video as..."`;
+          alert(message);
         }
         
       } catch (err) {
         console.error("All download strategies failed:", err);
         alert(`Download failed. Video URL: ${currentVideoUrl}\n\nPlease copy this URL and open it in your browser to access the video.`);
       }
+    }
+  }
+
+  const handleCopyUrl = async () => {
+    if (!currentVideoUrl) return;
+    
+    try {
+      await navigator.clipboard.writeText(currentVideoUrl);
+      alert("Video URL copied to clipboard! You can paste it in a browser to access the video directly.");
+    } catch (err) {
+      console.error("Failed to copy URL:", err);
+      // Fallback: show URL in alert for manual copying
+      alert(`Failed to copy automatically. Please copy this URL manually:\n\n${currentVideoUrl}`);
     }
   }
 
@@ -612,13 +646,24 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
               </p>
             )}
           </div>
-          <button
-            onClick={handleDownload}
-            className="flex items-center gap-2 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Download
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyUrl}
+              className="flex items-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+              title="Copy video URL to clipboard"
+            >
+              <Copy className="w-4 h-4" />
+              Copy URL
+            </button>
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-2 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+              title="Download video file"
+            >
+              <Download className="w-4 h-4" />
+              Download
+            </button>
+          </div>
         </div>
       </div>
 
