@@ -8,6 +8,27 @@ export async function POST(request: NextRequest) {
     let aiResponse = "";
     let searchResults = null;
 
+    // Helper function to add timeout to fetch requests
+    const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 120000): Promise<Response> => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error(`Request timed out after ${timeoutMs / 1000} seconds. This often happens with large code generation requests. Please try with a shorter prompt or retry.`);
+        }
+        throw error;
+      }
+    };
+
     // Perform web search if enabled for compatible models (Gemini and Grok)
     if (webSearchEnabled && (provider === "gemini" || provider === "grok")) {
       const lastMessage = messages[messages.length - 1];
@@ -15,14 +36,14 @@ export async function POST(request: NextRequest) {
         try {
           console.log("Performing web search for:", lastMessage.content);
           
-          const searchResponse = await fetch(`${new URL(request.url).origin}/api/web-search`, {
+          const searchResponse = await fetchWithTimeout(`${new URL(request.url).origin}/api/web-search`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               query: lastMessage.content,
               maxResults: 5
             })
-          });
+          }, 30000); // 30 second timeout for web search
 
           if (searchResponse.ok) {
             const searchData = await searchResponse.json();
@@ -106,7 +127,7 @@ Please provide a comprehensive response using the above search results.`;
 
     switch (provider) {
       case "openai":
-        response = await fetch("https://api.openai.com/v1/chat/completions", {
+        response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -118,10 +139,13 @@ Please provide a comprehensive response using the above search results.`;
             temperature: temperature || 0.7,
             stream: false
           })
-        });
+        }, 120000); // 2 minute timeout
 
         if (!response.ok) {
           const errorData = await response.text();
+          if (response.status === 504) {
+            throw new Error(`OpenAI request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+          }
           throw new Error(`OpenAI is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
@@ -130,7 +154,7 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "claude":
-        response = await fetch("https://api.anthropic.com/v1/messages", {
+        response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -143,10 +167,13 @@ Please provide a comprehensive response using the above search results.`;
             temperature: temperature || 0.7,
             messages: messages.map((m: any) => ({ role: m.role, content: m.content }))
           })
-        });
+        }, 120000); // 2 minute timeout
 
         if (!response.ok) {
           const errorData = await response.text();
+          if (response.status === 504) {
+            throw new Error(`Claude request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+          }
           throw new Error(`Claude is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
@@ -156,7 +183,7 @@ Please provide a comprehensive response using the above search results.`;
 
       case "gemini":
         // Use Gemini 2.5 Flash Preview (latest model)
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
+        response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -173,10 +200,13 @@ Please provide a comprehensive response using the above search results.`;
               topK: 40
             }
           })
-        });
+        }, 120000); // 2 minute timeout
 
         if (!response.ok) {
           const errorData = await response.text();
+          if (response.status === 504) {
+            throw new Error(`Gemini request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+          }
           throw new Error(`Gemini 2.5 Flash is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
@@ -185,7 +215,7 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "deepseek":
-        response = await fetch("https://api.deepseek.com/v1/chat/completions", {
+        response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -197,10 +227,13 @@ Please provide a comprehensive response using the above search results.`;
             temperature: temperature || 0.7,
             stream: false
           })
-        });
+        }, 120000); // 2 minute timeout
 
         if (!response.ok) {
           const errorData = await response.text();
+          if (response.status === 504) {
+            throw new Error(`DeepSeek request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+          }
           throw new Error(`DeepSeek is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
@@ -209,7 +242,7 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "grok":
-        response = await fetch("https://api.x.ai/v1/chat/completions", {
+        response = await fetchWithTimeout("https://api.x.ai/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -221,10 +254,13 @@ Please provide a comprehensive response using the above search results.`;
             temperature: temperature || 0.7,
             stream: false
           })
-        });
+        }, 120000); // 2 minute timeout
 
         if (!response.ok) {
           const errorData = await response.text();
+          if (response.status === 504) {
+            throw new Error(`Grok request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+          }
           throw new Error(`Grok is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
@@ -233,7 +269,7 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "openrouter":
-        response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -247,10 +283,13 @@ Please provide a comprehensive response using the above search results.`;
             temperature: temperature || 0.7,
             stream: false
           })
-        });
+        }, 120000); // 2 minute timeout
 
         if (!response.ok) {
           const errorData = await response.text();
+          if (response.status === 504) {
+            throw new Error(`OpenRouter request timed out. This often happens with complex code generation. Please try with a shorter request or retry.`);
+          }
           throw new Error(`OpenRouter is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
@@ -266,7 +305,7 @@ Please provide a comprehensive response using the above search results.`;
         const baseUrl = new URL(request.url).origin;
         const veo2Url = `${baseUrl}/api/veo2`;
         
-        response = await fetch(veo2Url, {
+        response = await fetchWithTimeout(veo2Url, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -277,10 +316,13 @@ Please provide a comprehensive response using the above search results.`;
             duration: 8, // Use number instead of string
             aspectRatio: "16:9"
           })
-        });
+        }, 180000); // 3 minute timeout for video generation
 
         if (!response.ok) {
           const errorData = await response.text();
+          if (response.status === 504) {
+            throw new Error(`VEO2 video generation timed out. Video generation can take several minutes. Please try again or with a shorter prompt.`);
+          }
           throw new Error(`VEO2 is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
