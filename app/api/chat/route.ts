@@ -401,34 +401,83 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "deepseek":
-        const deepseekParams = getOptimizedParams(20000, 2000); // Increased timeout to 20 seconds, reduced max tokens
+        const deepseekParams = getOptimizedParams(25000, 1500); // Increased timeout to 25 seconds, further reduced max tokens
         const deepseekMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
         
-        response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: "deepseek-chat",
-            messages: deepseekMessages,
-            temperature: deepseekParams.temperature,
-            max_tokens: deepseekParams.maxTokens,
-            stream: false
-          })
-        }, deepseekParams.timeout);
+        // Try deepseek-coder model for better performance, fallback to deepseek-chat
+        const deepseekModel = "deepseek-coder";
+        
+        try {
+          response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: deepseekModel,
+              messages: deepseekMessages,
+              temperature: Math.min(deepseekParams.temperature, 0.3), // Lower temperature for more consistent responses
+              max_tokens: deepseekParams.maxTokens,
+              stream: false
+            })
+          }, deepseekParams.timeout);
 
-        if (!response.ok) {
-          const errorData = await response.text();
-          if (response.status === 504) {
-            throw new Error(`DeepSeek request timed out. This usually happens with very long requests. Try breaking your request into smaller parts.`);
+          if (!response.ok) {
+            const errorData = await response.text();
+            console.error("DeepSeek API error:", response.status, errorData);
+            
+            if (response.status === 504 || response.status === 524) {
+              throw new Error(`DeepSeek is experiencing heavy load and timing out. Please try again in a few moments, or try a shorter request.`);
+            } else if (response.status === 429) {
+              throw new Error(`DeepSeek rate limit exceeded. Please wait a moment before trying again.`);
+            } else if (response.status === 503) {
+              throw new Error(`DeepSeek service is temporarily unavailable. Please try again in a few minutes.`);
+            } else {
+              throw new Error(`DeepSeek is currently unavailable (${response.status}). Please try again in a moment.`);
+            }
           }
-          throw new Error(`DeepSeek is currently unavailable (${response.status}). Please try again in a moment.`);
-        }
 
-        const deepseekData = await safeJsonParse(response, "DeepSeek");
-        aiResponse = cleanAIResponse(deepseekData.choices[0]?.message?.content || "DeepSeek didn't provide a response. Please try again.", "DeepSeek");
+          const deepseekData = await safeJsonParse(response, "DeepSeek");
+          aiResponse = cleanAIResponse(deepseekData.choices[0]?.message?.content || "DeepSeek didn't provide a response. Please try again.", "DeepSeek");
+          
+        } catch (deepseekError) {
+          console.error("DeepSeek error:", deepseekError);
+          
+          // If deepseek-coder fails, try fallback to deepseek-chat
+          if (deepseekModel === "deepseek-coder") {
+            console.log("Retrying with deepseek-chat model...");
+            
+            try {
+              response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                  model: "deepseek-chat",
+                  messages: deepseekMessages.slice(-3), // Only use last 3 messages for fallback
+                  temperature: 0.2,
+                  max_tokens: 1000, // Further reduced for fallback
+                  stream: false
+                })
+              }, 20000); // 20 second timeout for fallback
+
+              if (!response.ok) {
+                throw deepseekError; // Throw original error if fallback also fails
+              }
+
+              const fallbackData = await safeJsonParse(response, "DeepSeek");
+              aiResponse = cleanAIResponse(fallbackData.choices[0]?.message?.content || "DeepSeek didn't provide a response. Please try again.", "DeepSeek");
+              
+            } catch (fallbackError) {
+              throw deepseekError; // Throw original error
+            }
+          } else {
+            throw deepseekError;
+          }
+        }
         break;
 
       case "grok":

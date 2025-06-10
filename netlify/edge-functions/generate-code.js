@@ -257,28 +257,68 @@ RESPOND WITH WORKING CODE ONLY:`;
         break;
 
       case "deepseek":
-        response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: "deepseek-chat",
-            messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
-            temperature: codeParams.temperature,
-            max_tokens: codeParams.maxTokens,
-            stream: false
-          })
-        }, codeParams.timeout);
+        // Try deepseek-coder first, fallback to deepseek-chat
+        let deepseekModel = "deepseek-coder";
+        let deepseekResponse;
+        
+        try {
+          deepseekResponse = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: deepseekModel,
+              messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
+              temperature: Math.min(codeParams.temperature, 0.2), // Even lower temperature for code
+              max_tokens: Math.min(codeParams.maxTokens, 4000), // Reduced tokens
+              stream: false
+            })
+          }, codeParams.timeout);
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`DeepSeek API error (${response.status}): ${errorText}`);
+          if (!deepseekResponse.ok) {
+            const errorText = await deepseekResponse.text();
+            console.error("DeepSeek-coder failed:", deepseekResponse.status, errorText);
+            
+            // Try fallback to deepseek-chat
+            console.log("Trying fallback to deepseek-chat...");
+            deepseekModel = "deepseek-chat";
+            
+            deepseekResponse = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`
+              },
+              body: JSON.stringify({
+                model: "deepseek-chat",
+                messages: codeOptimizedMessages.slice(-2).map(m => ({ role: m.role, content: m.content })), // Only last 2 messages
+                temperature: 0.1,
+                max_tokens: 2000, // Further reduced
+                stream: false
+              })
+            }, 45000); // Shorter timeout for fallback
+
+            if (!deepseekResponse.ok) {
+              const fallbackError = await deepseekResponse.text();
+              throw new Error(`DeepSeek API error (${deepseekResponse.status}): ${fallbackError}`);
+            }
+          }
+
+          const deepseekData = await deepseekResponse.json();
+          aiResponse = deepseekData.choices?.[0]?.message?.content || "No response generated";
+          
+        } catch (deepseekError) {
+          console.error("DeepSeek Edge Function error:", deepseekError);
+          
+          // Provide helpful error message
+          if (deepseekError.message.includes("timeout") || deepseekError.message.includes("504")) {
+            throw new Error("DeepSeek is experiencing heavy load. Try again in a few moments or use a different model for code generation.");
+          } else {
+            throw new Error(`DeepSeek code generation failed: ${deepseekError.message}`);
+          }
         }
-
-        const deepseekData = await response.json();
-        aiResponse = deepseekData.choices?.[0]?.message?.content || "No response generated";
         break;
 
       case "grok":
