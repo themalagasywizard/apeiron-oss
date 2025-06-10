@@ -3,68 +3,118 @@ import { NextRequest, NextResponse } from "next/server";
 // API Route optimized for serverless environments (Netlify/Vercel)
 // Timeouts are kept under 25 seconds due to serverless function limits
 export async function POST(request: NextRequest) {
+  let provider = "unknown"; // Declare in outer scope for error handling
+  
   try {
-    const { messages, provider, apiKey, model, temperature, customModelName, webSearchEnabled } = await request.json();
+    const requestBody = await request.json();
+    const { messages, provider: requestProvider, apiKey, model, temperature, customModelName, webSearchEnabled } = requestBody;
+    provider = requestProvider; // Assign to outer scope variable
+
+    // Validate required inputs
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      console.error("Invalid messages:", messages);
+      return NextResponse.json(
+        { error: "Messages array is required and must not be empty" },
+        { status: 400 }
+      );
+    }
+
+    if (!provider || typeof provider !== 'string') {
+      console.error("Invalid provider:", provider);
+      return NextResponse.json(
+        { error: "Valid provider is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!apiKey || typeof apiKey !== 'string') {
+      console.error("Invalid API key for provider:", provider);
+      return NextResponse.json(
+        { error: "Valid API key is required" },
+        { status: 400 }
+      );
+    }
+
+    console.log("API request validated successfully for provider:", provider);
 
     let response;
     let aiResponse = "";
     let searchResults = null;
 
     // Detect if this is a code generation request
-    const lastUserMessage = messages[messages.length - 1]?.content?.toLowerCase() || "";
-    const isCodeRequest = lastUserMessage.includes("html") || 
-                         lastUserMessage.includes("css") || 
-                         lastUserMessage.includes("javascript") || 
-                         lastUserMessage.includes("js") ||
-                         lastUserMessage.includes("code") ||
-                         lastUserMessage.includes("function") ||
-                         lastUserMessage.includes("component") ||
-                         lastUserMessage.includes("website") ||
-                         lastUserMessage.includes("app") ||
-                         lastUserMessage.includes("build") ||
-                         lastUserMessage.includes("create") ||
-                         lastUserMessage.includes("develop") ||
-                         lastUserMessage.includes("program") ||
-                         lastUserMessage.includes("script") ||
-                         lastUserMessage.includes("react") ||
-                         lastUserMessage.includes("vue") ||
-                         lastUserMessage.includes("angular") ||
-                         lastUserMessage.includes("node") ||
-                         lastUserMessage.includes("python") ||
-                         lastUserMessage.includes("java") ||
-                         lastUserMessage.includes("php") ||
-                         lastUserMessage.includes("sql") ||
-                         lastUserMessage.includes("<") ||
-                         lastUserMessage.includes("```");
+    let isCodeRequest = false;
+    try {
+      const lastUserMessage = messages[messages.length - 1]?.content?.toLowerCase() || "";
+      isCodeRequest = lastUserMessage.includes("html") || 
+                     lastUserMessage.includes("css") || 
+                     lastUserMessage.includes("javascript") || 
+                     lastUserMessage.includes("js") ||
+                     lastUserMessage.includes("code") ||
+                     lastUserMessage.includes("function") ||
+                     lastUserMessage.includes("component") ||
+                     lastUserMessage.includes("website") ||
+                     lastUserMessage.includes("app") ||
+                     lastUserMessage.includes("build") ||
+                     lastUserMessage.includes("create") ||
+                     lastUserMessage.includes("develop") ||
+                     lastUserMessage.includes("program") ||
+                     lastUserMessage.includes("script") ||
+                     lastUserMessage.includes("react") ||
+                     lastUserMessage.includes("vue") ||
+                     lastUserMessage.includes("angular") ||
+                     lastUserMessage.includes("node") ||
+                     lastUserMessage.includes("python") ||
+                     lastUserMessage.includes("java") ||
+                     lastUserMessage.includes("php") ||
+                     lastUserMessage.includes("sql") ||
+                     lastUserMessage.includes("<") ||
+                     lastUserMessage.includes("```");
 
-    console.log("Code request detected:", isCodeRequest, "for message:", lastUserMessage.substring(0, 100));
+      console.log("Code request detected:", isCodeRequest, "for message:", lastUserMessage.substring(0, 100));
+    } catch (error) {
+      console.error("Error in code detection:", error);
+      isCodeRequest = false; // Fallback to false if detection fails
+    }
 
     // Optimize parameters for code generation
     const getOptimizedParams = (baseTimeout: number, baseTokens: number) => {
-      if (isCodeRequest) {
+      try {
+        if (isCodeRequest) {
+          return {
+            timeout: Math.min(baseTimeout + 5000, 28000), // Add 5 seconds for code, max 28s
+            maxTokens: Math.min(baseTokens * 2, 6000), // Double tokens for code, max 6000
+            temperature: 0.1 // Lower temperature for more focused code output
+          };
+        }
         return {
-          timeout: Math.min(baseTimeout + 5000, 28000), // Add 5 seconds for code, max 28s
-          maxTokens: Math.min(baseTokens * 2, 6000), // Double tokens for code, max 6000
-          temperature: 0.1 // Lower temperature for more focused code output
+          timeout: baseTimeout,
+          maxTokens: baseTokens,
+          temperature: temperature || 0.7
+        };
+      } catch (error) {
+        console.error("Error in parameter optimization:", error);
+        // Fallback to safe defaults
+        return {
+          timeout: baseTimeout,
+          maxTokens: baseTokens,
+          temperature: temperature || 0.7
         };
       }
-      return {
-        timeout: baseTimeout,
-        maxTokens: baseTokens,
-        temperature: temperature || 0.7
-      };
     };
 
     // Add code optimization instructions to messages
     const optimizeMessagesForCode = (messages: any[]) => {
-      if (!isCodeRequest) return messages;
-      
-      const optimizedMessages = [...messages];
-      const lastMessage = optimizedMessages[optimizedMessages.length - 1];
-      
-      if (lastMessage && lastMessage.role === "user") {
-        // Add code-focused instructions
-        const codeInstructions = `
+      try {
+        if (!isCodeRequest || !Array.isArray(messages) || messages.length === 0) {
+          return messages;
+        }
+        
+        const optimizedMessages = [...messages];
+        const lastMessage = optimizedMessages[optimizedMessages.length - 1];
+        
+        if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
+          // Add code-focused instructions
+          const codeInstructions = `
 
 CODE GENERATION INSTRUCTIONS:
 - Focus primarily on providing working, complete code
@@ -78,13 +128,18 @@ CODE GENERATION INSTRUCTIONS:
 
 User Request: ${lastMessage.content}`;
 
-        optimizedMessages[optimizedMessages.length - 1] = {
-          ...lastMessage,
-          content: codeInstructions
-        };
+          optimizedMessages[optimizedMessages.length - 1] = {
+            ...lastMessage,
+            content: codeInstructions
+          };
+        }
+        
+        return optimizedMessages;
+      } catch (error) {
+        console.error("Error in message optimization:", error);
+        // Return original messages if optimization fails
+        return messages;
       }
-      
-      return optimizedMessages;
     };
 
     // Helper function to add timeout to fetch requests (optimized for serverless)
@@ -445,9 +500,34 @@ Please provide a comprehensive response using the above search results.`;
 
   } catch (error) {
     console.error("Chat API error:", error);
+    
+    // Provide more detailed error information
+    let errorMessage = "Unknown error occurred";
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      console.error("Error stack:", error.stack);
+      
+      // Check for specific error types
+      if (error.message.includes("timed out")) {
+        statusCode = 504;
+      } else if (error.message.includes("API key") || error.message.includes("unauthorized")) {
+        statusCode = 401;
+      } else if (error.message.includes("required") || error.message.includes("invalid")) {
+        statusCode = 400;
+      }
+    } else {
+      console.error("Non-Error object thrown:", error);
+    }
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error occurred" },
-      { status: 500 }
+      { 
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+        provider: provider || "unknown"
+      },
+      { status: statusCode }
     );
   }
 }
