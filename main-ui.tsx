@@ -479,7 +479,7 @@ export default function MainUI({
   }
 
   // Speech recognition functions
-  const startListening = () => {
+  const startListening = async () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       setError('Speech recognition not supported in this browser. Please use Chrome, Edge, or Safari.')
       setTimeout(() => setError(null), 5000)
@@ -487,6 +487,14 @@ export default function MainUI({
     }
 
     try {
+      // First, request microphone permission explicitly
+      console.log('Requesting microphone permission...')
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      console.log('Microphone permission granted')
+      
+      // Stop the stream immediately - we just needed permission
+      stream.getTracks().forEach(track => track.stop())
+
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       const recognition = new SpeechRecognition()
       
@@ -498,14 +506,13 @@ export default function MainUI({
       recognition.onstart = () => {
         setIsListening(true)
         setError(null)
-        console.log('Speech recognition started - speak now')
-        console.log('Current inputValue:', inputValue)
+        console.log('Speech recognition started - speak now!')
         // Clear any existing text when starting new session
         setInputValue('')
       }
 
       recognition.onresult = (event: any) => {
-        console.log('Speech recognition result received')
+        console.log('Speech recognition result received!')
         let transcript = ''
         
         // Get all results and combine them
@@ -520,46 +527,58 @@ export default function MainUI({
       recognition.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error)
         
-        // Don't stop on "no-speech" error when in continuous mode - user controls when to stop
-        if (event.error === 'no-speech') {
-          console.log('No speech detected, but continuing to listen...')
-          return // Keep listening
-        }
-        
-        setIsListening(false)
-        
+        // Handle specific errors differently
         switch (event.error) {
+          case 'no-speech':
+            console.log('No speech detected - please speak louder or closer to microphone')
+            // Don't stop - just wait for speech
+            return
           case 'audio-capture':
-            setError('Microphone not accessible. Please check permissions.')
+            setError('Microphone not accessible. Please check your microphone and permissions.')
+            setIsListening(false)
             break
           case 'not-allowed':
-            setError('Microphone access denied. Please allow microphone access.')
+            setError('Microphone access denied. Please allow microphone access in your browser.')
+            setIsListening(false)
             break
           case 'network':
             setError('Network error. Please check your connection.')
+            setIsListening(false)
             break
           case 'aborted':
             // User manually stopped, no error needed
+            console.log('Speech recognition aborted by user')
+            setIsListening(false)
             break
           default:
             setError(`Speech recognition error: ${event.error}`)
+            setIsListening(false)
         }
         
-        if (event.error !== 'aborted') {
+        if (event.error !== 'aborted' && event.error !== 'no-speech') {
           setTimeout(() => setError(null), 5000)
         }
       }
 
       recognition.onend = () => {
-        // Only reset if we're not manually controlling the session
+        console.log('Speech recognition ended')
+        
+        // If we're still supposed to be listening and it wasn't manually stopped
         if (isListening && recognitionRef.current) {
-          console.log('Speech recognition ended unexpectedly, restarting...')
-          // Restart if it ended unexpectedly while we want to keep listening
+          console.log('Attempting to restart speech recognition...')
+          // Add a small delay before restarting to prevent rapid loops
           setTimeout(() => {
             if (isListening && recognitionRef.current) {
-              recognitionRef.current.start()
+              try {
+                recognitionRef.current.start()
+              } catch (error) {
+                console.error('Failed to restart recognition:', error)
+                setIsListening(false)
+                setError('Speech recognition stopped unexpectedly. Please try again.')
+                setTimeout(() => setError(null), 3000)
+              }
             }
-          }, 100)
+          }, 500) // Increased delay to prevent rapid restarts
         } else {
           setIsListening(false)
           recognitionRef.current = null
@@ -568,9 +587,16 @@ export default function MainUI({
 
       recognition.start()
       recognitionRef.current = recognition
+      
     } catch (error) {
       console.error('Failed to start speech recognition:', error)
-      setError('Failed to start speech recognition. Please try again.')
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        setError('Microphone access denied. Please allow microphone access and try again.')
+      } else if (error instanceof Error && error.name === 'NotFoundError') {
+        setError('No microphone found. Please connect a microphone and try again.')
+      } else {
+        setError('Failed to start speech recognition. Please check your microphone and try again.')
+      }
       setTimeout(() => setError(null), 5000)
       setIsListening(false)
     }
@@ -1362,15 +1388,6 @@ export default function MainUI({
                 aria-label="Send message"
               >
                 <Send className="w-5 h-5" />
-              </button>
-
-              {/* Test button to verify input state */}
-              <button
-                onClick={() => setInputValue('Test: ' + new Date().toLocaleTimeString())}
-                className="h-[48px] w-[48px] rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-200 bg-yellow-500 hover:bg-yellow-600 text-white"
-                title="Test input (temporary)"
-              >
-                T
               </button>
 
               <button
