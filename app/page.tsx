@@ -35,7 +35,7 @@ type Model = {
   name: string
   icon: string
   apiKey?: string
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter"
   isCustom?: boolean
   customModelName?: string
 }
@@ -51,7 +51,6 @@ type UserSettings = {
   geminiApiKey: string
   deepseekApiKey: string
   grokApiKey: string
-  veo2ApiKey: string
 }
 
 // Sample data for demonstration
@@ -150,8 +149,7 @@ export default function Home() {
     claudeApiKey: "",
     geminiApiKey: "",
     deepseekApiKey: "",
-    grokApiKey: "",
-    veo2ApiKey: ""
+    grokApiKey: ""
   })
 
   // Load settings and set client flag on mount
@@ -172,8 +170,7 @@ export default function Home() {
             claudeApiKey: parsed.claudeApiKey || "",
             geminiApiKey: parsed.geminiApiKey || "",
             deepseekApiKey: parsed.deepseekApiKey || "",
-            grokApiKey: parsed.grokApiKey || "",
-            veo2ApiKey: parsed.veo2ApiKey || ""
+            grokApiKey: parsed.grokApiKey || ""
           }
         }
       } catch (error) {
@@ -190,8 +187,7 @@ export default function Home() {
         claudeApiKey: "",
         geminiApiKey: "",
         deepseekApiKey: "",
-        grokApiKey: "",
-        veo2ApiKey: ""
+        grokApiKey: ""
       }
     }
 
@@ -203,10 +199,9 @@ export default function Home() {
   const defaultModels: Model[] = [
     { id: "gpt-4", name: "GPT-4", icon: "AI", provider: "openai" },
     { id: "claude-3", name: "Claude 3", icon: "C", provider: "claude" },
-    { id: "gemini-2.5", name: "Gemini 2.5", icon: "G", provider: "gemini" },
+    { id: "gemini-2.5", name: "Gemini 2.5 (includes VEO2)", icon: "G", provider: "gemini" },
     { id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" },
-    { id: "grok", name: "Grok", icon: "GK", provider: "grok" },
-    { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" }
+    { id: "grok", name: "Grok", icon: "GK", provider: "grok" }
   ]
 
   // Get available models (user configured + defaults without API keys)
@@ -349,12 +344,7 @@ export default function Home() {
           }
           break
 
-        case "veo2":
-          apiKey = userSettings.veo2ApiKey || userSettings.geminiApiKey || ""
-          if (!apiKey) {
-            throw new Error("VEO2 requires a Google API key. Please add your Gemini API key in Settings > Models.")
-          }
-          break
+
 
         default:
           throw new Error(`API key required. Please configure ${selectedModelData.provider} in Settings > Models.`)

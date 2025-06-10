@@ -83,7 +83,7 @@ type Model = {
   name: string
   icon: string
   apiKey?: string
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter"
   isCustom?: boolean
   customModelName?: string
 }
@@ -99,7 +99,6 @@ type UserSettings = {
   geminiApiKey: string
   deepseekApiKey: string
   grokApiKey: string
-  veo2ApiKey: string
 }
 
 type MainUIProps = {
@@ -144,8 +143,7 @@ export default function MainUI({
     claudeApiKey: "",
     geminiApiKey: "",
     deepseekApiKey: "",
-    grokApiKey: "",
-    veo2ApiKey: ""
+    grokApiKey: ""
   },
   isTyping = false,
   onSendMessage = () => {},
@@ -164,10 +162,9 @@ export default function MainUI({
     { id: "openai-gpt4", name: "GPT-4", icon: "G4", provider: "openai" },
     { id: "openai-gpt35", name: "GPT-3.5", icon: "G3", provider: "openai" },
     { id: "claude-3", name: "Claude 3", icon: "C3", provider: "claude" },
-    { id: "gemini-2.5", name: "Gemini 2.5", icon: "G2", provider: "gemini" },
+    { id: "gemini-2.5", name: "Gemini 2.5 (includes VEO2)", icon: "G2", provider: "gemini" },
     { id: "deepseek", name: "DeepSeek", icon: "DS", provider: "deepseek" },
     { id: "grok", name: "Grok", icon: "GK", provider: "grok" },
-    { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" },
   ]
 
   // State
@@ -178,7 +175,7 @@ export default function MainUI({
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const [settingsTab, setSettingsTab] = useState<"general" | "models">("general")
-  const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2">("openai")
+  const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter">("openai")
   const [newModelApiKey, setNewModelApiKey] = useState("")
   const [newModelCustomName, setNewModelCustomName] = useState("")
   const [showNewModelApiKey, setShowNewModelApiKey] = useState(false)
@@ -898,7 +895,7 @@ export default function MainUI({
                              videoUrl={videoDetection.videoUrl || undefined}
                              isGenerating={videoDetection.isGenerating || false}
                              operationName={videoDetection.operationName || undefined}
-                             apiKey={userSettings.veo2ApiKey || userSettings.geminiApiKey || undefined}
+                             apiKey={userSettings.geminiApiKey || undefined}
                              videoTitle={`VEO2 Generated Video`}
                              onDownload={(videoUrl, filename) => {
                                // Trigger download
