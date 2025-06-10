@@ -195,11 +195,14 @@ export default function Home() {
       if (hasApiKey && enabledSubModels.length > 0) {
         providerData.models.forEach(model => {
           if (enabledSubModels.includes(model.id)) {
+            // Special handling for VEO2 - it uses the gemini API key but is treated as veo2 provider
+            const actualProvider = model.id === "veo2" ? "veo2" : provider
+            
             availableModels.push({
               id: model.id,
               name: model.name,
               icon: getModelIcon(provider, model.id),
-              provider: provider as any,
+              provider: actualProvider as any,
               apiKey: hasApiKey
             })
           }

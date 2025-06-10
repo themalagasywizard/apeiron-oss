@@ -401,7 +401,7 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "deepseek":
-        const deepseekParams = getOptimizedParams(15000, 2500);
+        const deepseekParams = getOptimizedParams(20000, 2000); // Increased timeout to 20 seconds, reduced max tokens
         const deepseekMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
         
         response = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
@@ -422,7 +422,7 @@ Please provide a comprehensive response using the above search results.`;
         if (!response.ok) {
           const errorData = await response.text();
           if (response.status === 504) {
-            throw new Error(`DeepSeek request timed out. Serverless time limit reached. Try a shorter request.`);
+            throw new Error(`DeepSeek request timed out. This usually happens with very long requests. Try breaking your request into smaller parts.`);
           }
           throw new Error(`DeepSeek is currently unavailable (${response.status}). Please try again in a moment.`);
         }
