@@ -48,44 +48,71 @@ export function useAuth() {
         const code = urlParams.get('code')
         
         if (code) {
-          console.log('Found auth code, attempting PKCE exchange...')
+          console.log('Found auth code, attempting PKCE exchange...', code.substring(0, 8) + '...')
           try {
-            const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+            console.log('Calling supabase.auth.exchangeCodeForSession...')
+            const { data, error } = await Promise.race([
+              supabase.auth.exchangeCodeForSession(code),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('PKCE exchange timeout')), 8000)
+              )
+            ]) as any
+            
+            console.log('PKCE exchange response:', { data: !!data, error: !!error })
             
             if (error) {
               console.error('PKCE exchange error:', error)
               // Clean up the URL
               window.history.replaceState({}, document.title, window.location.pathname)
+              clearTimeout(authTimeout)
               setAuthState(prev => ({ ...prev, error: error.message, loading: false }))
               return
             }
             
-            if (data.session?.user) {
+            if (data?.session?.user) {
               console.log('PKCE exchange successful, user authenticated:', data.session.user.id)
               // Clean up the URL
               cleanUpUrl()
               window.history.replaceState({}, document.title, window.location.pathname)
               
               // Fetch user profile
-              const { data: userProfile, error: profileError } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', data.session.user.id)
-                .single()
+              try {
+                const { data: userProfile, error: profileError } = await supabase
+                  .from('users')
+                  .select('*')
+                  .eq('id', data.session.user.id)
+                  .single()
 
-              if (profileError && profileError.code !== 'PGRST116') {
+                if (profileError && profileError.code !== 'PGRST116') {
+                  console.error('Error fetching user profile:', profileError)
+                }
+
+                clearTimeout(authTimeout)
+                setAuthState({
+                  user: data.session.user,
+                  userProfile: userProfile || null,
+                  session: data.session,
+                  loading: false,
+                  error: null
+                })
+                return
+              } catch (profileError) {
                 console.error('Error fetching user profile:', profileError)
+                // Continue with user but no profile
+                clearTimeout(authTimeout)
+                setAuthState({
+                  user: data.session.user,
+                  userProfile: null,
+                  session: data.session,
+                  loading: false,
+                  error: null
+                })
+                return
               }
-
-              clearTimeout(authTimeout)
-              setAuthState({
-                user: data.session.user,
-                userProfile: userProfile || null,
-                session: data.session,
-                loading: false,
-                error: null
-              })
-              return
+            } else {
+              console.warn('PKCE exchange completed but no session data received')
+              // Clean up URL and continue with normal session check
+              window.history.replaceState({}, document.title, window.location.pathname)
             }
           } catch (pkceError) {
             console.error('PKCE exchange failed:', pkceError)
@@ -94,11 +121,13 @@ export function useAuth() {
           }
         }
         
-        // Normal session check
+        // Normal session check - this might find the session after PKCE success
+        console.log('Performing normal session check...')
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
           console.error('Error getting session:', error)
+          clearTimeout(authTimeout)
           setAuthState(prev => ({ ...prev, error: error.message, loading: false }))
           return
         }
@@ -108,25 +137,38 @@ export function useAuth() {
           // Clean up URL after successful authentication
           cleanUpUrl()
           
-          // Fetch user profile
-          const { data: userProfile, error: profileError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
+          try {
+            // Fetch user profile
+            const { data: userProfile, error: profileError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single()
 
-          if (profileError && profileError.code !== 'PGRST116') {
-            console.error('Error fetching user profile:', profileError)
+            if (profileError && profileError.code !== 'PGRST116') {
+              console.error('Error fetching user profile:', profileError)
+            }
+
+            clearTimeout(authTimeout)
+            setAuthState({
+              user: session.user,
+              userProfile: userProfile || null,
+              session,
+              loading: false,
+              error: null
+            })
+          } catch (profileError) {
+            console.error('Error in profile fetch:', profileError)
+            // Continue with user but no profile
+            clearTimeout(authTimeout)
+            setAuthState({
+              user: session.user,
+              userProfile: null,
+              session,
+              loading: false,
+              error: null
+            })
           }
-
-          clearTimeout(authTimeout)
-          setAuthState({
-            user: session.user,
-            userProfile: userProfile || null,
-            session,
-            loading: false,
-            error: null
-          })
         } else {
           console.log('No session found, user not authenticated')
           clearTimeout(authTimeout)
@@ -154,25 +196,43 @@ export function useAuth() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state change event:', event, !!session)
+        
         if (event === 'SIGNED_IN' && session?.user) {
+          console.log('SIGNED_IN event detected, user:', session.user.id)
           // Clean up URL after successful authentication
           cleanUpUrl()
           
-          // Fetch user profile
-          const { data: userProfile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
+          try {
+            // Fetch user profile
+            const { data: userProfile } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single()
 
-          setAuthState({
-            user: session.user,
-            userProfile: userProfile || null,
-            session,
-            loading: false,
-            error: null
-          })
+            clearTimeout(authTimeout)
+            setAuthState({
+              user: session.user,
+              userProfile: userProfile || null,
+              session,
+              loading: false,
+              error: null
+            })
+          } catch (profileError) {
+            console.error('Error fetching profile in auth change:', profileError)
+            clearTimeout(authTimeout)
+            setAuthState({
+              user: session.user,
+              userProfile: null,
+              session,
+              loading: false,
+              error: null
+            })
+          }
         } else if (event === 'SIGNED_OUT') {
+          console.log('SIGNED_OUT event detected')
+          clearTimeout(authTimeout)
           setAuthState({
             user: null,
             userProfile: null,
@@ -180,6 +240,10 @@ export function useAuth() {
             loading: false,
             error: null
           })
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          console.log('TOKEN_REFRESHED event detected')
+          clearTimeout(authTimeout)
+          setAuthState(prev => ({ ...prev, session, loading: false }))
         }
       }
     )
