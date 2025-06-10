@@ -132,8 +132,8 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "gemini":
-        // Use Gemini 2.5 Flash (latest model)
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
+        // Use Gemini 2.5 Flash Preview (latest model)
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -145,7 +145,7 @@ Please provide a comprehensive response using the above search results.`;
             })),
             generationConfig: {
               temperature: temperature || 0.7,
-              maxOutputTokens: 4000,
+              maxOutputTokens: 8192,
               topP: 0.95,
               topK: 40
             }
@@ -154,11 +154,11 @@ Please provide a comprehensive response using the above search results.`;
 
         if (!response.ok) {
           const errorData = await response.text();
-          throw new Error(`Gemini 2.5 is currently unavailable (${response.status}). Please try again in a moment.`);
+          throw new Error(`Gemini 2.5 Flash is currently unavailable (${response.status}). Please try again in a moment.`);
         }
 
-        const geminiData = await safeJsonParse(response, "Gemini 2.5");
-        aiResponse = geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini 2.5 didn't provide a response. Please try again.";
+        const geminiData = await safeJsonParse(response, "Gemini 2.5 Flash");
+        aiResponse = geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini 2.5 Flash didn't provide a response. Please try again.";
         break;
 
       case "deepseek":
