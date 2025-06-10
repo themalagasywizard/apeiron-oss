@@ -203,33 +203,68 @@ export function useAuth() {
           // Clean up URL after successful authentication
           cleanUpUrl()
           
-          try {
-            // Fetch user profile
-            const { data: userProfile } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
-              .single()
+          // Set auth state immediately to prevent timeout
+          clearTimeout(authTimeout)
+          setAuthState({
+            user: session.user,
+            userProfile: null, // Will be loaded separately
+            session,
+            loading: false,
+            error: null
+          })
+          
+          // Fetch user profile asynchronously (non-blocking)
+          setTimeout(async () => {
+            try {
+              console.log('Fetching user profile...')
+              const { data: userProfile, error: profileError } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', session.user.id)
+                .single()
 
-            clearTimeout(authTimeout)
-            setAuthState({
-              user: session.user,
-              userProfile: userProfile || null,
-              session,
-              loading: false,
-              error: null
-            })
-          } catch (profileError) {
-            console.error('Error fetching profile in auth change:', profileError)
-            clearTimeout(authTimeout)
-            setAuthState({
-              user: session.user,
-              userProfile: null,
-              session,
-              loading: false,
-              error: null
-            })
-          }
+              if (profileError) {
+                if (profileError.code === 'PGRST116') {
+                  // User doesn't exist, create profile
+                  console.log('User profile not found, creating new profile...')
+                  try {
+                    const { data: newProfile, error: createError } = await supabase
+                      .from('users')
+                      .insert({
+                        id: session.user.id,
+                        email: session.user.email,
+                        full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email,
+                        avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture
+                      })
+                      .select()
+                      .single()
+
+                    if (createError) {
+                      console.error('Error creating user profile:', createError)
+                    } else {
+                      console.log('User profile created successfully')
+                      setAuthState(prev => ({
+                        ...prev,
+                        userProfile: newProfile
+                      }))
+                    }
+                  } catch (createProfileError) {
+                    console.error('Error in profile creation:', createProfileError)
+                  }
+                } else {
+                  console.error('Error fetching user profile:', profileError)
+                }
+              } else {
+                console.log('User profile loaded successfully')
+                setAuthState(prev => ({
+                  ...prev,
+                  userProfile: userProfile
+                }))
+              }
+            } catch (profileError) {
+              console.error('Error in async profile fetch:', profileError)
+            }
+          }, 100) // Small delay to ensure auth state is set first
         } else if (event === 'SIGNED_OUT') {
           console.log('SIGNED_OUT event detected')
           clearTimeout(authTimeout)
