@@ -212,17 +212,26 @@ export default function Home() {
 
     setDataLoading(true)
     try {
+      console.log('Starting loadUserData for user:', user.id)
+      
       // Load projects
+      console.log('Loading projects...')
       const userProjects = await getProjects(user.id)
+      console.log('Projects loaded:', userProjects.length)
       setProjects(userProjects)
 
       // Load conversations
+      console.log('Loading conversations...')
       const userConversations = await getConversations(user.id)
+      console.log('Conversations loaded:', userConversations.length)
       
       // Load messages for each conversation
+      console.log('Loading messages for conversations...')
       const conversationsWithMessages = await Promise.all(
         userConversations.map(async (conv) => {
+          console.log(`Loading messages for conversation ${conv.id}...`)
           const messages = await getMessages(conv.id)
+          console.log(`Messages loaded for ${conv.id}:`, messages.length)
           return {
             ...conv,
             messages: messages.map(msg => ({
@@ -236,26 +245,34 @@ export default function Home() {
           }
         })
       )
+      console.log('All conversations with messages loaded')
 
       setConversations(conversationsWithMessages)
 
       // Set current conversation if none selected
       if (conversationsWithMessages.length > 0 && !currentConversationId) {
         setCurrentConversationId(conversationsWithMessages[0].id)
+        console.log('Set current conversation to:', conversationsWithMessages[0].id)
       }
 
       // Migrate local data if not already done
       const migrated = localStorage.getItem('t3-chat-migrated')
       if (!migrated && !migrationCompleted) {
+        console.log('Starting local data migration...')
         await migrateLocalDataToSupabase(user.id)
         setMigrationCompleted(true)
+        console.log('Migration completed, reloading data...')
         // Reload data after migration
         await loadUserData()
+        return // Exit here since we're recursively calling loadUserData
       }
+
+      console.log('loadUserData completed successfully')
 
     } catch (error) {
       console.error('Error loading user data:', error)
     } finally {
+      console.log('Setting dataLoading to false')
       setDataLoading(false)
     }
   }
