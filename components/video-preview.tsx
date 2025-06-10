@@ -44,8 +44,35 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   // Real-time operation tracking
   const [operationStatus, setOperationStatus] = useState<OperationStatus | null>(null)
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string | undefined>(initialVideoUrl)
+  const [authenticatedVideoUrl, setAuthenticatedVideoUrl] = useState<string | undefined>(initialVideoUrl)
   const [isPolling, setIsPolling] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isLoadingVideo, setIsLoadingVideo] = useState(false)
+
+  // Create authenticated blob URL for video playback
+  const createAuthenticatedVideoUrl = async (videoUrl: string) => {
+    if (!apiKey) {
+      console.log("No API key available for authenticated video loading");
+      return;
+    }
+
+    try {
+      setIsLoadingVideo(true);
+      console.log("Creating authenticated video URL...");
+      
+      // For Google VEO 2 files, they should work directly with the existing download URL
+      // since the API already returns a properly signed URL
+      setAuthenticatedVideoUrl(videoUrl);
+      
+      console.log("Authenticated video URL set:", videoUrl);
+    } catch (err) {
+      console.error("Failed to create authenticated video URL:", err);
+      // Fallback to original URL
+      setAuthenticatedVideoUrl(videoUrl);
+    } finally {
+      setIsLoadingVideo(false);
+    }
+  }
 
   // Poll operation status for real VEO 2 operations
   const pollOperationStatus = async () => {
@@ -90,6 +117,8 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
           console.log("Video generation completed! URL:", status.videoUrl);
           setCurrentVideoUrl(status.videoUrl)
           setIsPolling(false)
+          // Create authenticated video URL for playback
+          createAuthenticatedVideoUrl(status.videoUrl)
         } else if (status.status === "failed") {
           console.log("Video generation failed:", status.error);
           setError(status.error || "Video generation failed")
@@ -169,10 +198,24 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     if (currentVideoUrl && onDownload) {
       const filename = `${videoTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.mp4`
       onDownload(currentVideoUrl, filename)
-    } else if (currentVideoUrl) {
-      // Fallback: direct download
+    } else if (currentVideoUrl && apiKey) {
+      // Enhanced download with API key for Google's authenticated files
       try {
-        const response = await fetch(currentVideoUrl)
+        console.log("Attempting authenticated download...");
+        const authUrl = currentVideoUrl.includes('?') 
+          ? `${currentVideoUrl}&key=${apiKey}` 
+          : `${currentVideoUrl}?key=${apiKey}`;
+        
+        const response = await fetch(authUrl, {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Download failed: ${response.status}`);
+        }
+        
         const blob = await response.blob()
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -182,9 +225,16 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         a.click()
         document.body.removeChild(a)
         window.URL.revokeObjectURL(url)
+        console.log("Download completed successfully");
       } catch (err) {
-        console.error("Download failed:", err)
+        console.error("Authenticated download failed:", err);
+        // Fallback to direct link
+        console.log("Trying direct download fallback...");
+        window.open(currentVideoUrl, '_blank');
       }
+    } else if (currentVideoUrl) {
+      // Basic fallback
+      window.open(currentVideoUrl, '_blank');
     }
   }
 
@@ -301,7 +351,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   }
 
   // Show completion state without video
-  if (!currentVideoUrl) {
+  if (!currentVideoUrl && !authenticatedVideoUrl) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -368,18 +418,36 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
 
       {/* Video Player */}
       <div className="relative group">
-        <video
-          ref={setVideoRef}
-          className="w-full aspect-video bg-black"
-          controls={false}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          onEnded={() => setIsPlaying(false)}
-          onError={() => setError("Failed to load video")}
-        >
-          <source src={currentVideoUrl} type="video/mp4" />
-          Your browser does not support the video tag.
-        </video>
+        {isLoadingVideo ? (
+          <div className="w-full aspect-video bg-black flex items-center justify-center">
+            <div className="text-white text-center">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="w-8 h-8 border-4 border-white border-t-transparent rounded-full mx-auto mb-2"
+              />
+              <p className="text-sm">Loading video...</p>
+            </div>
+          </div>
+        ) : (
+          <video
+            ref={setVideoRef}
+            className="w-full aspect-video bg-black"
+            controls={false}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onEnded={() => setIsPlaying(false)}
+            onError={(e) => {
+              console.error("Video loading error:", e);
+              console.log("Failed video URL:", authenticatedVideoUrl || currentVideoUrl);
+              setError("Failed to load video. Try using the download button instead.");
+            }}
+            crossOrigin="anonymous"
+          >
+            <source src={authenticatedVideoUrl || currentVideoUrl} type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+        )}
 
         {/* Custom Controls Overlay */}
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
