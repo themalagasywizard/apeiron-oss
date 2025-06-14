@@ -30,6 +30,7 @@ interface ProjectSidebarProps {
   onDeleteProject: (id: string) => void
   onMoveConversation: (conversationId: string, projectId: string | null) => void
   onCreateConversation: () => void
+  onDeleteConversation: (conversationId: string) => void
 }
 
 const PROJECT_COLORS = [
@@ -49,7 +50,8 @@ export function ProjectSidebar({
   onUpdateProject,
   onDeleteProject,
   onMoveConversation,
-  onCreateConversation
+  onCreateConversation,
+  onDeleteConversation
 }: ProjectSidebarProps) {
   const [isCreatingProject, setIsCreatingProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
@@ -207,7 +209,7 @@ export function ProjectSidebar({
                   <div
                     key={conversation.id}
                     className={cn(
-                      "p-2 rounded cursor-pointer text-sm transition-colors",
+                      "p-2 rounded cursor-pointer text-sm transition-colors group",
                       selectedConversationId === conversation.id
                         ? "bg-blue-200 dark:bg-blue-800"
                         : "hover:bg-gray-200 dark:hover:bg-gray-700"
@@ -217,11 +219,27 @@ export function ProjectSidebar({
                     onClick={() => onSelectConversation(conversation.id)}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="truncate">{conversation.title}</span>
-                      <span className="text-xs text-gray-500 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {formatTimestamp(conversation.updated_at)}
-                      </span>
+                      <span className="truncate flex-1">{conversation.title}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTimestamp(conversation.updated_at)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+                              onDeleteConversation(conversation.id)
+                            }
+                          }}
+                          title="Delete conversation"
+                        >
+                          <Trash2 className="w-3 h-3 text-red-500" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -338,7 +356,7 @@ export function ProjectSidebar({
                     <div
                       key={conversation.id}
                       className={cn(
-                        "p-2 rounded cursor-pointer text-sm transition-colors",
+                        "p-2 rounded cursor-pointer text-sm transition-colors group",
                         selectedConversationId === conversation.id
                           ? "bg-blue-200 dark:bg-blue-800"
                           : "hover:bg-gray-200 dark:hover:bg-gray-700"
@@ -348,11 +366,27 @@ export function ProjectSidebar({
                       onClick={() => onSelectConversation(conversation.id)}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="truncate">{conversation.title}</span>
-                        <span className="text-xs text-gray-500 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatTimestamp(conversation.updated_at)}
-                        </span>
+                        <span className="truncate flex-1">{conversation.title}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatTimestamp(conversation.updated_at)}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+                                onDeleteConversation(conversation.id)
+                              }
+                            }}
+                            title="Delete conversation"
+                          >
+                            <Trash2 className="w-3 h-3 text-red-500" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

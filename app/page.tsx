@@ -9,6 +9,7 @@ import {
   getProjects,
   getConversations,
   getMessages,
+  getConversationWithMessages,
   createProject,
   createConversation,
   createMessage,
@@ -16,6 +17,7 @@ import {
   updateProject,
   deleteProject,
   deleteConversation,
+  deleteConversationWithMessages,
   migrateLocalDataToSupabase
 } from "@/lib/database"
 import { Project as DBProject, Conversation as DBConversation, Message as DBMessage } from "@/lib/database.types"
@@ -417,8 +419,55 @@ export default function Home() {
     saveConversationsLocally(updatedConversations)
   }
 
-  const handleSelectConversation = (id: string) => {
+  const handleSelectConversation = async (id: string) => {
     setCurrentConversationId(id)
+    
+    // If authenticated, always ensure messages are loaded fresh from database
+    if (isAuthenticated && user) {
+      try {
+        const conversationData = await getConversationWithMessages(id)
+        if (conversationData) {
+          const loadedMessages = conversationData.messages.map(msg => ({
+            id: msg.id,
+            content: msg.content,
+            role: msg.role as "user" | "assistant",
+            timestamp: new Date(msg.timestamp),
+            attachments: msg.attachments as any[] || undefined,
+            searchResults: msg.search_results as any[] || undefined
+          }))
+          
+          // Update the conversation with fresh messages from database
+          const updatedConversations = conversations.map(conv =>
+            conv.id === id ? { ...conv, messages: loadedMessages } : conv
+          )
+          setConversations(updatedConversations)
+        }
+      } catch (error) {
+        console.error('Error loading conversation with messages:', error)
+        // Fallback to existing message loading
+        const conversation = conversations.find(conv => conv.id === id)
+        if (conversation && conversation.messages.length === 0) {
+          try {
+            const messages = await getMessages(id)
+            const loadedMessages = messages.map(msg => ({
+              id: msg.id,
+              content: msg.content,
+              role: msg.role as "user" | "assistant",
+              timestamp: new Date(msg.timestamp),
+              attachments: msg.attachments as any[] || undefined,
+              searchResults: msg.search_results as any[] || undefined
+            }))
+            
+            const updatedConversations = conversations.map(conv =>
+              conv.id === id ? { ...conv, messages: loadedMessages } : conv
+            )
+            setConversations(updatedConversations)
+          } catch (fallbackError) {
+            console.error('Error in fallback message loading:', fallbackError)
+          }
+        }
+      }
+    }
   }
 
   const handleRenameConversation = async (id: string, newTitle: string) => {
@@ -433,6 +482,36 @@ export default function Home() {
         await updateConversation(id, { title: newTitle })
       } catch (error) {
         console.error('Error updating conversation title:', error)
+      }
+    }
+  }
+
+  const handleDeleteConversation = async (id: string) => {
+    try {
+      // Remove from local state
+      const updatedConversations = conversations.filter(conv => conv.id !== id)
+      setConversations(updatedConversations)
+      saveConversationsLocally(updatedConversations)
+
+      // If this was the current conversation, switch to another one or create a new one
+      if (currentConversationId === id) {
+        if (updatedConversations.length > 0) {
+          setCurrentConversationId(updatedConversations[0].id)
+        } else {
+          // Create a new conversation if no conversations left
+          await handleCreateConversation()
+        }
+      }
+
+      // Delete from database if authenticated
+      if (isAuthenticated) {
+        await deleteConversationWithMessages(id)
+      }
+    } catch (error) {
+      console.error('Error deleting conversation:', error)
+      // Reload conversations to ensure consistency
+      if (isAuthenticated && user) {
+        await loadUserData()
       }
     }
   }
@@ -698,6 +777,7 @@ export default function Home() {
           onDeleteProject={handleDeleteProject}
           onMoveConversation={handleMoveConversation}
           onCreateConversation={handleCreateConversation}
+          onDeleteConversation={handleDeleteConversation}
         />
       )}
 
@@ -747,6 +827,7 @@ export default function Home() {
             }
           }}
           onRenameConversation={handleRenameConversation}
+          onDeleteConversation={handleDeleteConversation}
           onRetryMessage={(messageId: string) => {
             // Implement retry logic
             console.log('Retry message:', messageId)

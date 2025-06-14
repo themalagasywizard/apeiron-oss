@@ -36,6 +36,7 @@ import {
   Search,
   Globe,
   Code,
+  Trash2,
 } from "lucide-react"
 
 // Types
@@ -133,6 +134,7 @@ type MainUIProps = {
   authLoading?: boolean
   onSaveSettings?: (settings: any) => void
   onRenameConversation?: (id: string, newTitle: string) => void
+  onDeleteConversation?: (id: string) => void
   onRetryMessage?: (messageId: string) => void
 }
 
@@ -176,6 +178,7 @@ export default function MainUI({
   authLoading = false,
   onSaveSettings = () => {},
   onRenameConversation = () => {},
+  onDeleteConversation = () => {},
   onRetryMessage = () => {},
 }: MainUIProps) {
   // Comprehensive model library with latest versions
@@ -1010,6 +1013,20 @@ export default function MainUI({
                               )}
                             </div>
                           </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+                                  onDeleteConversation(conversation.id)
+                                }
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                              title="Delete conversation"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1061,7 +1078,7 @@ export default function MainUI({
                                   onClick={() => onSelectConversation(conv.id)}
                                   className={`
                                     w-full text-left px-3 py-1.5 rounded-lg text-xs transition-all duration-200
-                                    hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer
+                                    hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer group relative
                                     ${
                                       currentConversation.id === conv.id
                                         ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
@@ -1069,29 +1086,47 @@ export default function MainUI({
                                     }
                                   `}
                                 >
-                                  {editingConversationId === conv.id ? (
-                                    <input
-                                      type="text"
-                                      value={editingTitle}
-                                      onChange={(e) => setEditingTitle(e.target.value)}
-                                      onKeyDown={handleRenameKeyPress}
-                                      onBlur={handleSaveRename}
-                                      className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
-                                      autoFocus
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
-                                  ) : (
-                                    <div 
-                                      className="font-medium text-gray-800 dark:text-gray-200 truncate"
-                                      title="Double-click to rename conversation"
-                                      onDoubleClick={(e) => {
-                                        e.stopPropagation();
-                                        handleStartRename(conv.id, conv.title);
-                                      }}
-                                    >
-                                    {conv.title}
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      {editingConversationId === conv.id ? (
+                                        <input
+                                          type="text"
+                                          value={editingTitle}
+                                          onChange={(e) => setEditingTitle(e.target.value)}
+                                          onKeyDown={handleRenameKeyPress}
+                                          onBlur={handleSaveRename}
+                                          className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
+                                          autoFocus
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      ) : (
+                                        <div 
+                                          className="font-medium text-gray-800 dark:text-gray-200 truncate"
+                                          title="Double-click to rename conversation"
+                                          onDoubleClick={(e) => {
+                                            e.stopPropagation();
+                                            handleStartRename(conv.id, conv.title);
+                                          }}
+                                        >
+                                        {conv.title}
+                                      </div>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          if (window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+                                            onDeleteConversation(conv.id)
+                                          }
+                                        }}
+                                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                        title="Delete conversation"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
                                   </div>
-                                  )}
                                 </div>
                               )
                             })}

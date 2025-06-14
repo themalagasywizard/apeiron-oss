@@ -115,6 +115,25 @@ export async function deleteConversation(id: string): Promise<void> {
   if (error) throw error
 }
 
+// Delete conversation with all its messages (explicit cleanup)
+export async function deleteConversationWithMessages(id: string): Promise<void> {
+  // First delete all messages
+  const { error: messagesError } = await supabase
+    .from('messages')
+    .delete()
+    .eq('conversation_id', id)
+
+  if (messagesError) throw messagesError
+
+  // Then delete the conversation
+  const { error: conversationError } = await supabase
+    .from('conversations')
+    .delete()
+    .eq('id', id)
+
+  if (conversationError) throw conversationError
+}
+
 // Messages
 export async function getMessages(conversationId: string): Promise<Message[]> {
   const { data, error } = await supabase
@@ -125,6 +144,33 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
 
   if (error) throw error
   return data || []
+}
+
+// Load conversation with all its messages
+export async function getConversationWithMessages(conversationId: string): Promise<{ conversation: Conversation; messages: Message[] } | null> {
+  // Get conversation
+  const { data: conversation, error: convError } = await supabase
+    .from('conversations')
+    .select('*')
+    .eq('id', conversationId)
+    .single()
+
+  if (convError && convError.code !== 'PGRST116') throw convError
+  if (!conversation) return null
+
+  // Get messages
+  const { data: messages, error: messagesError } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .order('timestamp', { ascending: true })
+
+  if (messagesError) throw messagesError
+
+  return {
+    conversation,
+    messages: messages || []
+  }
 }
 
 export async function createMessage(message: InsertMessage): Promise<Message> {
