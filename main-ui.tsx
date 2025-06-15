@@ -627,7 +627,8 @@ export default function MainUI({
     
     // Apply theme-specific classes to document
     const themeClasses = ['theme-vercel', 'theme-default']
-    document.documentElement.classList.remove(...themeClasses)
+    const lightDarkClasses = ['light', 'dark']
+    document.documentElement.classList.remove(...themeClasses, ...lightDarkClasses)
     
     // Always add the theme class
     document.documentElement.classList.add(`theme-${themeId}`)
