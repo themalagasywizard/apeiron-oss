@@ -46,9 +46,9 @@ export async function POST(request: NextRequest) {
 
     // Helper function to add timeout to fetch requests
     const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 18000): Promise<Response> => {
-      // Allow longer timeouts for edge functions (up to 90s), but cap regular requests at 30s
+      // Allow longer timeouts for edge functions (up to 90s), and increase timeout for code generation
       const isEdgeFunction = url.includes('/.netlify/edge-functions/');
-      const maxTimeout = isEdgeFunction ? 90000 : 30000;
+      const maxTimeout = isEdgeFunction ? 90000 : ((isCodeRequest || codeGenerationEnabled) ? 40000 : 30000);
       const safeTimeout = Math.min(timeoutMs, maxTimeout);
       
       const controller = new AbortController();
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
         if (error instanceof Error && error.name === 'AbortError') {
           const errorMsg = isEdgeFunction 
             ? `Edge function timed out after ${safeTimeout / 1000} seconds. Try a shorter request.`
-            : `Request timed out after ${safeTimeout / 1000} seconds. Serverless functions have strict time limits. Try a shorter request.`;
+            : `Request timed out after ${safeTimeout / 1000} seconds. ${isCodeRequest ? 'Code generation can take longer - try breaking complex requests into smaller parts.' : 'Serverless functions have strict time limits. Try a shorter request.'}`;
           throw new Error(errorMsg);
         }
         throw error;
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
       try {
         if (isCodeRequest || codeGenerationEnabled) {
           return {
-            timeout: Math.min(baseTimeout + 10000, 30000), // Add 10 seconds for code, max 30s
+            timeout: Math.min(baseTimeout + 15000, 35000), // Add 15 seconds for code, max 35s (increased from 30s)
             maxTokens: Math.min(baseTokens * 2, 8000), // 2x tokens for code, max 8000
             temperature: 0.1 // Lower temperature for more focused code output
           };
@@ -404,7 +404,9 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "gemini":
-        const geminiParams = getOptimizedParams(15000, 3000);
+        // Increase timeout for Gemini, especially for code generation
+        const geminiBaseTimeout = isCodeRequest || codeGenerationEnabled ? 25000 : 15000; // 25s for code, 15s for regular
+        const geminiParams = getOptimizedParams(geminiBaseTimeout, 3000);
         
         // Clean messages first, then convert to Gemini format
         const cleanedGeminiMessages = optimizeMessagesForCode(messages);
@@ -423,33 +425,85 @@ Please provide a comprehensive response using the above search results.`;
           geminiModel = "gemini-2.5-pro-preview-06-05"; // Correct 2.5 Pro model name
         }
         
-        response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            contents: geminiMessages,
-            generationConfig: {
-              temperature: geminiParams.temperature,
-              maxOutputTokens: geminiParams.maxTokens,
-              topP: 0.95,
-              topK: 40
+        try {
+          response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              contents: geminiMessages,
+              generationConfig: {
+                temperature: geminiParams.temperature,
+                maxOutputTokens: geminiParams.maxTokens,
+                topP: 0.95,
+                topK: 40
+              }
+            })
+          }, geminiParams.timeout);
+
+          if (!response.ok) {
+            const errorData = await response.text();
+            console.error("Gemini API error:", response.status, errorData);
+            
+            if (response.status === 504 || response.status === 524) {
+              throw new Error(`Gemini is taking longer than expected to generate your ${isCodeRequest ? 'code' : 'response'}. This often happens with complex requests. Try breaking your request into smaller parts or try again in a moment.`);
+            } else if (response.status === 429) {
+              throw new Error(`Gemini rate limit exceeded. Please wait a moment before trying again.`);
+            } else if (response.status === 503) {
+              throw new Error(`Gemini service is temporarily unavailable. Please try again in a few minutes.`);
+            } else {
+              throw new Error(`Gemini API error (${response.status}): ${errorData}`);
             }
-          })
-        }, geminiParams.timeout);
-
-        if (!response.ok) {
-          const errorData = await response.text();
-          console.error("Gemini API error:", response.status, errorData);
-          if (response.status === 504) {
-            throw new Error(`Gemini request timed out. Serverless time limit reached. Try a shorter request.`);
           }
-          throw new Error(`Gemini API error (${response.status}): ${errorData}`);
-        }
 
-        const geminiData = await safeJsonParse(response, "Gemini");
-        aiResponse = cleanAIResponse(geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini didn't provide a response. Please try again.", "Gemini");
+          const geminiData = await safeJsonParse(response, "Gemini");
+          aiResponse = cleanAIResponse(geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini didn't provide a response. Please try again.", "Gemini");
+          
+        } catch (geminiError) {
+          console.error("Gemini error:", geminiError);
+          
+          // If this was a code generation request and it failed, try with reduced complexity
+          if ((isCodeRequest || codeGenerationEnabled) && geminiError instanceof Error && geminiError.message.includes('504')) {
+            console.log("Retrying Gemini with simplified request...");
+            
+            try {
+              // Simplify the request for retry
+              const simplifiedMessages = cleanedGeminiMessages.slice(-2).map((m: any) => ({
+                role: m.role === "assistant" ? "model" : "user",
+                parts: [{ text: m.content.length > 1000 ? m.content.substring(0, 1000) + "..." : m.content }]
+              }));
+              
+              response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  contents: simplifiedMessages,
+                  generationConfig: {
+                    temperature: 0.3, // Lower temperature for retry
+                    maxOutputTokens: 2000, // Reduced tokens
+                    topP: 0.8,
+                    topK: 20
+                  }
+                })
+              }, 20000); // 20 second timeout for retry
+
+              if (!response.ok) {
+                throw geminiError; // Throw original error if retry also fails
+              }
+
+              const retryData = await safeJsonParse(response, "Gemini");
+              aiResponse = cleanAIResponse(retryData.candidates[0]?.content?.parts[0]?.text || "Gemini didn't provide a response. Please try again.", "Gemini");
+              
+            } catch (retryError) {
+              throw geminiError; // Throw original error
+            }
+          } else {
+            throw geminiError;
+          }
+        }
         break;
 
       case "deepseek":
