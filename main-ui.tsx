@@ -958,8 +958,28 @@ export default function MainUI({
 
   // Format message content
   const formatMessageContent = (content: string) => {
-    // Clean up content for minimalist formatting
-    const cleaned = content
+    // First, extract and preserve code blocks before any other processing
+    const codeBlocks: { [key: string]: string } = {};
+    let codeBlockCounter = 0;
+    
+    // Extract HTML and CSS code blocks to preserve them
+    let processedContent = content.replace(/```(html|css|javascript|js|jsx|tsx|typescript|ts)\n?([\s\S]*?)```/gi, (match, lang, code) => {
+      const placeholder = `__CODE_BLOCK_${codeBlockCounter}__`;
+      codeBlocks[placeholder] = match; // Keep original code block intact
+      codeBlockCounter++;
+      return placeholder;
+    });
+    
+    // Extract any remaining code blocks
+    processedContent = processedContent.replace(/```([\w+-]*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+      const placeholder = `__CODE_BLOCK_${codeBlockCounter}__`;
+      codeBlocks[placeholder] = match; // Keep original code block intact
+      codeBlockCounter++;
+      return placeholder;
+    });
+
+    // Clean up content for minimalist formatting (but preserve code block placeholders)
+    const cleaned = processedContent
       // Remove all emojis
       .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
       // Remove excessive hashtags and replace with clean headers
@@ -971,7 +991,7 @@ export default function MainUI({
       // Handle web search results - convert numbered citations with actual links
       .replace(/\[(\d+)\]/g, '<a href="#source-$1" class="text-xs align-super bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded-sm no-underline hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer" onclick="scrollToSource($1)">$1</a>')
       // Handle legacy source format  
-              .replace(/\[source:\s*(\d+)]/g, '<a href="#source-$1" class="text-xs align-super bg-muted text-muted-foreground px-1 py-0.5 rounded-sm no-underline">$1</a>')
+      .replace(/\[source:\s*(\d+)]/g, '<a href="#source-$1" class="text-xs align-super bg-muted text-muted-foreground px-1 py-0.5 rounded-sm no-underline">$1</a>')
       // Enhanced markdown links handling - make them more prominent for citations
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
         // Check if this looks like a web search result citation
@@ -995,22 +1015,6 @@ export default function MainUI({
         }
         return match;
       })
-      // Handle code blocks with proper escaping and language detection
-      .replace(/```([\w+-]*)\n?([\s\S]*?)```/g, (match, lang, code) => {
-        // Escape HTML entities in code to prevent parsing issues
-        const escapedCode = code
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#x27;');
-        
-        // Add language-specific styling
-        const languageClass = lang ? `language-${lang.toLowerCase()}` : '';
-        const languageLabel = lang ? `<span class="absolute top-2 right-2 text-xs text-muted-foreground bg-muted px-2 py-1 rounded">${lang}</span>` : '';
-        
-        return `<div class="relative"><pre class="bg-muted p-4 rounded-lg overflow-x-auto my-4 ${languageClass}"><code class="font-mono text-sm">${escapedCode}</code></pre>${languageLabel}</div>`;
-      })
       // Handle bullet points with proper spacing
       .replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li class="mb-2">$1</li>')
       // Handle numbered lists
@@ -1032,7 +1036,31 @@ export default function MainUI({
       .replace(/(<\/p>)(\s*<p class="mb-4">)/g, '$1$2')
       .trim();
 
-    return cleaned;
+    // Now restore the code blocks in their original form with proper styling
+    let finalContent = cleaned;
+    Object.entries(codeBlocks).forEach(([placeholder, originalBlock]) => {
+      // Parse the original code block to add proper styling
+      const codeBlockMatch = originalBlock.match(/```([\w+-]*)\n?([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        const [, lang, code] = codeBlockMatch;
+        // Escape HTML entities in code to prevent parsing issues
+        const escapedCode = code
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#x27;');
+        
+        // Add language-specific styling
+        const languageClass = lang ? `language-${lang.toLowerCase()}` : '';
+        const languageLabel = lang ? `<span class="absolute top-2 right-2 text-xs text-muted-foreground bg-muted px-2 py-1 rounded">${lang}</span>` : '';
+        
+        const styledCodeBlock = `<div class="relative"><pre class="bg-muted p-4 rounded-lg overflow-x-auto my-4 ${languageClass}"><code class="font-mono text-sm">${escapedCode}</code></pre>${languageLabel}</div>`;
+        finalContent = finalContent.replace(placeholder, styledCodeBlock);
+      }
+    });
+
+    return finalContent;
   }
 
   // Start editing a provider's model selection
@@ -1524,10 +1552,10 @@ export default function MainUI({
                       {/* User Info */}
                       <div className="flex-1 text-left min-w-0">
                         <div className="text-sm font-medium truncate">
-                          {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                          {user?.user_metadata?.full_name || user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'User'}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {user?.email}
+                          Online
                         </div>
                       </div>
                       
@@ -1934,7 +1962,7 @@ export default function MainUI({
                   <div
                     className={`
                     text-xs mt-2 
-                    ${message.role === "user" ? "text-white/70" : "text-gray-500 dark:text-gray-400"}
+                    ${message.role === "user" ? "text-gray-600 dark:text-gray-300" : "text-gray-500 dark:text-gray-400"}
                   `}
                   >
                     {new Date(message.timestamp).toLocaleTimeString()}
