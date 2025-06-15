@@ -174,13 +174,22 @@ export async function getConversationWithMessages(conversationId: string): Promi
 }
 
 export async function createMessage(message: InsertMessage): Promise<Message> {
+  // Validate content is not null or empty before inserting
+  if (!message.content || typeof message.content !== 'string' || message.content.trim().length === 0) {
+    console.error('Attempted to create message with invalid content:', message.content)
+    message.content = "I apologize, but I couldn't generate a proper response. Please try again."
+  }
+
   const { data, error } = await supabase
     .from('messages')
     .insert(message)
     .select()
     .single()
 
-  if (error) throw error
+  if (error) {
+    console.error('Database error creating message:', error)
+    throw error
+  }
   return data
 }
 

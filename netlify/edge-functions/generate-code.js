@@ -361,21 +361,79 @@ Generate code:`;
         aiResponse = openrouterData.choices?.[0]?.message?.content || "No response generated";
         break;
 
+      case "mistral":
+        // Enhanced parameters for Mistral code generation
+        const mistralCodeParams = {
+          maxTokens: 8000, // Increased for code generation
+          temperature: 0.1, // Very low for consistent code
+          timeout: 120000  // 2 minutes maximum for Edge Function
+        };
+        
+        // Map model names to Mistral API model names
+        let mistralModel = "mistral-large-latest";
+        if (model?.includes("large")) mistralModel = "mistral-large-latest";
+        else if (model?.includes("medium")) mistralModel = "mistral-medium-latest";
+        else if (model?.includes("small")) mistralModel = "mistral-small-latest";
+        else if (model?.includes("codestral")) mistralModel = "codestral-latest";
+        
+        try {
+          response = await fetchWithTimeout("https://api.mistral.ai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: mistralModel,
+              messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
+              temperature: mistralCodeParams.temperature,
+              max_tokens: mistralCodeParams.maxTokens,
+              stream: false
+            })
+          }, mistralCodeParams.timeout);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Mistral ${mistralModel} failed:`, response.status, errorText);
+            throw new Error(`Mistral API error (${response.status}): ${errorText}`);
+          }
+
+          const mistralData = await response.json();
+          aiResponse = mistralData.choices?.[0]?.message?.content || "No response generated";
+          
+        } catch (mistralError) {
+          console.error("Mistral Edge Function error:", mistralError);
+          
+          // Provide helpful error message
+          if (mistralError.message.includes("timeout") || mistralError.message.includes("504")) {
+            throw new Error("Mistral is experiencing heavy load. Try again in a few moments or use a different model for code generation.");
+          } else {
+            throw new Error(`Mistral code generation failed: ${mistralError.message}`);
+          }
+        }
+        break;
+
       default:
         throw new Error(`Unsupported provider for code generation: ${provider}`);
     }
 
-    // Ensure we have a valid response
-    if (!aiResponse || typeof aiResponse !== 'string') {
-      throw new Error('No valid response from AI provider');
+    // Ensure we have a valid response with proper validation
+    if (!aiResponse || typeof aiResponse !== 'string' || aiResponse.trim().length === 0) {
+      console.error('Edge function received invalid AI response:', aiResponse);
+      aiResponse = "I apologize, but I couldn't generate a proper code response. This might be due to the request being too complex or the AI service being temporarily unavailable. Please try with a simpler request or try again later.";
     }
+
+    // Clean and validate the response
+    const cleanedResponse = aiResponse.trim();
 
     // Return successful response with proper structure
     const responseData = {
-      response: aiResponse,
+      response: cleanedResponse,
+      content: cleanedResponse, // Add both for compatibility
       model: model || provider,
       provider: provider,
       codeGeneration: true,
+      edgeFunction: true,
       timestamp: new Date().toISOString()
     };
 

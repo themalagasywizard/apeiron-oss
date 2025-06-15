@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       isCodeRequest = false; // Fallback to false if detection fails
     }
 
-    // In production (Netlify), route code generation requests to Edge Function
+    // In production (Netlify), route code generation requests to Edge Function for better performance
     const isProduction = process.env.NODE_ENV === 'production' || process.env.NETLIFY === 'true';
     if (isCodeRequest && isProduction) {
       try {
@@ -134,16 +134,33 @@ export async function POST(request: NextRequest) {
             temperature,
             customModelName
           })
-        }, 35000); // 35 second timeout for edge function to prevent 504s
+        }, 90000); // 90 second timeout for edge function (allows more time for code generation)
 
         if (!edgeResponse.ok) {
           const errorText = await edgeResponse.text().catch(() => 'Unknown error');
+          console.error(`Edge function failed with status ${edgeResponse.status}:`, errorText);
           throw new Error(`Edge function error (${edgeResponse.status}): ${errorText}`);
         }
 
         const edgeResult = await edgeResponse.json();
+        
+        // Validate edge function response has content
+        if (!edgeResult.response && !edgeResult.content) {
+          throw new Error('Edge function returned empty response');
+        }
+        
         clearTimeout(emergencyTimeout);
-        return NextResponse.json(edgeResult);
+        
+        // Ensure we have a consistent response format
+        return NextResponse.json({
+          content: edgeResult.response || edgeResult.content,
+          response: edgeResult.response || edgeResult.content,
+          model: edgeResult.model || model,
+          provider: edgeResult.provider || provider,
+          codeGeneration: true,
+          edgeFunction: true,
+          searchResults: null
+        });
         
       } catch (edgeError) {
         console.error('Edge function failed, falling back to serverless:', edgeError);
@@ -309,13 +326,15 @@ Please provide a comprehensive response using the above search results.`;
     // Helper function to validate and clean AI responses, especially for code
     const cleanAIResponse = (response: string, providerName: string): string => {
       if (!response || typeof response !== 'string') {
-        throw new Error(`${providerName} returned an invalid response type. Please try again.`);
+        console.error(`${providerName} returned invalid response type:`, typeof response, response);
+        return `I apologize, but ${providerName} returned an invalid response. Please try again with a different request.`;
       }
       
       // Ensure the response is properly terminated (not cut off)
       const trimmed = response.trim();
       if (trimmed.length === 0) {
-        throw new Error(`${providerName} returned an empty response. Please try again.`);
+        console.error(`${providerName} returned empty response`);
+        return `I apologize, but ${providerName} returned an empty response. This often happens with very long requests. Please try with a shorter or simpler request.`;
       }
       
       return trimmed;

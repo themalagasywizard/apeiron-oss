@@ -834,10 +834,10 @@ export default function Home() {
 
       const data = await response.json()
 
-      // Create assistant message
+      // Create assistant message with proper content validation
       const assistantMessage: UIMessage = {
         id: (Date.now() + 1).toString(),
-        content: data.content,
+        content: data.content || data.response || "I apologize, but I couldn't generate a response. Please try again.",
         role: "assistant",
         timestamp: new Date(),
         model: currentModel,
@@ -858,10 +858,11 @@ export default function Home() {
       setConversations(finalConversations)
       saveConversationsLocally(finalConversations)
 
-      // Save assistant message to database if authenticated
+      // Save assistant message to database if authenticated (with content validation)
       if (isAuthenticated && user) {
+        const messageContent = data.content || data.response || "I apologize, but I couldn't generate a response. Please try again."
         await createMessage({
-          content: data.content,
+          content: messageContent,
           role: 'assistant',
           conversation_id: activeConversationId,
           model: currentModel,
