@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatFileSize } from "@/lib/file-utils"
 import ModelLogo from "@/components/model-logos"
@@ -360,6 +360,11 @@ export default function MainUI({
   const recognitionRef = useRef<any>(null)
   const profileDropdownRef = useRef<HTMLDivElement>(null)
 
+  // State for scroll behavior
+  const [isUserScrolling, setIsUserScrolling] = useState(false)
+  const [isAtBottom, setIsAtBottom] = useState(true)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+
   // Check if current model supports web search
   const isWebSearchCompatible = () => {
     const currentModelData = availableModels.find(m => m.id === currentModel)
@@ -388,11 +393,6 @@ export default function MainUI({
       window.removeEventListener("resize", checkIfMobile)
     }
   }, [])
-
-  // Scroll to bottom of messages when new message is added
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [currentConversation.messages])
 
   // Disable web search when switching to incompatible models
   useEffect(() => {
@@ -1027,6 +1027,48 @@ export default function MainUI({
     setTempSelectedModels({})
   }
 
+  // Check if user is at bottom of messages
+  const checkIfAtBottom = useCallback(() => {
+    if (messagesContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current
+      const threshold = 100 // pixels from bottom
+      const atBottom = scrollHeight - scrollTop - clientHeight < threshold
+      setIsAtBottom(atBottom)
+    }
+  }, [])
+
+  // Handle scroll events
+  const handleScroll = useCallback(() => {
+    setIsUserScrolling(true)
+    checkIfAtBottom()
+    
+    // Reset user scrolling flag after a delay
+    const timeoutId = setTimeout(() => {
+      setIsUserScrolling(false)
+    }, 1000)
+    
+    return () => clearTimeout(timeoutId)
+  }, [checkIfAtBottom])
+
+  // Auto-scroll only when user is at bottom and not actively scrolling
+  useEffect(() => {
+    if (!isUserScrolling && isAtBottom && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [currentConversation.messages, isUserScrolling, isAtBottom])
+
+  // Reset scroll state when conversation changes
+  useEffect(() => {
+    setIsUserScrolling(false)
+    setIsAtBottom(true)
+    // Small delay to ensure DOM is updated
+    setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "auto" })
+      }
+    }, 100)
+  }, [currentConversation.id])
+
   return (
     <div
       className="font-inter h-screen flex bg-background"
@@ -1398,12 +1440,16 @@ export default function MainUI({
           </AnimatePresence>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div 
+            className="flex-1 overflow-y-auto p-4 space-y-6" 
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+          >
             {currentConversation.messages.length === 0 ? (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center max-w-md mx-auto">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-900 dark:bg-white flex items-center justify-center">
+                    <svg className="w-8 h-8 text-white dark:text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </div>

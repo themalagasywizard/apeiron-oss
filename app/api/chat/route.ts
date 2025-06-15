@@ -40,11 +40,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("API request validated successfully for provider:", provider);
-
     let response;
     let aiResponse = "";
     let searchResults = null;
+
+    // Helper function to add timeout to fetch requests
+    const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 18000): Promise<Response> => {
+      // Allow longer timeouts for edge functions (up to 90s), but cap regular requests at 30s
+      const isEdgeFunction = url.includes('/.netlify/edge-functions/');
+      const maxTimeout = isEdgeFunction ? 90000 : 30000;
+      const safeTimeout = Math.min(timeoutMs, maxTimeout);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), safeTimeout);
+
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error instanceof Error && error.name === 'AbortError') {
+          const errorMsg = isEdgeFunction 
+            ? `Edge function timed out after ${safeTimeout / 1000} seconds. Try a shorter request.`
+            : `Request timed out after ${safeTimeout / 1000} seconds. Serverless functions have strict time limits. Try a shorter request.`;
+          throw new Error(errorMsg);
+        }
+        throw error;
+      }
+    };
 
     // Detect if this is a code generation request
     let isCodeRequest = false;
@@ -52,7 +79,6 @@ export async function POST(request: NextRequest) {
       // First check if code generation is explicitly enabled
       if (codeGenerationEnabled) {
         isCodeRequest = true;
-        console.log("Code generation explicitly enabled via UI toggle");
       } else {
         // Fallback to content-based detection
         const lastUserMessage = messages[messages.length - 1]?.content?.toLowerCase() || "";
@@ -83,11 +109,47 @@ export async function POST(request: NextRequest) {
                        lastUserMessage.includes("<") ||
                        lastUserMessage.includes("```");
       }
-
-      console.log("Code request detected:", isCodeRequest, "for message:", messages[messages.length - 1]?.content?.substring(0, 100));
     } catch (error) {
       console.error("Error in code detection:", error);
       isCodeRequest = false; // Fallback to false if detection fails
+    }
+
+    // In production (Netlify), route code generation requests to Edge Function
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.NETLIFY === 'true';
+    if (isCodeRequest && isProduction) {
+      try {
+        console.log('Routing code generation request to edge function in production');
+        const edgeFunctionUrl = `${new URL(request.url).origin}/api/generate-code`;
+        
+        const edgeResponse = await fetchWithTimeout(edgeFunctionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages,
+            provider,
+            apiKey,
+            model,
+            temperature,
+            customModelName
+          })
+        }, 90000); // 90 second timeout for edge function
+
+        if (!edgeResponse.ok) {
+          throw new Error(`Edge function error: ${edgeResponse.status}`);
+        }
+
+        const edgeResult = await edgeResponse.json();
+        clearTimeout(emergencyTimeout);
+        return NextResponse.json(edgeResult);
+        
+      } catch (edgeError) {
+        console.error('Edge function failed, falling back to serverless:', edgeError);
+        // Continue with regular serverless processing as fallback
+      }
+    } else if (isCodeRequest && !isProduction) {
+      console.log('Code generation request in development mode - using serverless function');
     }
 
     // Optimize parameters for code generation
@@ -163,36 +225,11 @@ IMPORTANT CODE GENERATION INSTRUCTIONS:
       }
     };
 
-    // Helper function to add timeout to fetch requests
-    const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 18000): Promise<Response> => {
-      // Allow longer timeouts for code generation, but cap at 30 seconds
-      const safeTimeout = Math.min(timeoutMs, 30000);
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), safeTimeout);
-
-      try {
-        const response = await fetch(url, {
-          ...options,
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        return response;
-      } catch (error) {
-        clearTimeout(timeoutId);
-        if (error instanceof Error && error.name === 'AbortError') {
-          throw new Error(`Request timed out after ${safeTimeout / 1000} seconds. Serverless functions have strict time limits. Try a shorter request.`);
-        }
-        throw error;
-      }
-    };
-
     // Perform web search if enabled for compatible models (Gemini and Grok)
     if (webSearchEnabled && (provider === "gemini" || provider === "grok")) {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage && lastMessage.role === "user") {
         try {
-          console.log("Performing web search for:", lastMessage.content);
           
           const searchResponse = await fetchWithTimeout(`${new URL(request.url).origin}/api/web-search`, {
             method: "POST",
@@ -356,7 +393,7 @@ Please provide a comprehensive response using the above search results.`;
           parts: [{ text: m.content }]
         }));
         
-        console.log("Gemini request - messages:", JSON.stringify(geminiMessages, null, 2));
+
         
         // Use correct Gemini 2.5 model names
         let geminiModel = "gemini-1.5-pro"; // Default fallback
@@ -543,7 +580,7 @@ Please provide a comprehensive response using the above search results.`;
         const mistralParams = getOptimizedParams(15000, 2500);
         const mistralMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
         
-        console.log("Mistral request - messages:", JSON.stringify(mistralMessages, null, 2));
+
         
         // Map model names to Mistral API model names
         let mistralModel = "mistral-large-latest";
@@ -552,7 +589,7 @@ Please provide a comprehensive response using the above search results.`;
         else if (model.includes("small")) mistralModel = "mistral-small-latest";
         else if (model.includes("codestral")) mistralModel = "codestral-latest";
         
-        console.log("Using Mistral model:", mistralModel);
+        
         
         response = await fetchWithTimeout("https://api.mistral.ai/v1/chat/completions", {
           method: "POST",

@@ -570,10 +570,16 @@ export default function Home() {
     if (!message.trim() && !attachments?.length) return
 
     // Create a conversation if none exists
+    let activeConversationId = currentConversationId
     if (conversations.length === 0 || !currentConversationId) {
       await handleCreateConversation()
-      // Wait a moment for the conversation to be created
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Wait for state to update and get the new conversation ID
+      await new Promise(resolve => setTimeout(resolve, 200))
+      // Use the most recent conversation if current ID is still empty
+      if (!currentConversationId && conversations.length > 0) {
+        activeConversationId = conversations[conversations.length - 1].id
+        setCurrentConversationId(activeConversationId)
+      }
     }
 
     // Check if any models are available
@@ -604,7 +610,7 @@ export default function Home() {
 
     // Clean up any existing error messages from the current conversation
     const cleanedConversations = conversations.map(conv =>
-      conv.id === currentConversationId
+      conv.id === activeConversationId
         ? {
             ...conv,
             messages: conv.messages.filter(msg => !msg.isError)
@@ -625,7 +631,7 @@ export default function Home() {
 
     // Add user message to conversation (using cleaned conversations)
     const updatedConversations = cleanedConversations.map(conv =>
-      conv.id === currentConversationId
+      conv.id === activeConversationId
         ? {
             ...conv,
             messages: [...conv.messages, userMessage],
@@ -644,7 +650,7 @@ export default function Home() {
         await createMessage({
           content: message,
           role: 'user',
-          conversation_id: currentConversationId,
+          conversation_id: activeConversationId,
           attachments: attachments || []
         })
       }
@@ -658,7 +664,7 @@ export default function Home() {
       }
 
       // Filter out error messages before sending to API
-      const currentConv = updatedConversations.find(conv => conv.id === currentConversationId)
+      const currentConv = updatedConversations.find(conv => conv.id === activeConversationId)
       const cleanMessages = (currentConv?.messages || [])
         .filter(msg => !msg.isError) // Remove error messages
         .map(msg => ({
@@ -702,7 +708,7 @@ export default function Home() {
 
       // Add assistant message to conversation
       const finalConversations = conversations.map(conv =>
-        conv.id === currentConversationId
+        conv.id === activeConversationId
           ? {
               ...conv,
               messages: [...conv.messages, userMessage, assistantMessage],
@@ -718,18 +724,18 @@ export default function Home() {
         await createMessage({
           content: data.content,
           role: 'assistant',
-          conversation_id: currentConversationId,
+          conversation_id: activeConversationId,
           search_results: data.searchResults || []
         })
 
         // Update conversation timestamp and title if it's the first message
-        const conversation = conversations.find(conv => conv.id === currentConversationId)
+        const conversation = conversations.find(conv => conv.id === activeConversationId)
         const updateData: any = { updated_at: new Date().toISOString() }
         if (conversation && conversation.messages.length === 0) {
           updateData.title = message.slice(0, 50) + (message.length > 50 ? '...' : '')
         }
         
-        await updateConversation(currentConversationId, updateData)
+        await updateConversation(activeConversationId, updateData)
       }
 
     } catch (error) {
