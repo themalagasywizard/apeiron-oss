@@ -89,6 +89,16 @@ type UIConversation = DBConversation & {
   messages: UIMessage[]
 }
 
+type UIProject = {
+  id: string
+  name: string
+  description?: string | null
+  user_id: string
+  created_at: string
+  updated_at: string
+  color?: string | null
+}
+
 export default function Home() {
   // Authentication state
   const { 
@@ -121,8 +131,9 @@ export default function Home() {
     selectedTheme: "basic"
   })
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [projects, setProjects] = useState<DBProject[]>([])
+  const [projects, setProjects] = useState<UIProject[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({})
   const [dataLoading, setDataLoading] = useState(false)
   const [migrationCompleted, setMigrationCompleted] = useState(false)
 
@@ -197,7 +208,7 @@ export default function Home() {
               timestamp: new Date(msg.timestamp)
             })),
             user_id: "local",
-            project_id: null,
+            project_id: conv.project_id || null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }))
@@ -213,6 +224,30 @@ export default function Home() {
         console.error("Failed to load local conversations:", error)
         // Don't create fallback conversations - start with empty state
         setConversations([])
+      }
+    }
+
+    const loadLocalProjects = () => {
+      try {
+        const saved = localStorage.getItem("t3-chat-projects")
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          const mappedProjects = parsed.map((proj: any) => ({
+            id: proj.id,
+            name: proj.name,
+            description: proj.description || null,
+            user_id: "local",
+            created_at: proj.created_at || new Date().toISOString(),
+            updated_at: proj.updated_at || new Date().toISOString(),
+            color: proj.color || null
+          }))
+          setProjects(mappedProjects)
+        } else {
+          setProjects([])
+        }
+      } catch (error) {
+        console.error("Failed to load local projects:", error)
+        setProjects([])
       }
     }
 
@@ -253,6 +288,7 @@ export default function Home() {
     }
     
     loadLocalConversations() // Load local conversations for non-authenticated users
+    loadLocalProjects() // Load local projects for non-authenticated users
     setIsClient(true) // Set client to true after settings are loaded
   }, [])
 
@@ -342,7 +378,8 @@ export default function Home() {
           title: conv.title,
           timestamp: conv.updated_at,
           model: conv.model,
-          messages: conv.messages
+          messages: conv.messages,
+          project_id: conv.project_id
         }))
         localStorage.setItem("t3-chat-conversations", JSON.stringify(localConversations))
       } catch (error) {
@@ -351,93 +388,148 @@ export default function Home() {
     }
   }
 
-  const handleCreateProject = async (name: string, description?: string) => {
-    if (!isAuthenticated || !user) {
-      console.log('Project creation requires authentication')
-      return
-    }
-
-    try {
-      const newProject = await createProject({
-        name,
-        description: description || '',
-        user_id: user.id
-      })
-      setProjects(prev => [...prev, newProject])
-    } catch (error) {
-      console.error('Error creating project:', error)
+  const saveProjectsLocally = (updatedProjects: UIProject[]) => {
+    if (!isAuthenticated) {
+      // Save to localStorage for non-authenticated users
+      try {
+        const localProjects = updatedProjects.map(proj => ({
+          id: proj.id,
+          name: proj.name,
+          description: proj.description,
+          created_at: proj.created_at,
+          updated_at: proj.updated_at,
+          color: proj.color
+        }))
+        localStorage.setItem("t3-chat-projects", JSON.stringify(localProjects))
+      } catch (error) {
+        console.error("Failed to save projects locally:", error)
+      }
     }
   }
 
-  const handleUpdateProject = async (id: string, updates: Partial<DBProject>) => {
-    if (!isAuthenticated) return
+  const handleCreateProject = async (name: string = "New Project", description?: string) => {
+    const newProject: UIProject = {
+      id: Date.now().toString(),
+      name,
+      description: description || null,
+      user_id: user?.id || "local",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      color: null
+    }
 
-    try {
-      await updateProject(id, updates)
-      setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
-    } catch (error) {
-      console.error('Error updating project:', error)
+    if (isAuthenticated && user) {
+      try {
+        const dbProject = await createProject({
+          name,
+          description: description || '',
+          user_id: user.id
+        })
+        newProject.id = dbProject.id
+        newProject.created_at = dbProject.created_at
+        newProject.updated_at = dbProject.updated_at
+        newProject.description = dbProject.description
+        newProject.color = dbProject.color
+      } catch (error) {
+        console.error('Error creating project in database:', error)
+      }
+    }
+
+    const updatedProjects = [...projects, newProject]
+    setProjects(updatedProjects)
+    saveProjectsLocally(updatedProjects)
+    return newProject.id
+  }
+
+  const handleUpdateProject = async (id: string, updates: Partial<UIProject>) => {
+    const updatedProjects = projects.map(p => 
+      p.id === id ? { ...p, ...updates, updated_at: new Date().toISOString() } : p
+    )
+    setProjects(updatedProjects)
+    saveProjectsLocally(updatedProjects)
+
+    if (isAuthenticated) {
+      try {
+        await updateProject(id, updates)
+      } catch (error) {
+        console.error('Error updating project:', error)
+      }
     }
   }
 
   const handleDeleteProject = async (id: string) => {
-    if (!isAuthenticated) return
+    const updatedProjects = projects.filter(p => p.id !== id)
+    setProjects(updatedProjects)
+    saveProjectsLocally(updatedProjects)
+    
+    // Update conversations that were in this project
+    const updatedConversations = conversations.map(conv => 
+      conv.project_id === id 
+        ? { ...conv, project_id: null }
+        : conv
+    )
+    setConversations(updatedConversations)
+    saveConversationsLocally(updatedConversations)
+    
+    if (selectedProjectId === id) {
+      setSelectedProjectId(null)
+    }
 
-    try {
-      await deleteProject(id)
-      setProjects(prev => prev.filter(p => p.id !== id))
-      
-      // Update conversations that were in this project
-      setConversations(prev => prev.map(conv => 
-        conv.project_id === id 
-          ? { ...conv, project_id: null }
-          : conv
-      ))
-      
-      if (selectedProjectId === id) {
-        setSelectedProjectId(null)
+    if (isAuthenticated) {
+      try {
+        await deleteProject(id)
+      } catch (error) {
+        console.error('Error deleting project:', error)
       }
-    } catch (error) {
-      console.error('Error deleting project:', error)
     }
   }
 
   const handleSelectProject = (projectId: string | null) => {
     setSelectedProjectId(projectId)
     
-    // Find first conversation in this project or show all if no project selected
+    // Find the most recent conversation in this project
     const projectConversations = projectId 
       ? conversations.filter(conv => conv.project_id === projectId)
       : conversations
     
     if (projectConversations.length > 0) {
-      setCurrentConversationId(projectConversations[0].id)
+      // Sort by updated_at to get the most recent conversation
+      const sortedConversations = projectConversations.sort((a, b) => 
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      )
+      setCurrentConversationId(sortedConversations[0].id)
     }
   }
 
   const handleMoveConversation = async (conversationId: string, projectId: string | null) => {
-    if (!isAuthenticated) return
+    const updatedConversations = conversations.map(conv => 
+      conv.id === conversationId 
+        ? { ...conv, project_id: projectId, updated_at: new Date().toISOString() }
+        : conv
+    )
+    setConversations(updatedConversations)
+    saveConversationsLocally(updatedConversations)
 
-    try {
-      await updateConversation(conversationId, { project_id: projectId })
-      setConversations(prev => prev.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, project_id: projectId }
-          : conv
-      ))
-    } catch (error) {
-      console.error('Error moving conversation:', error)
+    if (isAuthenticated) {
+      try {
+        await updateConversation(conversationId, { project_id: projectId })
+      } catch (error) {
+        console.error('Error moving conversation:', error)
+      }
     }
   }
 
   const handleCreateConversation = async () => {
+    // Only assign to project if it's both selected AND expanded
+    const shouldAssignToProject = selectedProjectId && expandedProjects[selectedProjectId]
+    
     const newConversation: UIConversation = {
       id: Date.now().toString(),
       title: "New Conversation",
       model: currentModel,
       messages: [],
       user_id: user?.id || "local",
-      project_id: selectedProjectId,
+      project_id: shouldAssignToProject ? selectedProjectId : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
@@ -448,7 +540,7 @@ export default function Home() {
           title: newConversation.title,
           model: newConversation.model,
           user_id: user.id,
-          project_id: selectedProjectId
+          project_id: shouldAssignToProject ? selectedProjectId : null
         })
         newConversation.id = dbConversation.id
         newConversation.created_at = dbConversation.created_at
@@ -531,6 +623,14 @@ export default function Home() {
     }
   }
 
+  const handleRenameProject = async (id: string, newName: string) => {
+    await handleUpdateProject(id, { name: newName })
+  }
+
+  const handleExpandedProjectsChange = (newExpandedProjects: Record<string, boolean>) => {
+    setExpandedProjects(newExpandedProjects)
+  }
+
   const handleDeleteConversation = async (id: string) => {
     try {
       // Remove from local state
@@ -538,13 +638,13 @@ export default function Home() {
       setConversations(updatedConversations)
       saveConversationsLocally(updatedConversations)
 
-      // If this was the current conversation, switch to another one or create a new one
+      // If this was the current conversation, switch to another one or clear current ID
       if (currentConversationId === id) {
         if (updatedConversations.length > 0) {
           setCurrentConversationId(updatedConversations[0].id)
         } else {
-          // Create a new conversation if no conversations left
-          await handleCreateConversation()
+          // Don't create a new conversation - just clear the current ID
+          setCurrentConversationId("")
         }
       }
 
@@ -571,15 +671,47 @@ export default function Home() {
 
     // Create a conversation if none exists
     let activeConversationId = currentConversationId
+    let workingConversations = conversations
+
     if (conversations.length === 0 || !currentConversationId) {
-      await handleCreateConversation()
-      // Wait for state to update and get the new conversation ID
-      await new Promise(resolve => setTimeout(resolve, 200))
-      // Use the most recent conversation if current ID is still empty
-      if (!currentConversationId && conversations.length > 0) {
-        activeConversationId = conversations[conversations.length - 1].id
-        setCurrentConversationId(activeConversationId)
+      // Create a new conversation immediately with the message as title
+      const title = message.slice(0, 50) + (message.length > 50 ? '...' : '')
+      
+      // Only assign to project if it's both selected AND expanded
+      const shouldAssignToProject = selectedProjectId && expandedProjects[selectedProjectId]
+      
+      const newConversation: UIConversation = {
+        id: Date.now().toString(),
+        title: title,
+        model: currentModel,
+        messages: [],
+        user_id: user?.id || "local",
+        project_id: shouldAssignToProject ? selectedProjectId : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
+
+      if (isAuthenticated && user) {
+        try {
+          const dbConversation = await createConversation({
+            title: newConversation.title,
+            model: newConversation.model,
+            user_id: user.id,
+            project_id: shouldAssignToProject ? selectedProjectId : null
+          })
+          newConversation.id = dbConversation.id
+          newConversation.created_at = dbConversation.created_at
+          newConversation.updated_at = dbConversation.updated_at
+        } catch (error) {
+          console.error('Error creating conversation in database:', error)
+        }
+      }
+
+      workingConversations = [...conversations, newConversation]
+      activeConversationId = newConversation.id
+      setConversations(workingConversations)
+      setCurrentConversationId(activeConversationId)
+      saveConversationsLocally(workingConversations)
     }
 
     // Check if any models are available
@@ -594,8 +726,8 @@ export default function Home() {
         isError: false
       }
 
-      const infoConversations = conversations.map(conv =>
-        conv.id === currentConversationId
+      const infoConversations = workingConversations.map(conv =>
+        conv.id === activeConversationId
           ? {
               ...conv,
               messages: [...conv.messages, infoMessage],
@@ -609,7 +741,7 @@ export default function Home() {
     }
 
     // Clean up any existing error messages from the current conversation
-    const cleanedConversations = conversations.map(conv =>
+    const cleanedConversations = workingConversations.map(conv =>
       conv.id === activeConversationId
         ? {
             ...conv,
@@ -707,11 +839,11 @@ export default function Home() {
       }
 
       // Add assistant message to conversation
-      const finalConversations = conversations.map(conv =>
+      const finalConversations = updatedConversations.map(conv =>
         conv.id === activeConversationId
           ? {
               ...conv,
-              messages: [...conv.messages, userMessage, assistantMessage],
+              messages: [...conv.messages, assistantMessage],
               updated_at: new Date().toISOString()
             }
           : conv
@@ -728,14 +860,10 @@ export default function Home() {
           search_results: data.searchResults || []
         })
 
-        // Update conversation timestamp and title if it's the first message
-        const conversation = conversations.find(conv => conv.id === activeConversationId)
-        const updateData: any = { updated_at: new Date().toISOString() }
-        if (conversation && conversation.messages.length === 0) {
-          updateData.title = message.slice(0, 50) + (message.length > 50 ? '...' : '')
-        }
-        
-        await updateConversation(activeConversationId, updateData)
+        // Update conversation timestamp
+        await updateConversation(activeConversationId, { 
+          updated_at: new Date().toISOString() 
+        })
       }
 
     } catch (error) {
@@ -754,8 +882,8 @@ export default function Home() {
         }
       }
 
-      const errorConversations = conversations.map(conv =>
-        conv.id === currentConversationId
+      const errorConversations = updatedConversations.map(conv =>
+        conv.id === activeConversationId
           ? {
               ...conv,
               messages: [...conv.messages, errorMessage],
@@ -936,12 +1064,17 @@ export default function Home() {
           onSelectModel={setCurrentModel}
           onCreateConversation={handleCreateConversation}
           onCreateProject={() => handleCreateProject('New Project')}
+          onSelectProject={handleSelectProject}
+          onRenameProject={handleRenameProject}
+          onDeleteProject={handleDeleteProject}
+          onMoveConversation={handleMoveConversation}
           onToggleTheme={() => {/* Handle theme toggle */}}
           onLogout={isAuthenticated ? handleLogout : undefined}
           onLogin={!isAuthenticated ? handleLogin : undefined}
           isAuthenticated={isAuthenticated}
           user={user}
           authLoading={authLoading || dataLoading}
+          selectedProjectId={selectedProjectId}
           onSaveSettings={(settings) => {
             setUserSettings(settings)
             if (typeof window !== 'undefined') {
@@ -954,6 +1087,7 @@ export default function Home() {
             // Implement retry logic
             console.log('Retry message:', messageId)
           }}
+          onExpandedProjectsChange={handleExpandedProjectsChange}
         />
       </div>
 

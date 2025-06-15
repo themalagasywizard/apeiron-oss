@@ -133,16 +133,22 @@ type MainUIProps = {
   onSelectModel?: (id: string) => void
   onCreateConversation?: () => void
   onCreateProject?: () => void
+  onSelectProject?: (projectId: string | null) => void
+  onRenameProject?: (id: string, newName: string) => void
+  onDeleteProject?: (id: string) => void
+  onMoveConversation?: (conversationId: string, projectId: string | null) => void
   onToggleTheme?: () => void
   onLogout?: () => void
   onLogin?: () => void
   isAuthenticated?: boolean
   user?: any
   authLoading?: boolean
+  selectedProjectId?: string | null
   onSaveSettings?: (settings: any) => void
   onRenameConversation?: (id: string, newTitle: string) => void
   onDeleteConversation?: (id: string) => void
   onRetryMessage?: (messageId: string) => void
+  onExpandedProjectsChange?: (expandedProjects: Record<string, boolean>) => void
 }
 
 export default function MainUI({
@@ -178,16 +184,22 @@ export default function MainUI({
   onSelectModel = () => {},
   onCreateConversation = () => {},
   onCreateProject = () => {},
+  onSelectProject = () => {},
+  onRenameProject = () => {},
+  onDeleteProject = () => {},
+  onMoveConversation = () => {},
   onToggleTheme = () => {},
   onLogout = () => {},
   onLogin = () => {},
   isAuthenticated = false,
   user = null,
   authLoading = false,
+  selectedProjectId = null,
   onSaveSettings = () => {},
   onRenameConversation = () => {},
   onDeleteConversation = () => {},
   onRetryMessage = () => {},
+  onExpandedProjectsChange = () => {},
 }: MainUIProps) {
   // Comprehensive model library with latest versions
   const modelLibrary = {
@@ -335,6 +347,10 @@ export default function MainUI({
   const [error, setError] = useState<string | null>(null)
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [editingProjectName, setEditingProjectName] = useState("")
+  const [draggedConversationId, setDraggedConversationId] = useState<string | null>(null)
+  const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null)
   const [editingProvider, setEditingProvider] = useState<string | null>(null) // Track which provider is being edited
   const [tempSelectedModels, setTempSelectedModels] = useState<{ [provider: string]: string[] }>({}) // Temporary selection during editing
 
@@ -534,20 +550,22 @@ export default function MainUI({
 
   const handleRenameKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
-      e.preventDefault()
       handleSaveRename()
     } else if (e.key === "Escape") {
-      e.preventDefault()
       handleCancelRename()
     }
   }
 
   // Toggle project expansion
   const toggleProject = (projectId: string) => {
-    setExpandedProjects((prev) => ({
-      ...prev,
-      [projectId]: !prev[projectId],
-    }))
+    setExpandedProjects((prev) => {
+      const newExpandedProjects = {
+        ...prev,
+        [projectId]: !prev[projectId],
+      }
+      onExpandedProjectsChange?.(newExpandedProjects)
+      return newExpandedProjects
+    })
   }
 
   // Add new model (save API keys and enable sub-models)
@@ -1069,6 +1087,62 @@ export default function MainUI({
     }, 100)
   }, [currentConversation.id])
 
+  const handleStartProjectRename = (projectId: string, currentName: string) => {
+    setEditingProjectId(projectId)
+    setEditingProjectName(currentName)
+  }
+
+  const handleSaveProjectRename = () => {
+    if (editingProjectId && editingProjectName.trim()) {
+      onRenameProject?.(editingProjectId, editingProjectName.trim())
+    }
+    setEditingProjectId(null)
+    setEditingProjectName("")
+  }
+
+  const handleCancelProjectRename = () => {
+    setEditingProjectId(null)
+    setEditingProjectName("")
+  }
+
+  const handleProjectRenameKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSaveProjectRename()
+    } else if (e.key === "Escape") {
+      handleCancelProjectRename()
+    }
+  }
+
+  // Drag and drop handlers for conversations
+  const handleConversationDragStart = (e: React.DragEvent, conversationId: string) => {
+    setDraggedConversationId(conversationId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleConversationDragEnd = () => {
+    setDraggedConversationId(null)
+    setDragOverProjectId(null)
+  }
+
+  const handleProjectDragOver = (e: React.DragEvent, projectId: string | null) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverProjectId(projectId)
+  }
+
+  const handleProjectDragLeave = () => {
+    setDragOverProjectId(null)
+  }
+
+  const handleProjectDrop = (e: React.DragEvent, projectId: string | null) => {
+    e.preventDefault()
+    if (draggedConversationId) {
+      onMoveConversation?.(draggedConversationId, projectId)
+    }
+    setDraggedConversationId(null)
+    setDragOverProjectId(null)
+  }
+
   return (
     <div
       className="font-inter h-screen flex bg-background"
@@ -1148,20 +1222,26 @@ export default function MainUI({
                         <div className="text-xs">Click "New Chat" or start typing to begin</div>
                       </div>
                     ) : (
-                      conversations.map((conversation) => (
-                      <div
-                        key={conversation.id}
-                        className={`
-                          w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-200
-                          hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer group
-                          ${
-                            currentConversation.id === conversation.id
-                              ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
-                              : "bg-transparent"
-                          }
-                        `}
-                        onClick={() => onSelectConversation(conversation.id)}
-                      >
+                                            conversations
+                        .filter(conv => !projects.some(proj => proj.conversations.includes(conv.id))) // Only show unorganized conversations
+                        .map((conversation) => (
+                                              <div
+                          key={conversation.id}
+                          draggable
+                          onDragStart={(e) => handleConversationDragStart(e, conversation.id)}
+                          onDragEnd={handleConversationDragEnd}
+                          className={`
+                            w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-200
+                            hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer group
+                            ${draggedConversationId === conversation.id ? 'opacity-50' : ''}
+                            ${
+                              currentConversation.id === conversation.id
+                                ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
+                                : "bg-transparent"
+                            }
+                          `}
+                          onClick={() => onSelectConversation(conversation.id)}
+                        >
                         <div className="flex items-center justify-between">
                           <div className="flex-1 min-w-0">
                             {editingConversationId === conversation.id ? (
@@ -1225,92 +1305,171 @@ export default function MainUI({
                     </button>
                   </div>
 
-                  <div className="mt-2 space-y-1">
+                  {/* Unorganized conversations drop zone */}
+                  <div 
+                    className={`mt-2 mb-2 p-2 rounded-lg border-2 border-dashed transition-colors ${
+                      dragOverProjectId === null && draggedConversationId
+                        ? 'border-purple-400 bg-purple-50/10 dark:bg-purple-900/10'
+                        : 'border-gray-300/30 dark:border-gray-600/30'
+                    }`}
+                    onDragOver={(e) => handleProjectDragOver(e, null)}
+                    onDragLeave={handleProjectDragLeave}
+                    onDrop={(e) => handleProjectDrop(e, null)}
+                  >
+                    <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                      {draggedConversationId ? 'Drop here to remove from project' : 'Unorganized conversations'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
                     {projects.map((project) => (
                       <div key={project.id}>
-                        <button
-                          onClick={() => toggleProject(project.id)}
-                          className="w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between hover:bg-white/20 dark:hover:bg-gray-800/40 transition-all duration-200"
+                        <div 
+                          className={`group relative rounded-lg transition-all duration-200 ${
+                            dragOverProjectId === project.id 
+                              ? 'bg-purple-50/20 dark:bg-purple-900/20 border-2 border-purple-400 border-dashed' 
+                              : 'border-2 border-transparent'
+                          } ${
+                            selectedProjectId === project.id
+                              ? 'bg-white/30 dark:bg-gray-800/60 shadow-sm'
+                              : 'hover:bg-white/20 dark:hover:bg-gray-800/40'
+                          }`}
+                          onDragOver={(e) => handleProjectDragOver(e, project.id)}
+                          onDragLeave={handleProjectDragLeave}
+                          onDrop={(e) => handleProjectDrop(e, project.id)}
                         >
-                          <span className="font-medium text-gray-800 dark:text-gray-200">{project.name}</span>
-                          <div className="flex items-center">
-                            <span className="text-xs mr-2 text-gray-500 dark:text-gray-400">
-                              {project.conversations.length}
-                            </span>
-                            {expandedProjects[project.id] ? (
-                              <ChevronDown className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                            )}
+                          <div className="flex items-center justify-between px-3 py-2">
+                            <div className="flex items-center flex-1 min-w-0">
+                              <button
+                                onClick={() => {
+                                  onSelectProject?.(project.id)
+                                  toggleProject(project.id)
+                                }}
+                                className="flex items-center flex-1 min-w-0 text-left"
+                              >
+                                {expandedProjects[project.id] ? (
+                                  <ChevronDown className="w-4 h-4 text-gray-600 dark:text-gray-400 mr-2 flex-shrink-0" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400 mr-2 flex-shrink-0" />
+                                )}
+                                
+                                {editingProjectId === project.id ? (
+                                  <input
+                                    type="text"
+                                    value={editingProjectName}
+                                    onChange={(e) => setEditingProjectName(e.target.value)}
+                                    onKeyDown={handleProjectRenameKeyPress}
+                                    onBlur={handleSaveProjectRename}
+                                    className="flex-1 font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
+                                    autoFocus
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                ) : (
+                                  <span 
+                                    className="font-medium text-gray-800 dark:text-gray-200 truncate"
+                                    title="Double-click to rename project"
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStartProjectRename(project.id, project.name);
+                                    }}
+                                  >
+                                    {project.name}
+                                  </span>
+                                )}
+                              </button>
+                              
+                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
+                                {project.conversations.length}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (window.confirm('Are you sure you want to delete this project? Conversations will be moved to unorganized.')) {
+                                    onDeleteProject?.(project.id)
+                                  }
+                                }}
+                                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                title="Delete project"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
-                        </button>
 
-                        {expandedProjects[project.id] && (
-                          <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200/30 dark:border-gray-600/15 pl-2">
-                            {project.conversations.map((convId) => {
-                              const conv = conversations.find((c) => c.id === convId)
-                              if (!conv) return null
+                          {expandedProjects[project.id] && (
+                            <div className="ml-6 pb-2 space-y-1 border-l-2 border-gray-200/30 dark:border-gray-600/15 pl-2">
+                              {project.conversations.map((convId) => {
+                                const conv = conversations.find((c) => c.id === convId)
+                                if (!conv) return null
 
-                              return (
-                                <div
-                                  key={conv.id}
-                                  onClick={() => onSelectConversation(conv.id)}
-                                  className={`
-                                    w-full text-left px-3 py-1.5 rounded-lg text-xs transition-all duration-200
-                                    hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer group relative
-                                    ${
-                                      currentConversation.id === conv.id
-                                        ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
-                                        : "bg-transparent"
-                                    }
-                                  `}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1 min-w-0">
-                                      {editingConversationId === conv.id ? (
-                                        <input
-                                          type="text"
-                                          value={editingTitle}
-                                          onChange={(e) => setEditingTitle(e.target.value)}
-                                          onKeyDown={handleRenameKeyPress}
-                                          onBlur={handleSaveRename}
-                                          className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
-                                          autoFocus
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                      ) : (
-                                        <div 
-                                          className="font-medium text-gray-800 dark:text-gray-200 truncate"
-                                          title="Double-click to rename conversation"
-                                          onDoubleClick={(e) => {
-                                            e.stopPropagation();
-                                            handleStartRename(conv.id, conv.title);
-                                          }}
-                                        >
-                                        {conv.title}
+                                return (
+                                  <div
+                                    key={conv.id}
+                                    draggable
+                                    onDragStart={(e) => handleConversationDragStart(e, conv.id)}
+                                    onDragEnd={handleConversationDragEnd}
+                                    onClick={() => onSelectConversation(conv.id)}
+                                    className={`
+                                      w-full text-left px-3 py-1.5 rounded-lg text-xs transition-all duration-200
+                                      hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer group relative
+                                      ${draggedConversationId === conv.id ? 'opacity-50' : ''}
+                                      ${
+                                        currentConversation.id === conv.id
+                                          ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
+                                          : "bg-transparent"
+                                      }
+                                    `}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex-1 min-w-0">
+                                        {editingConversationId === conv.id ? (
+                                          <input
+                                            type="text"
+                                            value={editingTitle}
+                                            onChange={(e) => setEditingTitle(e.target.value)}
+                                            onKeyDown={handleRenameKeyPress}
+                                            onBlur={handleSaveRename}
+                                            className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
+                                            autoFocus
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        ) : (
+                                          <div 
+                                            className="font-medium text-gray-800 dark:text-gray-200 truncate"
+                                            title="Double-click to rename conversation"
+                                            onDoubleClick={(e) => {
+                                              e.stopPropagation();
+                                              handleStartRename(conv.id, conv.title);
+                                            }}
+                                          >
+                                            {conv.title}
+                                          </div>
+                                        )}
                                       </div>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          if (window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
-                                            onDeleteConversation(conv.id)
-                                          }
-                                        }}
-                                        className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                        title="Delete conversation"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
+                                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            if (window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+                                              onDeleteConversation(conv.id)
+                                            }
+                                          }}
+                                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                          title="Delete conversation"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
