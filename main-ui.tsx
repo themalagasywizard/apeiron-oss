@@ -843,11 +843,11 @@ export default function MainUI({
       // Clean markdown formatting to HTML
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">$1</code>')
+      .replace(/`(.*?)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-sm font-mono">$1</code>')
       // Handle web search results - convert numbered citations with actual links
       .replace(/\[(\d+)\]/g, '<a href="#source-$1" class="text-xs align-super bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded-sm no-underline hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer" onclick="scrollToSource($1)">$1</a>')
       // Handle legacy source format  
-      .replace(/\[source:\s*(\d+)]/g, '<a href="#source-$1" class="text-xs align-super bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1 py-0.5 rounded-sm no-underline">$1</a>')
+              .replace(/\[source:\s*(\d+)]/g, '<a href="#source-$1" class="text-xs align-super bg-muted text-muted-foreground px-1 py-0.5 rounded-sm no-underline">$1</a>')
       // Enhanced markdown links handling - make them more prominent for citations
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
         // Check if this looks like a web search result citation
@@ -883,9 +883,9 @@ export default function MainUI({
         
         // Add language-specific styling
         const languageClass = lang ? `language-${lang.toLowerCase()}` : '';
-        const languageLabel = lang ? `<span class="absolute top-2 right-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">${lang}</span>` : '';
+        const languageLabel = lang ? `<span class="absolute top-2 right-2 text-xs text-muted-foreground bg-muted px-2 py-1 rounded">${lang}</span>` : '';
         
-        return `<div class="relative"><pre class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto my-4 ${languageClass}"><code class="font-mono text-sm">${escapedCode}</code></pre>${languageLabel}</div>`;
+        return `<div class="relative"><pre class="bg-muted p-4 rounded-lg overflow-x-auto my-4 ${languageClass}"><code class="font-mono text-sm">${escapedCode}</code></pre>${languageLabel}</div>`;
       })
       // Handle bullet points with proper spacing
       .replace(/^[\s]*[-*+]\s+(.+)$/gm, '<li class="mb-2">$1</li>')
@@ -955,7 +955,7 @@ export default function MainUI({
 
   return (
     <div
-      className={`font-inter h-screen flex ${theme === "dark" ? "dark bg-gradient-to-br from-gray-900 to-gray-800" : "bg-gradient-to-br from-gray-50 to-white"}`}
+      className="font-inter h-screen flex bg-background"
     >
       <div className="flex flex-1 overflow-hidden">
         {/* Mobile Menu Button (only visible when sidebar is closed) */}
