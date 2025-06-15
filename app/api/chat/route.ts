@@ -114,11 +114,10 @@ export async function POST(request: NextRequest) {
       isCodeRequest = false; // Fallback to false if detection fails
     }
 
-    // In production (Netlify), route code generation requests to Edge Function for better performance
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.NETLIFY === 'true';
-    if (isCodeRequest && isProduction) {
+    // Route code generation requests to Edge Function for better performance (both dev and production)
+    if (isCodeRequest) {
       try {
-        console.log('Routing code generation request to edge function in production');
+        console.log('Routing code generation request to edge function for optimal performance');
         const edgeFunctionUrl = `${new URL(request.url).origin}/api/generate-code`;
         
         const edgeResponse = await fetchWithTimeout(edgeFunctionUrl, {
@@ -134,7 +133,7 @@ export async function POST(request: NextRequest) {
             temperature,
             customModelName
           })
-        }, 90000); // 90 second timeout for edge function (allows more time for code generation)
+        }, 120000); // 2 minute timeout for edge function (allows more time for quality code generation)
 
         if (!edgeResponse.ok) {
           const errorText = await edgeResponse.text().catch(() => 'Unknown error');
@@ -166,8 +165,6 @@ export async function POST(request: NextRequest) {
         console.error('Edge function failed, falling back to serverless:', edgeError);
         // Continue with regular serverless processing as fallback
       }
-    } else if (isCodeRequest && !isProduction) {
-      console.log('Code generation request in development mode - using serverless function');
     }
 
     // Optimize parameters for code generation
@@ -223,15 +220,30 @@ export async function POST(request: NextRequest) {
         if ((isCodeRequest || codeGenerationEnabled) && cleanedMessages.length > 0) {
           const lastMessage = cleanedMessages[cleanedMessages.length - 1];
           if (lastMessage.role === "user") {
-            lastMessage.content = `${lastMessage.content}
+            lastMessage.content = `EXPERT CODE GENERATION MODE:
 
-IMPORTANT CODE GENERATION INSTRUCTIONS:
-- Provide complete, working code that can be run immediately
-- Include all necessary imports, dependencies, and setup
-- Use modern best practices and clean, readable code
-- Add helpful comments explaining key functionality
-- If creating a web page/app, make it visually appealing with good UX
-- Ensure the code is production-ready and follows security best practices`;
+You are an expert developer. Generate high-quality, production-ready code based on this request:
+
+"${lastMessage.content}"
+
+REQUIREMENTS:
+- Generate complete, working code that runs immediately
+- Use modern best practices and clean architecture
+- Include comprehensive styling for web projects (CSS/HTML)
+- Add meaningful comments and documentation
+- Ensure responsive design for web interfaces
+- Follow security best practices
+- Make it visually appealing with excellent UX/UI
+- Include all necessary dependencies and imports
+- Provide complete file structure when needed
+
+OUTPUT FORMAT:
+- Use proper code blocks with language specification
+- For web projects, provide complete HTML with embedded CSS
+- Include JavaScript functionality when appropriate
+- Ensure all code is properly formatted and indented
+
+Generate the complete solution now:`;
           }
         }
         

@@ -81,30 +81,31 @@ export default async (request, context) => {
         const lastMessage = optimizedMessages[optimizedMessages.length - 1];
         
         if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
-          const codeInstructions = `CODE GENERATION MODE: Provide only working code. No explanations. No tutorials.
+          // More sophisticated code generation instructions that don't restrict output
+          const codeInstructions = `EXPERT CODE GENERATION MODE:
 
-For HTML: Complete standalone file with embedded CSS in <style> tags.
+You are an expert developer. Generate high-quality, production-ready code based on this request:
 
-\`\`\`html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Title</title>
-    <style>
-        /* CSS here */
-    </style>
-</head>
-<body>
-    <!-- HTML here -->
-</body>
-</html>
-\`\`\`
+"${lastMessage.content}"
 
-Request: ${lastMessage.content}
+REQUIREMENTS:
+- Generate complete, working code that runs immediately
+- Use modern best practices and clean architecture
+- Include comprehensive styling for web projects (CSS/HTML)
+- Add meaningful comments and documentation
+- Ensure responsive design for web interfaces
+- Follow security best practices
+- Make it visually appealing with excellent UX/UI
+- Include all necessary dependencies and imports
+- Provide complete file structure when needed
 
-Generate code:`;
+OUTPUT FORMAT:
+- Use proper code blocks with language specification
+- For web projects, provide complete HTML with embedded CSS
+- Include JavaScript functionality when appropriate
+- Ensure all code is properly formatted and indented
+
+Generate the complete solution now:`;
 
           optimizedMessages[optimizedMessages.length - 1] = {
             ...lastMessage,
@@ -146,11 +147,11 @@ Generate code:`;
     let response;
     let aiResponse = "";
 
-    // Enhanced parameters for code generation - reduced for faster response
+    // Enhanced parameters for code generation - increased for better quality
     const codeParams = {
-      maxTokens: 4000, // Reduced from 6000 for faster response
+      maxTokens: 8000, // Increased from 4000 for complete code generation
       temperature: 0.1, // Lower temperature for consistent code
-      timeout: 30000   // 30 second timeout instead of 60
+      timeout: 60000   // 60 second timeout for quality generation
     };
 
     switch (provider) {
@@ -180,6 +181,14 @@ Generate code:`;
         break;
 
       case "claude":
+        // Use the latest Claude model for best code generation
+        let claudeModel = "claude-3-5-sonnet-20241022"; // Default to latest Sonnet
+        if (model && model.includes("haiku")) {
+          claudeModel = "claude-3-5-haiku-20241022";
+        } else if (model && model.includes("opus")) {
+          claudeModel = "claude-3-opus-20240229";
+        }
+
         response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -188,7 +197,7 @@ Generate code:`;
             "anthropic-version": "2023-06-01"
           },
           body: JSON.stringify({
-            model: "claude-3-5-sonnet-20241022",
+            model: claudeModel,
             max_tokens: codeParams.maxTokens,
             temperature: codeParams.temperature,
             messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content }))
@@ -205,7 +214,17 @@ Generate code:`;
         break;
 
       case "gemini":
-        response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
+        // Use the correct Gemini model based on the request
+        let geminiModel = "gemini-1.5-pro"; // Default fallback
+        if (model && model.includes("2.5-flash")) {
+          geminiModel = "gemini-2.5-flash-preview-05-20";
+        } else if (model && model.includes("2.5-pro")) {
+          geminiModel = "gemini-2.5-pro-preview-06-05";
+        } else if (model && model.includes("1.5-pro")) {
+          geminiModel = "gemini-1.5-pro";
+        }
+
+        response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
