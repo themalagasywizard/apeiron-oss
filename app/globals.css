@@ -28,7 +28,7 @@
     --radius: 0.5rem;
   }
 
-  /* Basic Theme - Dark Mode (Primary) */
+  /* Basic Theme - Dark Mode (Default/Primary) */
   .theme-basic {
     --background: oklch(0 0 0);
     --foreground: oklch(1 0 0);
@@ -88,6 +88,17 @@
     --sidebar-accent-foreground: oklch(0.1 0 0);
     --sidebar-border: oklch(0.9 0 0);
     --sidebar-ring: oklch(0.25 0 0);
+  }
+
+  /* Ensure light mode overrides work with higher specificity */
+  html.theme-basic.light body {
+    background-color: oklch(1 0 0);
+    color: oklch(0 0 0);
+  }
+
+  html.theme-basic body {
+    background-color: oklch(0 0 0);
+    color: oklch(1 0 0);
   }
 }
 
@@ -169,6 +180,10 @@
   .text-red-700 { color: var(--destructive) !important; }
   .text-red-300 { color: var(--destructive-foreground) !important; }
   .text-red-400 { color: var(--destructive-foreground) !important; }
+
+  /* Force important background overrides for critical elements */
+  body { background-color: var(--background) !important; }
+  .min-h-screen { background-color: var(--background) !important; }
 }
 
 /* Custom scrollbar using theme variables */
@@ -224,6 +239,6 @@
 }
 
 .prose th {
-  background: color-mix(in oklch, var(--muted), transparent 70%);
+  background: color-mix(in oklch, var(--muted), transparent 50%);
   font-weight: 600;
 }
