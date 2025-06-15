@@ -17,7 +17,7 @@ interface VideoPreviewProps {
 
 interface OperationStatus {
   operationName: string
-  status: "processing" | "completed" | "failed"
+  status: "processing" | "completed" | "failed" | "expired"
   progress: number
   videoUrl?: string
   error?: string
@@ -136,6 +136,12 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
           // Create authenticated video URL for playback
           createAuthenticatedVideoUrl(status.videoUrl)
           console.log("Video state updated - should transition to video player")
+        } else if (status.status === "expired") {
+          console.log("Video operation has expired:", status.error);
+          setError(status.error || "Video operation has expired")
+          setIsPolling(false)
+          // Don't call onError for expired operations to avoid blocking new generations
+          console.log("Operation expired - stopping polling gracefully")
         } else if (status.status === "failed") {
           console.log("Video generation failed:", status.error);
           setError(status.error || "Video generation failed")
@@ -206,10 +212,12 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     console.log("operationName:", operationName);
     console.log("apiKey:", apiKey ? "present" : "missing");
     console.log("currentVideoUrl:", currentVideoUrl);
+    console.log("initialVideoUrl:", initialVideoUrl);
     console.log("error:", error);
     console.log("isPolling:", isPolling);
 
-    if (operationName && apiKey && !currentVideoUrl && !error && !isPolling) {
+    // Don't start polling if we already have a video URL from a previous session
+    if (operationName && apiKey && !currentVideoUrl && !initialVideoUrl && !error && !isPolling) {
       console.log("Starting initial poll for operation:", operationName);
       // Add a small delay to prevent race conditions
       setTimeout(() => {
@@ -217,8 +225,11 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       }, 100);
     } else {
       console.log("Polling conditions not met, skipping");
+      if (initialVideoUrl) {
+        console.log("Already have video URL from previous session, not polling");
+      }
     }
-  }, [operationName, apiKey, currentVideoUrl, error])
+  }, [operationName, apiKey, currentVideoUrl, error, initialVideoUrl])
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -269,25 +280,32 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     const isContentFiltered = error.includes("blocked by Google's safety filters") || 
                               error.includes("safety filters") ||
                               error.includes("content policy");
+    const isExpired = error.includes("expired") || error.includes("no longer accessible");
     
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className={`rounded-lg p-6 border ${
-          isContentFiltered 
+          isExpired
+            ? 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700'
+            : isContentFiltered 
             ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
             : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
         }`}
       >
         <div className="flex items-center space-x-3 mb-4">
-          <AlertCircle className={`w-8 h-8 ${isContentFiltered ? 'text-orange-500' : 'text-red-500'}`} />
+          <AlertCircle className={`w-8 h-8 ${
+            isExpired ? 'text-gray-500' : isContentFiltered ? 'text-orange-500' : 'text-red-500'
+          }`} />
           <span className={`text-lg font-medium ${
-            isContentFiltered 
+            isExpired
+              ? 'text-gray-700 dark:text-gray-300'
+              : isContentFiltered 
               ? 'text-orange-800 dark:text-orange-200'
               : 'text-red-800 dark:text-red-200'
           }`}>
-            {isContentFiltered ? '🛡️ Content Filtered' : 'Video Generation Failed'}
+            {isExpired ? '⏰ Video Expired' : isContentFiltered ? '🛡️ Content Filtered' : 'Video Generation Failed'}
           </span>
         </div>
         

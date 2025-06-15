@@ -105,6 +105,23 @@ async function checkOperationStatus(operationName: string, apiKey: string) {
     if (!response.ok) {
       const errorData = await response.text();
       console.error("Operation status check error:", response.status, errorData);
+      
+      // Handle expired or inaccessible operations gracefully
+      if (response.status === 403 || response.status === 404) {
+        console.log("Operation appears to be expired or inaccessible, returning expired status");
+        return {
+          name: operationName,
+          done: true,
+          expired: true,
+          error: {
+            code: response.status,
+            message: response.status === 403 
+              ? "Operation has expired or is no longer accessible"
+              : "Operation not found - may have expired"
+          }
+        };
+      }
+      
       throw new Error(`Status check failed (${response.status}): ${errorData}`);
     }
 
@@ -320,6 +337,26 @@ export async function GET(request: NextRequest) {
     let debugInfo = {};
 
     console.log("Raw status result from Google:", JSON.stringify(statusResult, null, 2));
+
+    // Handle expired operations
+    if (statusResult.expired === true) {
+      console.log("Operation has expired or is no longer accessible");
+      const response = {
+        success: true,
+        data: {
+          operationName: operationName,
+          status: "expired",
+          progress: 0,
+          videoUrl: null,
+          error: "This video operation has expired and is no longer accessible. Please generate a new video.",
+          duration: "N/A",
+          createdAt: new Date().toISOString(),
+          debugInfo: { expired: true, originalError: statusResult.error }
+        }
+      };
+      console.log("Expired operation response:", JSON.stringify(response, null, 2));
+      return NextResponse.json(response);
+    }
 
     if (statusResult.done === true) {
       console.log("Operation is complete!");

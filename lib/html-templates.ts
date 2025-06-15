@@ -317,9 +317,31 @@ export function generateCompletePage(options: {
   return baseHTML.replace('<!-- Content will be inserted here -->', pageContent + themeScript)
 }
 
+// Cache for HTML detection results to prevent repetitive processing
+const htmlDetectionCache = new Map<string, { hasHTML: boolean; htmlContent?: string; filename?: string; timestamp: number }>()
+const CACHE_EXPIRY = 5 * 60 * 1000 // 5 minutes
+const MAX_CACHE_SIZE = 100
+
 // Utility function to detect HTML code in AI responses
 export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlContent?: string; filename?: string } {
-  console.log("Detecting HTML in content:", content.substring(0, 200) + "...");
+  // Generate cache key from content hash
+  const cacheKey = content.length > 1000 ? content.substring(0, 1000) + content.length : content
+  
+  // Check cache first
+  const cached = htmlDetectionCache.get(cacheKey)
+  if (cached && (Date.now() - cached.timestamp) < CACHE_EXPIRY) {
+    return { hasHTML: cached.hasHTML, htmlContent: cached.htmlContent, filename: cached.filename }
+  }
+
+  // Clean up old cache entries if needed
+  if (htmlDetectionCache.size > MAX_CACHE_SIZE) {
+    const now = Date.now()
+    for (const [key, value] of htmlDetectionCache.entries()) {
+      if (now - value.timestamp > CACHE_EXPIRY) {
+        htmlDetectionCache.delete(key)
+      }
+    }
+  }
   
   // Look for HTML patterns in the content (more comprehensive)
   const htmlPatterns = [
@@ -346,8 +368,8 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
     if (match) {
       htmlContent = (match[1] || match[0]).trim()
       hasHTML = true
-      console.log("HTML detected! Length:", htmlContent.length);
-      console.log("HTML preview:", htmlContent.substring(0, 100) + "...");
+      // Only log when HTML is actually detected
+      console.log("✅ HTML detected! Length:", htmlContent.length);
       break
     }
   }
@@ -365,7 +387,7 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
         if (potentialCSS.includes('{') && potentialCSS.includes('}') && 
             (potentialCSS.includes(':') || potentialCSS.includes('body') || potentialCSS.includes('html'))) {
           cssContent = potentialCSS
-          console.log("CSS detected! Length:", cssContent.length);
+          console.log("✅ CSS detected and merged! Length:", cssContent.length);
           break
         }
       }
@@ -373,7 +395,6 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
 
     // If we have both HTML and CSS, merge them
     if (cssContent && htmlContent) {
-      console.log("Merging CSS into HTML...");
       // Check if HTML already has embedded styles
       if (!htmlContent.includes('<style>') && !htmlContent.includes('<style ')) {
         // Find the head tag and insert the CSS
@@ -386,7 +407,6 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
           // Insert CSS into head
           htmlContent = beforeHead + headContent + 
             `\n    <style>\n        ${cssContent}\n    </style>\n` + afterHead
-          console.log("CSS merged into HTML head");
         } else {
           // If no head tag found, try to add it
           const htmlTagMatch = htmlContent.match(/(<html[^>]*>)/i)
@@ -396,12 +416,13 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
             const after = htmlContent.substring(insertPoint)
             htmlContent = before + 
               `\n<head>\n    <style>\n        ${cssContent}\n    </style>\n</head>` + after
-            console.log("CSS added with new head tag");
           }
         }
       }
     }
   }
+
+  let result: { hasHTML: boolean; htmlContent?: string; filename?: string }
 
   if (hasHTML) {
     // Generate filename based on content
@@ -411,15 +432,20 @@ export function detectHTMLInContent(content: string): { hasHTML: boolean; htmlCo
       filename = titleMatch[1].replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-').toLowerCase() + '.html'
     }
 
-    console.log("Final HTML detection result:", { hasHTML: true, filename });
-    
-    return {
+    result = {
       hasHTML: true,
       htmlContent,
       filename
     }
+  } else {
+    result = { hasHTML: false }
   }
 
-  console.log("No HTML detected");
-  return { hasHTML: false }
+  // Cache the result
+  htmlDetectionCache.set(cacheKey, {
+    ...result,
+    timestamp: Date.now()
+  })
+
+  return result
 } 

@@ -81,53 +81,30 @@ export default async (request, context) => {
         const lastMessage = optimizedMessages[optimizedMessages.length - 1];
         
         if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
-          const codeInstructions = `
+          const codeInstructions = `CODE GENERATION MODE: Provide only working code. No explanations. No tutorials.
 
-CRITICAL CODE GENERATION MODE - FOLLOW EXACTLY:
+For HTML: Complete standalone file with embedded CSS in <style> tags.
 
-YOU ARE IN CODE GENERATION MODE. YOUR PRIMARY TASK IS TO GENERATE CLEAN, WORKING CODE WITH MINIMAL EXPLANATORY TEXT.
-
-MANDATORY RULES:
-1. Start your response with working code inside code blocks
-2. NO lengthy explanations before the code
-3. NO tutorials or step-by-step instructions
-4. NO marketing language or descriptions
-5. MINIMAL text outside of code blocks
-
-FOR HTML/CSS REQUESTS:
-- IMMEDIATELY provide a complete HTML file with embedded CSS
-- Put ALL CSS inside <style> tags in the <head> section
-- NO separate CSS blocks or files
-- NO explanations about "how to use this code"
-- NO descriptions of features
-- COMPLETE, working, standalone HTML file that opens in any browser
-- Include proper DOCTYPE, html, head, and body structure
-- Add responsive meta tags and modern CSS practices
-- Use semantic HTML and proper accessibility features
-
-RESPONSE FORMAT FOR HTML:
 \`\`\`html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your Title</title>
+    <title>Title</title>
     <style>
-        /* ALL YOUR CSS GOES HERE */
+        /* CSS here */
     </style>
 </head>
 <body>
-    <!-- ALL YOUR HTML CONTENT GOES HERE -->
+    <!-- HTML here -->
 </body>
 </html>
 \`\`\`
 
-CRITICAL: Do NOT provide any explanatory text before or after the code. Just provide the complete working HTML file.
+Request: ${lastMessage.content}
 
-USER REQUEST: ${lastMessage.content}
-
-RESPOND WITH WORKING CODE ONLY:`;
+Generate code:`;
 
           optimizedMessages[optimizedMessages.length - 1] = {
             ...lastMessage,
@@ -146,7 +123,7 @@ RESPOND WITH WORKING CODE ONLY:`;
     const codeOptimizedMessages = optimizeMessagesForCode(messages);
 
     // Fetch with timeout for Deno
-    const fetchWithTimeout = async (url, options, timeoutMs = 60000) => {
+    const fetchWithTimeout = async (url, options, timeoutMs = 30000) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -160,7 +137,7 @@ RESPOND WITH WORKING CODE ONLY:`;
       } catch (error) {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
-          throw new Error(`Code generation timed out after ${timeoutMs / 1000} seconds`);
+          throw new Error(`Code generation timed out after ${timeoutMs / 1000} seconds. Please try a shorter request.`);
         }
         throw error;
       }
@@ -169,11 +146,11 @@ RESPOND WITH WORKING CODE ONLY:`;
     let response;
     let aiResponse = "";
 
-    // Enhanced parameters for code generation
+    // Enhanced parameters for code generation - reduced for faster response
     const codeParams = {
-      maxTokens: 6000, // Conservative for Edge Function
+      maxTokens: 4000, // Reduced from 6000 for faster response
       temperature: 0.1, // Lower temperature for consistent code
-      timeout: 60000   // 60 second timeout for Edge Functions
+      timeout: 30000   // 30 second timeout instead of 60
     };
 
     switch (provider) {
@@ -410,15 +387,26 @@ RESPOND WITH WORKING CODE ONLY:`;
   } catch (error) {
     console.error("Edge Function error:", error);
     
+    // Handle timeout errors specifically
+    let status = 500;
+    let errorMessage = error.message || "Code generation failed";
+    
+    if (errorMessage.includes('timed out') || errorMessage.includes('timeout')) {
+      status = 504; // Gateway Timeout
+      errorMessage = "Code generation timed out. Please try a shorter or simpler request.";
+    }
+    
     // Return error response with proper structure
     const errorResponse = {
-      error: error.message || "Code generation failed",
+      error: errorMessage,
+      timeout: status === 504,
       timestamp: new Date().toISOString(),
-      edgeFunction: true
+      edgeFunction: true,
+      provider: requestBody?.provider || 'unknown'
     };
 
     return new Response(JSON.stringify(errorResponse), {
-      status: 500,
+      status: status,
       headers: corsHeaders
     });
   }

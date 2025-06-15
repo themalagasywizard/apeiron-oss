@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useEffect, useCallback } from "react"
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatFileSize } from "@/lib/file-utils"
 import ModelLogo from "@/components/model-logos"
@@ -1724,6 +1724,7 @@ export default function MainUI({
                   
                   {/* Message content */}
                   {message.content && (() => {
+                    // Cache detection results to prevent repetitive calls
                     const htmlDetection = detectHTMLInContent(message.content)
                     const videoDetection = detectVideoContent(message.content)
                     

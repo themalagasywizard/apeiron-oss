@@ -134,10 +134,11 @@ export async function POST(request: NextRequest) {
             temperature,
             customModelName
           })
-        }, 90000); // 90 second timeout for edge function
+        }, 35000); // 35 second timeout for edge function to prevent 504s
 
         if (!edgeResponse.ok) {
-          throw new Error(`Edge function error: ${edgeResponse.status}`);
+          const errorText = await edgeResponse.text().catch(() => 'Unknown error');
+          throw new Error(`Edge function error (${edgeResponse.status}): ${errorText}`);
         }
 
         const edgeResult = await edgeResponse.json();
