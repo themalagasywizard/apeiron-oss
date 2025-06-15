@@ -39,6 +39,8 @@ CREATE TABLE public.messages (
   conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
   content TEXT NOT NULL,
+  model TEXT,
+  provider TEXT,
   attachments JSONB,
   search_results JSONB,
   timestamp TIMESTAMPTZ DEFAULT NOW(),

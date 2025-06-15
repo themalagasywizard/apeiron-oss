@@ -99,6 +99,8 @@ export interface Database {
           conversation_id: string
           role: 'user' | 'assistant' | 'system'
           content: string
+          model: string | null
+          provider: string | null
           attachments: Json | null
           search_results: Json | null
           timestamp: string
@@ -109,6 +111,8 @@ export interface Database {
           conversation_id: string
           role: 'user' | 'assistant' | 'system'
           content: string
+          model?: string | null
+          provider?: string | null
           attachments?: Json | null
           search_results?: Json | null
           timestamp?: string
@@ -119,6 +123,8 @@ export interface Database {
           conversation_id?: string
           role?: 'user' | 'assistant' | 'system'
           content?: string
+          model?: string | null
+          provider?: string | null
           attachments?: Json | null
           search_results?: Json | null
           timestamp?: string

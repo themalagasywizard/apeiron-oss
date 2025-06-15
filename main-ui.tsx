@@ -1544,7 +1544,7 @@ export default function MainUI({
                   <>
                     <button
                       onClick={onLogin}
-                      className="w-12 h-12 rounded-xl bg-gradient-to-r from-gray-400 to-gray-500 hover:from-purple-500 hover:to-pink-500 flex items-center justify-center text-white font-medium shadow-lg transition-all duration-200"
+                      className="w-12 h-12 rounded-xl bg-gradient-to-r from-gray-400 to-gray-500 hover:from-gray-600 hover:to-gray-700 flex items-center justify-center text-white font-medium shadow-lg transition-all duration-200"
                       title="Sign in to save conversations"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

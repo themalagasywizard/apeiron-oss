@@ -569,6 +569,8 @@ export default function Home() {
             content: msg.content,
             role: msg.role as "user" | "assistant",
             timestamp: new Date(msg.timestamp),
+            model: msg.model || undefined,
+            provider: msg.provider || undefined,
             attachments: msg.attachments as any[] || undefined,
             searchResults: msg.search_results as any[] || undefined
           }))
@@ -591,6 +593,8 @@ export default function Home() {
               content: msg.content,
               role: msg.role as "user" | "assistant",
               timestamp: new Date(msg.timestamp),
+              model: msg.model || undefined,
+              provider: msg.provider || undefined,
               attachments: msg.attachments as any[] || undefined,
               searchResults: msg.search_results as any[] || undefined
             }))
@@ -783,6 +787,8 @@ export default function Home() {
           content: message,
           role: 'user',
           conversation_id: activeConversationId,
+          model: currentModel,
+          provider: getProviderFromModel(currentModel),
           attachments: attachments || []
         })
       }
@@ -857,6 +863,8 @@ export default function Home() {
           content: data.content,
           role: 'assistant',
           conversation_id: activeConversationId,
+          model: currentModel,
+          provider: getProviderFromModel(currentModel),
           search_results: data.searchResults || []
         })
 

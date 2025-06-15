@@ -241,6 +241,8 @@ export async function migrateLocalDataToSupabase(userId: string) {
               conversation_id: conversation.id,
               role: localMessage.role,
               content: localMessage.content,
+              model: localMessage.model || null,
+              provider: localMessage.provider || null,
               attachments: localMessage.attachments || null,
               search_results: localMessage.searchResults || null,
               timestamp: localMessage.timestamp || new Date().toISOString()
