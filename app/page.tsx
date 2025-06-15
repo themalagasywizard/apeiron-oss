@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import MainUI from "@/main-ui"
 import { AuthModal } from "@/components/AuthModal"
 
@@ -136,6 +136,7 @@ export default function Home() {
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({})
   const [dataLoading, setDataLoading] = useState(false)
   const [migrationCompleted, setMigrationCompleted] = useState(false)
+  const loadingRef = useRef(false)
 
   // Client-side initialization
   useEffect(() => {
@@ -296,37 +297,53 @@ export default function Home() {
 
   // Load data when user is authenticated (optional)
   useEffect(() => {
-    if (isAuthenticated && user && !authLoading) {
+    if (isAuthenticated && user && !authLoading && !dataLoading && !loadingRef.current) {
       loadUserData()
     }
   }, [isAuthenticated, user, authLoading])
 
   const loadUserData = async () => {
-    if (!user) return
-
+    if (!user || dataLoading || loadingRef.current) return
+    
+    loadingRef.current = true
     setDataLoading(true)
+
     try {
-      console.log('Starting loadUserData for user:', user.id)
+      // Check if migration is needed BEFORE loading data
+      const migrated = localStorage.getItem('t3-chat-migrated')
+      const needsMigration = !migrated && !migrationCompleted
       
+      if (needsMigration) {
+        console.log('Starting local data migration...')
+        await migrateLocalDataToSupabase(user.id)
+        setMigrationCompleted(true)
+        localStorage.setItem('t3-chat-migrated', 'true')
+        console.log('Migration completed')
+        // Continue with normal data loading after migration
+      }
+
       // Load projects
-      console.log('Loading projects...')
       const userProjects = await getProjects(user.id)
-      console.log('Projects loaded:', userProjects.length)
-      setProjects(userProjects)
+      const uiProjects: UIProject[] = userProjects.map(p => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        user_id: p.user_id,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+        color: p.color
+      }))
+      setProjects(uiProjects)
 
       // Load conversations
-      console.log('Loading conversations...')
       const userConversations = await getConversations(user.id)
-      console.log('Conversations loaded:', userConversations.length)
       
-      // Load messages for each conversation
-      console.log('Loading messages for conversations...')
+      // Load messages for each conversation in parallel
       const conversationsWithMessages = await Promise.all(
         userConversations.map(async (conv) => {
-          console.log(`Loading messages for conversation ${conv.id}...`)
-          const messages = await getMessages(conv.id)
-          console.log(`Messages loaded for ${conv.id}:`, messages.length)
-                      return {
+          try {
+            const messages = await getMessages(conv.id)
+            return {
               ...conv,
               messages: messages.map(msg => ({
                 id: msg.id,
@@ -339,37 +356,28 @@ export default function Home() {
                 searchResults: msg.search_results as any[] || undefined
               }))
             }
+          } catch (error) {
+            console.error(`Error loading messages for conversation ${conv.id}:`, error)
+            return {
+              ...conv,
+              messages: []
+            }
+          }
         })
       )
-      console.log('All conversations with messages loaded')
 
       setConversations(conversationsWithMessages)
 
       // Set current conversation if none selected
       if (conversationsWithMessages.length > 0 && !currentConversationId) {
         setCurrentConversationId(conversationsWithMessages[0].id)
-        console.log('Set current conversation to:', conversationsWithMessages[0].id)
       }
-
-      // Migrate local data if not already done
-      const migrated = localStorage.getItem('t3-chat-migrated')
-      if (!migrated && !migrationCompleted) {
-        console.log('Starting local data migration...')
-        await migrateLocalDataToSupabase(user.id)
-        setMigrationCompleted(true)
-        console.log('Migration completed, reloading data...')
-        // Reload data after migration
-        await loadUserData()
-        return // Exit here since we're recursively calling loadUserData
-      }
-
-      console.log('loadUserData completed successfully')
 
     } catch (error) {
       console.error('Error loading user data:', error)
     } finally {
-      console.log('Setting dataLoading to false')
       setDataLoading(false)
+      loadingRef.current = false
     }
   }
 
@@ -501,7 +509,15 @@ export default function Home() {
       const sortedConversations = projectConversations.sort((a, b) => 
         new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       )
-      setCurrentConversationId(sortedConversations[0].id)
+      const selectedConversation = sortedConversations[0]
+      
+      // Only switch if it's different from current conversation
+      if (currentConversationId !== selectedConversation.id) {
+        setCurrentConversationId(selectedConversation.id)
+      }
+    } else {
+      // No conversations in this project, clear current conversation
+      setCurrentConversationId("")
     }
   }
 
@@ -563,54 +579,35 @@ export default function Home() {
   const handleSelectConversation = async (id: string) => {
     setCurrentConversationId(id)
     
-    // If authenticated, always ensure messages are loaded fresh from database
+    // Check if conversation already has messages loaded
+    const conversation = conversations.find(conv => conv.id === id)
+    if (!conversation) return
+    
+    // If messages are already loaded, no need to fetch again
+    if (conversation.messages.length > 0) return
+    
+    // Only fetch messages if authenticated and conversation has no messages
     if (isAuthenticated && user) {
       try {
-        const conversationData = await getConversationWithMessages(id)
-        if (conversationData) {
-          const loadedMessages = conversationData.messages.map(msg => ({
-            id: msg.id,
-            content: msg.content,
-            role: msg.role as "user" | "assistant",
-            timestamp: new Date(msg.timestamp),
-            model: msg.model || undefined,
-            provider: msg.provider || undefined,
-            attachments: msg.attachments as any[] || undefined,
-            searchResults: msg.search_results as any[] || undefined
-          }))
-          
-          // Update the conversation with fresh messages from database
-          const updatedConversations = conversations.map(conv =>
-            conv.id === id ? { ...conv, messages: loadedMessages } : conv
-          )
-          setConversations(updatedConversations)
-        }
+        const messages = await getMessages(id)
+        const loadedMessages = messages.map(msg => ({
+          id: msg.id,
+          content: msg.content,
+          role: msg.role as "user" | "assistant",
+          timestamp: new Date(msg.timestamp),
+          model: msg.model || undefined,
+          provider: msg.provider || undefined,
+          attachments: msg.attachments as any[] || undefined,
+          searchResults: msg.search_results as any[] || undefined
+        }))
+        
+        // Update the conversation with fresh messages from database
+        const updatedConversations = conversations.map(conv =>
+          conv.id === id ? { ...conv, messages: loadedMessages } : conv
+        )
+        setConversations(updatedConversations)
       } catch (error) {
-        console.error('Error loading conversation with messages:', error)
-        // Fallback to existing message loading
-        const conversation = conversations.find(conv => conv.id === id)
-        if (conversation && conversation.messages.length === 0) {
-          try {
-            const messages = await getMessages(id)
-            const loadedMessages = messages.map(msg => ({
-              id: msg.id,
-              content: msg.content,
-              role: msg.role as "user" | "assistant",
-              timestamp: new Date(msg.timestamp),
-              model: msg.model || undefined,
-              provider: msg.provider || undefined,
-              attachments: msg.attachments as any[] || undefined,
-              searchResults: msg.search_results as any[] || undefined
-            }))
-            
-            const updatedConversations = conversations.map(conv =>
-              conv.id === id ? { ...conv, messages: loadedMessages } : conv
-            )
-            setConversations(updatedConversations)
-          } catch (fallbackError) {
-            console.error('Error in fallback message loading:', fallbackError)
-          }
-        }
+        console.error('Error loading messages for conversation:', error)
       }
     }
   }

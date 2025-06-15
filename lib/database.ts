@@ -256,7 +256,6 @@ export async function migrateLocalDataToSupabase(userId: string) {
 
     // Clear local storage after successful migration
     localStorage.removeItem('t3-chat-conversations')
-    localStorage.setItem('t3-chat-migrated', 'true')
     
     console.log('Migration completed successfully')
   } catch (error) {
