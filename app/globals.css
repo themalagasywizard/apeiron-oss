@@ -93,58 +93,82 @@
 
 /* Override all hardcoded background colors with theme variables */
 @layer utilities {
-  .bg-white { background-color: hsl(var(--background)) !important; }
-  .bg-gray-50 { background-color: hsl(var(--card)) !important; }
-  .bg-gray-100 { background-color: hsl(var(--muted)) !important; }
-  .bg-gray-200 { background-color: hsl(var(--border)) !important; }
-  .bg-gray-300 { background-color: hsl(var(--border)) !important; }
-  .bg-gray-700 { background-color: hsl(var(--muted)) !important; }
-  .bg-gray-800 { background-color: hsl(var(--card)) !important; }
-  .bg-gray-900 { background-color: hsl(var(--background)) !important; }
+  .bg-white { background-color: var(--background) !important; }
+  .bg-gray-50 { background-color: var(--card) !important; }
+  .bg-gray-100 { background-color: var(--muted) !important; }
+  .bg-gray-200 { background-color: var(--border) !important; }
+  .bg-gray-300 { background-color: var(--border) !important; }
+  .bg-gray-700 { background-color: var(--muted) !important; }
+  .bg-gray-800 { background-color: var(--card) !important; }
+  .bg-gray-900 { background-color: var(--background) !important; }
   
   /* Override with opacity variants */
-  .bg-white\/10 { background-color: hsl(var(--background) / 0.1) !important; }
-  .bg-white\/20 { background-color: hsl(var(--background) / 0.2) !important; }
-  .bg-white\/30 { background-color: hsl(var(--background) / 0.3) !important; }
-  .bg-white\/80 { background-color: hsl(var(--background) / 0.8) !important; }
-  .bg-white\/90 { background-color: hsl(var(--background) / 0.9) !important; }
+  .bg-white\/10 { background-color: color-mix(in oklch, var(--background), transparent 90%) !important; }
+  .bg-white\/20 { background-color: color-mix(in oklch, var(--background), transparent 80%) !important; }
+  .bg-white\/30 { background-color: color-mix(in oklch, var(--background), transparent 70%) !important; }
+  .bg-white\/80 { background-color: color-mix(in oklch, var(--background), transparent 20%) !important; }
+  .bg-white\/90 { background-color: color-mix(in oklch, var(--background), transparent 10%) !important; }
   
-  .bg-gray-800\/40 { background-color: hsl(var(--card) / 0.4) !important; }
-  .bg-gray-800\/60 { background-color: hsl(var(--card) / 0.6) !important; }
-  .bg-gray-800\/80 { background-color: hsl(var(--card) / 0.8) !important; }
-  .bg-gray-900\/40 { background-color: hsl(var(--background) / 0.4) !important; }
+  .bg-gray-800\/40 { background-color: color-mix(in oklch, var(--card), transparent 60%) !important; }
+  .bg-gray-800\/60 { background-color: color-mix(in oklch, var(--card), transparent 40%) !important; }
+  .bg-gray-800\/80 { background-color: color-mix(in oklch, var(--card), transparent 20%) !important; }
+  .bg-gray-900\/40 { background-color: color-mix(in oklch, var(--background), transparent 60%) !important; }
+  .bg-gray-900\/30 { background-color: color-mix(in oklch, var(--background), transparent 70%) !important; }
   
   /* Override text colors */
-  .text-white { color: hsl(var(--foreground)) !important; }
-  .text-gray-100 { color: hsl(var(--foreground)) !important; }
-  .text-gray-200 { color: hsl(var(--foreground)) !important; }
-  .text-gray-300 { color: hsl(var(--muted-foreground)) !important; }
-  .text-gray-400 { color: hsl(var(--muted-foreground)) !important; }
-  .text-gray-500 { color: hsl(var(--muted-foreground)) !important; }
-  .text-gray-600 { color: hsl(var(--muted-foreground)) !important; }
-  .text-gray-700 { color: hsl(var(--foreground)) !important; }
-  .text-gray-800 { color: hsl(var(--foreground)) !important; }
-  .text-gray-900 { color: hsl(var(--foreground)) !important; }
-  .text-black { color: hsl(var(--foreground)) !important; }
+  .text-white { color: var(--foreground) !important; }
+  .text-gray-100 { color: var(--foreground) !important; }
+  .text-gray-200 { color: var(--foreground) !important; }
+  .text-gray-300 { color: var(--muted-foreground) !important; }
+  .text-gray-400 { color: var(--muted-foreground) !important; }
+  .text-gray-500 { color: var(--muted-foreground) !important; }
+  .text-gray-600 { color: var(--muted-foreground) !important; }
+  .text-gray-700 { color: var(--foreground) !important; }
+  .text-gray-800 { color: var(--foreground) !important; }
+  .text-gray-900 { color: var(--foreground) !important; }
+  .text-black { color: var(--foreground) !important; }
 
   /* Override border colors */
-  .border-gray-200 { border-color: hsl(var(--border)) !important; }
-  .border-gray-300 { border-color: hsl(var(--border)) !important; }
-  .border-gray-700 { border-color: hsl(var(--border)) !important; }
+  .border-gray-200 { border-color: var(--border) !important; }
+  .border-gray-300 { border-color: var(--border) !important; }
+  .border-gray-700 { border-color: var(--border) !important; }
   
   /* Override with opacity variants */
-  .border-gray-200\/20 { border-color: hsl(var(--border) / 0.2) !important; }
-  .border-gray-700\/20 { border-color: hsl(var(--border) / 0.2) !important; }
-  .border-gray-200\/30 { border-color: hsl(var(--border) / 0.3) !important; }
-  .border-gray-700\/30 { border-color: hsl(var(--border) / 0.3) !important; }
+  .border-gray-200\/20 { border-color: color-mix(in oklch, var(--border), transparent 80%) !important; }
+  .border-gray-700\/20 { border-color: color-mix(in oklch, var(--border), transparent 80%) !important; }
+  .border-gray-200\/30 { border-color: color-mix(in oklch, var(--border), transparent 70%) !important; }
+  .border-gray-700\/30 { border-color: color-mix(in oklch, var(--border), transparent 70%) !important; }
+  .border-gray-200\/50 { border-color: color-mix(in oklch, var(--border), transparent 50%) !important; }
+  .border-gray-700\/50 { border-color: color-mix(in oklch, var(--border), transparent 50%) !important; }
 
   /* Override hover states */
-  .hover\:bg-gray-200\/20:hover { background-color: hsl(var(--muted) / 0.2) !important; }
-  .hover\:bg-gray-700\/20:hover { background-color: hsl(var(--muted) / 0.2) !important; }
-  .hover\:bg-white\/20:hover { background-color: hsl(var(--background) / 0.2) !important; }
-  .hover\:bg-white\/30:hover { background-color: hsl(var(--background) / 0.3) !important; }
-  .hover\:bg-gray-800\/40:hover { background-color: hsl(var(--card) / 0.4) !important; }
-  .hover\:bg-gray-800\/60:hover { background-color: hsl(var(--card) / 0.6) !important; }
+  .hover\:bg-gray-200\/20:hover { background-color: color-mix(in oklch, var(--muted), transparent 80%) !important; }
+  .hover\:bg-gray-700\/20:hover { background-color: color-mix(in oklch, var(--muted), transparent 80%) !important; }
+  .hover\:bg-white\/20:hover { background-color: color-mix(in oklch, var(--background), transparent 80%) !important; }
+  .hover\:bg-white\/30:hover { background-color: color-mix(in oklch, var(--background), transparent 70%) !important; }
+  .hover\:bg-white\/90:hover { background-color: color-mix(in oklch, var(--background), transparent 10%) !important; }
+  .hover\:bg-gray-800\/40:hover { background-color: color-mix(in oklch, var(--card), transparent 60%) !important; }
+  .hover\:bg-gray-800\/50:hover { background-color: color-mix(in oklch, var(--card), transparent 50%) !important; }
+  .hover\:bg-gray-800\/60:hover { background-color: color-mix(in oklch, var(--card), transparent 40%) !important; }
+  .hover\:bg-gray-700\/50:hover { background-color: color-mix(in oklch, var(--muted), transparent 50%) !important; }
+
+  /* Additional overrides for any remaining hardcoded classes */
+  .bg-gray-50\/50 { background-color: color-mix(in oklch, var(--card), transparent 50%) !important; }
+  .bg-gray-100\/50 { background-color: color-mix(in oklch, var(--muted), transparent 50%) !important; }
+  .bg-gray-900\/50 { background-color: color-mix(in oklch, var(--background), transparent 50%) !important; }
+  .bg-red-500\/20 { background-color: color-mix(in oklch, var(--destructive), transparent 80%) !important; }
+  .bg-red-500\/30 { background-color: color-mix(in oklch, var(--destructive), transparent 70%) !important; }
+  
+  /* Additional border opacity variants */
+  .border-red-500\/30 { border-color: color-mix(in oklch, var(--destructive), transparent 70%) !important; }
+  .border-gray-600\/20 { border-color: color-mix(in oklch, var(--border), transparent 80%) !important; }
+  .border-gray-600\/30 { border-color: color-mix(in oklch, var(--border), transparent 70%) !important; }
+  
+  /* Additional text color overrides */
+  .text-red-600 { color: var(--destructive) !important; }
+  .text-red-700 { color: var(--destructive) !important; }
+  .text-red-300 { color: var(--destructive-foreground) !important; }
+  .text-red-400 { color: var(--destructive-foreground) !important; }
 }
 
 /* Custom scrollbar using theme variables */
@@ -158,12 +182,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: color-mix(in oklch, var(--muted-foreground), transparent 70%);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: color-mix(in oklch, var(--muted-foreground), transparent 50%);
 }
 
 /* Prose styles using theme variables */
@@ -172,15 +196,15 @@
 }
 
 .prose pre {
-  background: hsl(var(--muted) / 0.5);
-  color: hsl(var(--foreground));
+  background: color-mix(in oklch, var(--muted), transparent 50%);
+  color: var(--foreground);
   border-radius: var(--radius);
   padding: 1rem;
 }
 
 .prose code {
-  background: hsl(var(--muted) / 0.3);
-  color: hsl(var(--foreground));
+  background: color-mix(in oklch, var(--muted), transparent 70%);
+  color: var(--foreground);
   padding: 0.125rem 0.25rem;
   border-radius: calc(var(--radius) / 2);
   font-size: 0.875em;
@@ -190,16 +214,16 @@
   border-collapse: collapse;
   margin: 1rem 0;
   width: 100%;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
 }
 
 .prose th,
 .prose td {
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   padding: 0.5rem;
 }
 
 .prose th {
-  background: hsl(var(--muted) / 0.3);
+  background: color-mix(in oklch, var(--muted), transparent 70%);
   font-weight: 600;
 }

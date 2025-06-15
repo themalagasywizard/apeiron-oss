@@ -279,6 +279,27 @@ export default function MainUI({
   // State
   const [theme, setTheme] = useState<"dark" | "light">("dark")
   const [currentTheme, setCurrentTheme] = useState<string>("basic")
+  
+  // Initialize theme based on current document classes and saved preference
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Check for saved light/dark preference
+      const savedThemeMode = localStorage.getItem('t3-chat-theme-mode')
+      if (savedThemeMode === 'light') {
+        setTheme('light')
+        document.documentElement.classList.add('light')
+      } else if (savedThemeMode === 'dark') {
+        setTheme('dark')
+        document.documentElement.classList.remove('light')
+      } else {
+        // Fallback to checking current classes
+        const isLightMode = document.documentElement.classList.contains('light')
+        if (isLightMode) {
+          setTheme('light')
+        }
+      }
+    }
+  }, [])
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [inputValue, setInputValue] = useState("")
@@ -612,7 +633,16 @@ export default function MainUI({
     const newTheme = theme === "dark" ? "light" : "dark"
     setTheme(newTheme)
     onToggleTheme()
-    document.documentElement.classList.toggle("dark", newTheme === "dark")
+    
+    // Save preference to localStorage
+    localStorage.setItem('t3-chat-theme-mode', newTheme)
+    
+    // Remove both light and dark classes, then add the appropriate one
+    document.documentElement.classList.remove("light", "dark")
+    if (newTheme === "light") {
+      document.documentElement.classList.add("light")
+    }
+    // For dark mode, we don't add "dark" class since our base theme is dark
   }
 
   // Handle theme selection
@@ -626,6 +656,11 @@ export default function MainUI({
     
     // Always add the theme class
     document.documentElement.classList.add(`theme-${themeId}`)
+    
+    // Re-apply the current light/dark mode
+    if (theme === "light") {
+      document.documentElement.classList.add("light")
+    }
     
     // Save theme preference
     const updatedSettings = { 
