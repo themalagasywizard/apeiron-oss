@@ -81,6 +81,7 @@ type UserSettings = {
   grokApiKey: string
   veo2ApiKey: string
   enabledSubModels: { [provider: string]: string[] } // Track which sub-models are enabled per provider
+  selectedTheme?: string // Currently selected theme
 }
 
 type UIConversation = DBConversation & {
@@ -114,7 +115,8 @@ export default function Home() {
     deepseekApiKey: "",
     grokApiKey: "",
     veo2ApiKey: "",
-    enabledSubModels: {}
+    enabledSubModels: {},
+    selectedTheme: "vercel"
   })
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [projects, setProjects] = useState<DBProject[]>([])
@@ -151,7 +153,8 @@ export default function Home() {
             deepseekApiKey: parsed.deepseekApiKey || "",
             grokApiKey: parsed.grokApiKey || "",
             veo2ApiKey: parsed.veo2ApiKey || "",
-            enabledSubModels: parsed.enabledSubModels || {}
+            enabledSubModels: parsed.enabledSubModels || {},
+            selectedTheme: parsed.selectedTheme || "vercel"
           }
         }
       } catch (error) {
@@ -170,7 +173,8 @@ export default function Home() {
         deepseekApiKey: "",
         grokApiKey: "",
         veo2ApiKey: "",
-        enabledSubModels: {}
+        enabledSubModels: {},
+        selectedTheme: "vercel"
       }
     }
 
@@ -206,7 +210,26 @@ export default function Home() {
     // Clean up URL fragments first
     cleanUpUrlFragments()
     
-    setUserSettings(loadSettings())
+    const settings = loadSettings()
+    setUserSettings(settings)
+    
+    // Apply saved theme
+    if (settings.selectedTheme) {
+      const themeClasses = ['theme-vercel', 'theme-default', 'theme-light']
+      document.documentElement.classList.remove(...themeClasses)
+      
+      if (settings.selectedTheme !== 'default') {
+        document.documentElement.classList.add(`theme-${settings.selectedTheme}`)
+      }
+      
+      // Handle light/dark mode based on theme
+      if (settings.selectedTheme === 'light') {
+        document.documentElement.classList.remove('dark')
+      } else {
+        document.documentElement.classList.add('dark')
+      }
+    }
+    
     loadLocalConversations() // Load local conversations for non-authenticated users
     setIsClient(true) // Set client to true after settings are loaded
   }, [])

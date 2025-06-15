@@ -111,6 +111,14 @@ type UserSettings = {
   grokApiKey: string
   veo2ApiKey: string
   enabledSubModels: { [provider: string]: string[] } // Track which sub-models are enabled per provider
+  selectedTheme?: string // Currently selected theme
+}
+
+type Theme = {
+  id: string
+  name: string
+  description: string
+  preview: string // Preview color or gradient
 }
 
 type MainUIProps = {
@@ -257,14 +265,37 @@ export default function MainUI({
     return iconMap[provider]?.[modelId] || "AI"
   }
 
+  // Theme library - easily expandable for future themes
+  const themeLibrary: Theme[] = [
+    {
+      id: "vercel",
+      name: "Vercel",
+      description: "Clean and modern theme with Vercel design language",
+      preview: "linear-gradient(135deg, #000000 0%, #333333 100%)"
+    },
+    {
+      id: "default",
+      name: "Default Dark",
+      description: "Original dark theme with purple accents",
+      preview: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"
+    },
+    {
+      id: "light",
+      name: "Light Mode",
+      description: "Clean light theme for bright environments",
+      preview: "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)"
+    }
+  ]
+
   // State
   const [theme, setTheme] = useState<"dark" | "light">("dark")
+  const [currentTheme, setCurrentTheme] = useState<string>("vercel")
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  const [settingsTab, setSettingsTab] = useState<"general" | "models">("general")
+  const [settingsTab, setSettingsTab] = useState<"general" | "models" | "themes">("general")
   const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter">("openai")
   const [newModelApiKey, setNewModelApiKey] = useState("")
   const [newModelCustomName, setNewModelCustomName] = useState("")
@@ -593,6 +624,35 @@ export default function MainUI({
     setTheme(newTheme)
     onToggleTheme()
     document.documentElement.classList.toggle("dark", newTheme === "dark")
+  }
+
+  // Handle theme selection
+  const handleThemeSelect = (themeId: string) => {
+    setCurrentTheme(themeId)
+    
+    // Apply theme-specific classes to document
+    const themeClasses = ['theme-vercel', 'theme-default', 'theme-light']
+    document.documentElement.classList.remove(...themeClasses)
+    
+    if (themeId !== 'default') {
+      document.documentElement.classList.add(`theme-${themeId}`)
+    }
+    
+    // Handle light/dark mode based on theme
+    if (themeId === 'light') {
+      document.documentElement.classList.remove('dark')
+      setTheme('light')
+    } else {
+      document.documentElement.classList.add('dark')
+      setTheme('dark')
+    }
+    
+    // Save theme preference
+    const updatedSettings = { 
+      ...userSettings, 
+      selectedTheme: themeId 
+    }
+    onSaveSettings(updatedSettings)
   }
 
   // Speech recognition functions
@@ -1762,6 +1822,16 @@ export default function MainUI({
                   >
                     Models
                     </button>
+                  <button
+                    onClick={() => setSettingsTab("themes")}
+                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                      settingsTab === "themes"
+                        ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                    }`}
+                  >
+                    Themes
+                    </button>
                   </div>
                 </div>
 
@@ -2063,6 +2133,77 @@ export default function MainUI({
                         </div>
                       </>
                     )}
+                  </div>
+                )}
+
+                {settingsTab === "themes" && (
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">Choose Your Theme</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Select a theme to customize the appearance of your chat interface.
+                      </p>
+                      
+                      <div className="grid gap-4">
+                        {themeLibrary.map((themeOption) => (
+                          <div
+                            key={themeOption.id}
+                            onClick={() => handleThemeSelect(themeOption.id)}
+                            className={`relative p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md ${
+                              currentTheme === themeOption.id
+                                ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                                : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                            }`}
+                          >
+                            <div className="flex items-center gap-4">
+                              {/* Theme Preview */}
+                              <div
+                                className="w-16 h-16 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+                                style={{ background: themeOption.preview }}
+                              />
+                              
+                              {/* Theme Info */}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h5 className="font-medium text-gray-900 dark:text-gray-100">
+                                    {themeOption.name}
+                                  </h5>
+                                  {currentTheme === themeOption.id && (
+                                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                  {themeOption.description}
+                                </p>
+                              </div>
+                              
+                              {/* Selection Indicator */}
+                              <div className={`w-5 h-5 rounded-full border-2 transition-colors ${
+                                currentTheme === themeOption.id
+                                  ? "border-purple-500 bg-purple-500"
+                                  : "border-gray-300 dark:border-gray-600"
+                              }`}>
+                                {currentTheme === themeOption.id && (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Future Themes Coming Soon */}
+                      <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <h5 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                          🎨 More Themes Coming Soon
+                        </h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          We're working on adding more beautiful themes including GitHub, Material Design, and custom color schemes. Stay tuned!
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
