@@ -269,22 +269,16 @@ export default function MainUI({
   // Each theme supports both light and dark modes via the header toggle
   const themeLibrary: Theme[] = [
     {
-      id: "vercel",
-      name: "Vercel",
-      description: "Clean and modern theme with Vercel design language",
+      id: "basic",
+      name: "Basic",
+      description: "Clean and modern theme with minimal design",
       preview: "linear-gradient(135deg, #000000 0%, #333333 100%)"
-    },
-    {
-      id: "default",
-      name: "Default",
-      description: "Original theme with purple accents",
-      preview: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"
     }
   ]
 
   // State
   const [theme, setTheme] = useState<"dark" | "light">("dark")
-  const [currentTheme, setCurrentTheme] = useState<string>("vercel")
+  const [currentTheme, setCurrentTheme] = useState<string>("basic")
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [inputValue, setInputValue] = useState("")
@@ -626,7 +620,7 @@ export default function MainUI({
     setCurrentTheme(themeId)
     
     // Apply theme-specific classes to document
-    const themeClasses = ['theme-vercel', 'theme-default']
+    const themeClasses = ['theme-basic']
     const lightDarkClasses = ['light', 'dark']
     document.documentElement.classList.remove(...themeClasses, ...lightDarkClasses)
     
@@ -1185,7 +1179,7 @@ export default function MainUI({
               </div>
 
               {/* Profile and Settings Section */}
-              <div className="px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 h-[72px] flex items-center gap-3">
+              <div className="px-4 py-3 h-[72px] flex items-center gap-3">
                 {/* Profile/Login Button */}
                 {isAuthenticated ? (
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium shadow-lg">
@@ -1455,7 +1449,7 @@ export default function MainUI({
 
                   {/* Web Search Results Sources */}
                   {message.searchResults && message.searchResults.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-gray-200/20 dark:border-gray-600/20">
+                    <div className="mt-4 pt-3">
                       <div className="flex items-center gap-2 mb-3">
                         <Globe className="w-4 h-4 text-blue-500" />
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sources</span>
@@ -1504,7 +1498,7 @@ export default function MainUI({
 
                   {/* Retry button for error messages */}
                   {message.isError && message.retryData && (
-                    <div className="mt-3 pt-3 border-t border-gray-200/20 dark:border-gray-600/20">
+                    <div className="mt-3 pt-3">
                       <button
                         onClick={() => onRetryMessage(message.id)}
                         className="flex items-center gap-2 px-3 py-2 text-sm bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 transition-colors"
@@ -1577,7 +1571,7 @@ export default function MainUI({
 
           {/* Input Area */}
           <div 
-            className={`px-4 py-3 border-t border-gray-200/20 dark:border-gray-700/20 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 relative ${
+            className={`px-4 py-3 backdrop-blur-lg bg-white/10 dark:bg-gray-900/30 relative ${
               isDragOver ? 'bg-purple-500/10 border-purple-500/50' : ''
             }`}
             onDragOver={handleDragOver}
@@ -1878,7 +1872,7 @@ export default function MainUI({
                       </div>
                       
                       {userSettings.openrouterEnabled && (
-                        <div className="space-y-3 pt-3 border-t border-gray-200/50 dark:border-gray-700/50">
+                        <div className="space-y-3 pt-3">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                               OpenRouter API Key
@@ -2195,7 +2189,7 @@ export default function MainUI({
               </div>
 
               {/* Footer */}
-              <div className="p-5 border-t border-gray-200/20 dark:border-gray-700/20 flex justify-end gap-3">
+              <div className="p-5 flex justify-end gap-3">
                 <button
                   onClick={() => setSettingsOpen(false)}
                   className="px-4 py-2 rounded-lg border border-gray-200/50 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-100/50 dark:hover:bg-gray-800/50 transition-colors"

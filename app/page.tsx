@@ -116,7 +116,7 @@ export default function Home() {
     grokApiKey: "",
     veo2ApiKey: "",
     enabledSubModels: {},
-    selectedTheme: "vercel"
+    selectedTheme: "basic"
   })
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [projects, setProjects] = useState<DBProject[]>([])
@@ -154,7 +154,7 @@ export default function Home() {
             grokApiKey: parsed.grokApiKey || "",
             veo2ApiKey: parsed.veo2ApiKey || "",
             enabledSubModels: parsed.enabledSubModels || {},
-            selectedTheme: parsed.selectedTheme || "vercel"
+            selectedTheme: parsed.selectedTheme || "basic"
           }
         }
       } catch (error) {
@@ -174,7 +174,7 @@ export default function Home() {
         grokApiKey: "",
         veo2ApiKey: "",
         enabledSubModels: {},
-        selectedTheme: "vercel"
+        selectedTheme: "basic"
       }
     }
 
@@ -215,7 +215,7 @@ export default function Home() {
     
     // Apply saved theme
     if (settings.selectedTheme) {
-      const themeClasses = ['theme-vercel', 'theme-default']
+      const themeClasses = ['theme-basic']
       const lightDarkClasses = ['light', 'dark']
       document.documentElement.classList.remove(...themeClasses, ...lightDarkClasses)
       
