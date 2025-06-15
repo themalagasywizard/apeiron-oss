@@ -287,15 +287,22 @@ export default function MainUI({
       const savedThemeMode = localStorage.getItem('t3-chat-theme-mode')
       if (savedThemeMode === 'light') {
         setTheme('light')
+        document.documentElement.classList.remove('dark')
         document.documentElement.classList.add('light')
       } else if (savedThemeMode === 'dark') {
         setTheme('dark')
         document.documentElement.classList.remove('light')
+        document.documentElement.classList.add('dark')
       } else {
         // Fallback to checking current classes
         const isLightMode = document.documentElement.classList.contains('light')
         if (isLightMode) {
           setTheme('light')
+        } else {
+          // Default to dark mode
+          setTheme('dark')
+          document.documentElement.classList.remove('light')
+          document.documentElement.classList.add('dark')
         }
       }
     }
@@ -641,8 +648,9 @@ export default function MainUI({
     document.documentElement.classList.remove("light", "dark")
     if (newTheme === "light") {
       document.documentElement.classList.add("light")
+    } else {
+      document.documentElement.classList.add("dark")
     }
-    // For dark mode, we don't add "dark" class since our base theme is dark
   }
 
   // Handle theme selection
@@ -660,6 +668,8 @@ export default function MainUI({
     // Re-apply the current light/dark mode
     if (theme === "light") {
       document.documentElement.classList.add("light")
+    } else {
+      document.documentElement.classList.add("dark")
     }
     
     // Save theme preference
@@ -1010,11 +1020,11 @@ export default function MainUI({
                 w-full max-w-[280px] h-full flex flex-col
                 ${isMobile ? "fixed z-20 top-0 left-0 h-screen" : ""}
                 bg-background
-                border-r border-gray-300 dark:border-gray-700/20
+                                 border-r border-gray-300 dark:border-gray-600/20
               `}
             >
               {/* Sidebar Header with Title and Controls */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-300 dark:border-gray-700/20 h-[60px]">
+                              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-300 dark:border-gray-600/20 h-[60px]">
                 <h1 className="text-lg font-bold text-gray-800 dark:text-gray-200">
                   Apeiron
                 </h1>
@@ -1052,14 +1062,7 @@ export default function MainUI({
                     </button>
                   </div>
 
-                  {/* Authentication status indicator */}
-                  {!isAuthenticated && (
-                    <div className="px-2 py-2 mb-2">
-                      <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1.5 rounded-lg border border-amber-200/50 dark:border-amber-800/50">
-                        💡 Sign in to save conversations across devices
-                      </div>
-                    </div>
-                  )}
+
 
                   <div className="mt-2 space-y-1">
                     {conversations.map((conversation) => (
@@ -1083,9 +1086,6 @@ export default function MainUI({
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                               <span>{new Date(conversation.timestamp).toLocaleDateString()}</span>
-                              {!isAuthenticated && (
-                                <span className="text-amber-500">• Local only</span>
-                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1142,7 +1142,7 @@ export default function MainUI({
                         </button>
 
                         {expandedProjects[project.id] && (
-                          <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200/30 dark:border-gray-700/30 pl-2">
+                          <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200/30 dark:border-gray-600/15 pl-2">
                             {project.conversations.map((convId) => {
                               const conv = conversations.find((c) => c.id === convId)
                               if (!conv) return null
@@ -1756,10 +1756,10 @@ export default function MainUI({
                 onClick={handleSendMessage}
                 disabled={!inputValue.trim() && attachments.length === 0}
                 className={`
-                  h-[48px] w-[48px] rounded-xl flex-shrink-0 transition-all duration-200 flex items-center justify-center
+                  h-[48px] w-[48px] rounded-xl flex-shrink-0 transition-all duration-200 flex items-center justify-center border border-gray-200/20 dark:border-gray-600/20
                   ${
                     inputValue.trim() || attachments.length > 0
-                      ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-purple-500/25"
+                      ? "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-300"
                       : "bg-gray-200/50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed"
                   }
                 `}

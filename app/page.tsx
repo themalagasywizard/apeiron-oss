@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import MainUI from "@/main-ui"
 import { AuthModal } from "@/components/AuthModal"
-import { ProjectSidebar } from "@/components/ProjectSidebar"
+
 import { useAuth } from "@/hooks/useAuth"
 import {
   getProjects,
@@ -783,24 +783,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Project Sidebar - only show if authenticated */}
-      {isAuthenticated && (
-        <ProjectSidebar
-          projects={projects}
-          conversations={conversations}
-          selectedProjectId={selectedProjectId}
-          selectedConversationId={currentConversationId}
-          onCreateProject={handleCreateProject}
-          onSelectProject={handleSelectProject}
-          onSelectConversation={handleSelectConversation}
-          onUpdateProject={handleUpdateProject}
-          onDeleteProject={handleDeleteProject}
-          onMoveConversation={handleMoveConversation}
-          onCreateConversation={handleCreateConversation}
-          onDeleteConversation={handleDeleteConversation}
-        />
-      )}
-
       {/* Main Chat Interface */}
       <div className="flex-1">
         <MainUI

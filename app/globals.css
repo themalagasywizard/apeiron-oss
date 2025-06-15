@@ -215,6 +215,7 @@
   .dark\:text-gray-100 { color: var(--foreground) !important; }
 
   .dark\:border-gray-700 { border-color: var(--border) !important; }
+  .dark\:border-gray-700\/10 { border-color: color-mix(in oklch, var(--border), transparent 90%) !important; }
   .dark\:border-gray-700\/20 { border-color: color-mix(in oklch, var(--border), transparent 80%) !important; }
   .dark\:border-gray-700\/30 { border-color: color-mix(in oklch, var(--border), transparent 70%) !important; }
   .dark\:border-gray-700\/50 { border-color: color-mix(in oklch, var(--border), transparent 50%) !important; }

@@ -122,9 +122,9 @@ export function ProjectSidebar({
   }
 
   return (
-    <div className="w-80 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+    <div className="w-80 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-600/20 flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-600/20">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Projects</h2>
           <Button
@@ -179,7 +179,7 @@ export function ProjectSidebar({
               "rounded-lg border-2 border-dashed transition-colors",
               dragOverProject === null && draggedConversation
                 ? "border-blue-400 bg-blue-50 dark:bg-blue-950"
-                : "border-gray-300 dark:border-gray-600"
+                : "border-gray-300 dark:border-gray-600/15"
             )}
             onDragOver={(e) => handleDragOver(e, null)}
             onDragLeave={handleDragLeave}
@@ -266,7 +266,7 @@ export function ProjectSidebar({
                   "p-3 cursor-pointer rounded-lg transition-colors border",
                   selectedProjectId === project.id
                     ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 border-blue-200 dark:border-blue-700"
-                    : "hover:bg-gray-100 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700"
+                    : "hover:bg-gray-100 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-600/20"
                 )}
                 onClick={() => onSelectProject(project.id)}
               >
@@ -398,7 +398,7 @@ export function ProjectSidebar({
       </ScrollArea>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-600/20">
         <Button
           onClick={onCreateConversation}
           className="w-full"
