@@ -67,26 +67,26 @@
     --card-foreground: oklch(0 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0 0 0);
-    --primary: oklch(0.25 0 0);
-    --primary-foreground: oklch(1 0 0);
+    --primary: oklch(1 0 0);
+    --primary-foreground: oklch(0 0 0);
     --secondary: oklch(0.95 0 0);
     --secondary-foreground: oklch(0.1 0 0);
     --muted: oklch(0.96 0 0);
     --muted-foreground: oklch(0.4 0 0);
-    --accent: oklch(0.25 0 0);
-    --accent-foreground: oklch(1 0 0);
+    --accent: oklch(1 0 0);
+    --accent-foreground: oklch(0 0 0);
     --destructive: oklch(0.65 0.15 15);
     --destructive-foreground: oklch(1 0 0);
-    --border: oklch(0.9 0 0);
-    --input: oklch(0.95 0 0);
+    --border: oklch(0.85 0 0);
+    --input: oklch(1 0 0);
     --ring: oklch(0.25 0 0);
     --sidebar: oklch(1 0 0);
     --sidebar-foreground: oklch(0 0 0);
-    --sidebar-primary: oklch(0.25 0 0);
-    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-primary: oklch(1 0 0);
+    --sidebar-primary-foreground: oklch(0 0 0);
     --sidebar-accent: oklch(0.95 0 0);
     --sidebar-accent-foreground: oklch(0.1 0 0);
-    --sidebar-border: oklch(0.9 0 0);
+    --sidebar-border: oklch(0.85 0 0);
     --sidebar-ring: oklch(0.25 0 0);
   }
 
@@ -152,7 +152,7 @@
 
   /* Override border colors */
   .border-gray-200 { border-color: var(--border) !important; }
-  .border-gray-300 { border-color: var(--border) !important; }
+  .border-gray-300 { border-color: oklch(0.85 0 0) !important; }
   .border-gray-700 { border-color: var(--border) !important; }
   
   /* Override with opacity variants */
@@ -202,6 +202,8 @@
   .dark\:bg-gray-800\/90 { background-color: color-mix(in oklch, var(--card), transparent 10%) !important; }
   .dark\:bg-gray-900\/40 { background-color: color-mix(in oklch, var(--background), transparent 60%) !important; }
   .dark\:bg-gray-900\/50 { background-color: color-mix(in oklch, var(--background), transparent 50%) !important; }
+  
+  /* Special handling for buttons - use oklch(0.25 0 0) in dark mode, white with borders in light mode */
   .dark\:bg-gray-800\/40 { background-color: oklch(0.25 0 0) !important; }
   .dark\:bg-gray-800\/60 { background-color: color-mix(in oklch, oklch(0.25 0 0), transparent 40%) !important; }
   .dark\:bg-gray-800\/30 { background-color: color-mix(in oklch, oklch(0.25 0 0), transparent 70%) !important; }
@@ -227,12 +229,26 @@
   .dark\:hover\:bg-gray-700\/50:hover { background-color: color-mix(in oklch, var(--muted), transparent 50%) !important; }
   .dark\:hover\:bg-white\/10:hover { background-color: color-mix(in oklch, var(--background), transparent 90%) !important; }
 
-  /* Specific overrides for input area and settings buttons to use oklch(0.25 0 0) */
-  .bg-white\/20.dark\:bg-gray-800\/40 { background-color: oklch(0.25 0 0) !important; }
-  .hover\:bg-white\/30.dark\:hover\:bg-gray-800\/60:hover { background-color: color-mix(in oklch, oklch(0.25 0 0), transparent 40%) !important; }
-  .hover\:bg-white\/30.dark\:hover\:bg-gray-700\/50:hover { background-color: color-mix(in oklch, oklch(0.25 0 0), transparent 50%) !important; }
+  /* Light mode specific overrides - buttons should be white with faint black borders */
+  .theme-basic.light .bg-white\/20 { 
+    background-color: oklch(1 0 0) !important; 
+    border: 1px solid oklch(0.85 0 0) !important;
+  }
+  .theme-basic.light .hover\:bg-white\/30:hover { 
+    background-color: oklch(0.95 0 0) !important; 
+  }
+  .theme-basic.light .dark\:bg-gray-800\/40 { 
+    background-color: oklch(1 0 0) !important; 
+    border: 1px solid oklch(0.85 0 0) !important;
+  }
+  .theme-basic.light .dark\:hover\:bg-gray-800\/60:hover { 
+    background-color: oklch(0.95 0 0) !important; 
+  }
+  .theme-basic.light .dark\:hover\:bg-gray-700\/50:hover { 
+    background-color: oklch(0.95 0 0) !important; 
+  }
 
-  /* Force all button-like elements with these classes to use oklch(0.25 0 0) in dark mode */
+  /* Dark mode specific overrides - buttons should use oklch(0.25 0 0) */
   .theme-basic:not(.light) .bg-white\/20 { background-color: oklch(0.25 0 0) !important; }
   .theme-basic:not(.light) .hover\:bg-white\/30:hover { background-color: color-mix(in oklch, oklch(0.25 0 0), oklch(1 0 0) 30%) !important; }
 

@@ -1009,14 +1009,14 @@ export default function MainUI({
               className={`
                 w-full max-w-[280px] h-full flex flex-col
                 ${isMobile ? "fixed z-20 top-0 left-0 h-screen" : ""}
-                backdrop-blur-xl bg-white/20 dark:bg-gray-900/40
-                border-r border-gray-200/20 dark:border-gray-700/20
+                bg-background
+                border-r border-gray-300 dark:border-gray-700/20
               `}
             >
               {/* Sidebar Header with Title and Controls */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200/20 dark:border-gray-700/20 h-[60px]">
-                <h1 className="text-lg font-bold bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
-                  AI Chat
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-300 dark:border-gray-700/20 h-[60px]">
+                <h1 className="text-lg font-bold text-gray-800 dark:text-gray-200">
+                  Apeiron
                 </h1>
                 <div className="flex items-center gap-1">
                 <button
@@ -2166,7 +2166,7 @@ export default function MainUI({
                             onClick={() => handleThemeSelect(themeOption.id)}
                             className={`relative p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md ${
                               currentTheme === themeOption.id
-                                ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                                ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20 dark:border-purple-400"
                                 : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                             }`}
                           >
