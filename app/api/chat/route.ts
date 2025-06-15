@@ -5,14 +5,14 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   let provider = "unknown"; // Declare in outer scope for error handling
   
-  // Emergency timeout - kill the entire function after 25 seconds
+  // Emergency timeout - kill the entire function after 35 seconds (to accommodate code generation)
   const emergencyTimeout = setTimeout(() => {
     console.error("Emergency timeout hit - function taking too long");
-  }, 25000);
+  }, 35000);
   
   try {
     const requestBody = await request.json();
-    const { messages, provider: requestProvider, apiKey, model, temperature, customModelName, webSearchEnabled } = requestBody;
+    const { messages, provider: requestProvider, apiKey, model, temperature, customModelName, webSearchEnabled, codeGenerationEnabled } = requestBody;
     provider = requestProvider; // Assign to outer scope variable
 
     // Validate required inputs
@@ -49,45 +49,54 @@ export async function POST(request: NextRequest) {
     // Detect if this is a code generation request
     let isCodeRequest = false;
     try {
-      const lastUserMessage = messages[messages.length - 1]?.content?.toLowerCase() || "";
-      isCodeRequest = lastUserMessage.includes("html") || 
-                     lastUserMessage.includes("css") || 
-                     lastUserMessage.includes("javascript") || 
-                     lastUserMessage.includes("js") ||
-                     lastUserMessage.includes("code") ||
-                     lastUserMessage.includes("function") ||
-                     lastUserMessage.includes("component") ||
-                     lastUserMessage.includes("website") ||
-                     lastUserMessage.includes("app") ||
-                     lastUserMessage.includes("build") ||
-                     lastUserMessage.includes("create") ||
-                     lastUserMessage.includes("develop") ||
-                     lastUserMessage.includes("program") ||
-                     lastUserMessage.includes("script") ||
-                     lastUserMessage.includes("react") ||
-                     lastUserMessage.includes("vue") ||
-                     lastUserMessage.includes("angular") ||
-                     lastUserMessage.includes("node") ||
-                     lastUserMessage.includes("python") ||
-                     lastUserMessage.includes("java") ||
-                     lastUserMessage.includes("php") ||
-                     lastUserMessage.includes("sql") ||
-                     lastUserMessage.includes("<") ||
-                     lastUserMessage.includes("```");
+      // First check if code generation is explicitly enabled
+      if (codeGenerationEnabled) {
+        isCodeRequest = true;
+        console.log("Code generation explicitly enabled via UI toggle");
+      } else {
+        // Fallback to content-based detection
+        const lastUserMessage = messages[messages.length - 1]?.content?.toLowerCase() || "";
+        isCodeRequest = lastUserMessage.includes("html") || 
+                       lastUserMessage.includes("css") || 
+                       lastUserMessage.includes("javascript") || 
+                       lastUserMessage.includes("js") ||
+                       lastUserMessage.includes("code") ||
+                       lastUserMessage.includes("function") ||
+                       lastUserMessage.includes("component") ||
+                       lastUserMessage.includes("website") ||
+                       lastUserMessage.includes("app") ||
+                       lastUserMessage.includes("build") ||
+                       lastUserMessage.includes("create") ||
+                       lastUserMessage.includes("develop") ||
+                       lastUserMessage.includes("program") ||
+                       lastUserMessage.includes("script") ||
+                       lastUserMessage.includes("react") ||
+                       lastUserMessage.includes("vue") ||
+                       lastUserMessage.includes("angular") ||
+                       lastUserMessage.includes("node") ||
+                       lastUserMessage.includes("python") ||
+                       lastUserMessage.includes("java") ||
+                       lastUserMessage.includes("php") ||
+                       lastUserMessage.includes("sql") ||
+                       lastUserMessage.includes("landing page") ||
+                       lastUserMessage.includes("make me") ||
+                       lastUserMessage.includes("<") ||
+                       lastUserMessage.includes("```");
+      }
 
-      console.log("Code request detected:", isCodeRequest, "for message:", lastUserMessage.substring(0, 100));
+      console.log("Code request detected:", isCodeRequest, "for message:", messages[messages.length - 1]?.content?.substring(0, 100));
     } catch (error) {
       console.error("Error in code detection:", error);
       isCodeRequest = false; // Fallback to false if detection fails
     }
 
-    // Optimize parameters for code generation (ultra-conservative for serverless)
+    // Optimize parameters for code generation
     const getOptimizedParams = (baseTimeout: number, baseTokens: number) => {
       try {
-        if (isCodeRequest) {
+        if (isCodeRequest || codeGenerationEnabled) {
           return {
-            timeout: Math.min(baseTimeout + 2000, 20000), // Add only 2 seconds for code, max 20s
-            maxTokens: Math.min(baseTokens * 1.5, 4000), // 1.5x tokens for code, max 4000
+            timeout: Math.min(baseTimeout + 10000, 30000), // Add 10 seconds for code, max 30s
+            maxTokens: Math.min(baseTokens * 2, 8000), // 2x tokens for code, max 8000
             temperature: 0.1 // Lower temperature for more focused code output
           };
         }
@@ -107,84 +116,57 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // Add code optimization instructions to messages
+    // Clean and optimize messages for API requests
     const optimizeMessagesForCode = (messages: any[]) => {
       try {
-        if (!isCodeRequest || !Array.isArray(messages) || messages.length === 0) {
+        if (!Array.isArray(messages) || messages.length === 0) {
           return messages;
         }
         
-        const optimizedMessages = [...messages];
-        const lastMessage = optimizedMessages[optimizedMessages.length - 1];
+        // Filter and clean messages
+        const cleanedMessages = messages
+          .filter((m: any) => {
+            // Remove messages with empty or invalid content
+            return m && m.role && m.content && typeof m.content === 'string' && m.content.trim().length > 0;
+          })
+          .map((m: any) => ({
+            role: m.role,
+            content: m.content.trim()
+          }));
         
-        if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
-          // Add code-focused instructions
-          const codeInstructions = `
-
-CRITICAL CODE GENERATION MODE - FOLLOW EXACTLY:
-
-YOU ARE IN CODE GENERATION MODE. YOUR PRIMARY TASK IS TO GENERATE CLEAN, WORKING CODE WITH MINIMAL EXPLANATORY TEXT.
-
-MANDATORY RULES:
-1. Start your response with working code inside code blocks
-2. NO lengthy explanations before the code
-3. NO tutorials or step-by-step instructions
-4. NO marketing language or descriptions
-5. MINIMAL text outside of code blocks
-
-FOR HTML/CSS REQUESTS:
-- IMMEDIATELY provide a complete HTML file with embedded CSS
-- Put ALL CSS inside <style> tags in the <head> section
-- NO separate CSS blocks or files
-- NO explanations about "how to use this code"
-- NO descriptions of features
-- COMPLETE, working, standalone HTML file that opens in any browser
-- Include proper DOCTYPE, html, head, and body structure
-- Add responsive meta tags and modern CSS practices
-- Use semantic HTML and proper accessibility features
-
-RESPONSE FORMAT FOR HTML:
-\`\`\`html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your Title</title>
-    <style>
-        /* ALL YOUR CSS GOES HERE */
-    </style>
-</head>
-<body>
-    <!-- ALL YOUR HTML CONTENT GOES HERE -->
-</body>
-</html>
-\`\`\`
-
-CRITICAL: Do NOT provide any explanatory text before or after the code. Just provide the complete working HTML file.
-
-USER REQUEST: ${lastMessage.content}
-
-RESPOND WITH WORKING CODE ONLY:`;
-
-          optimizedMessages[optimizedMessages.length - 1] = {
-            ...lastMessage,
-            content: codeInstructions
-          };
+        // Ensure we have at least one message
+        if (cleanedMessages.length === 0) {
+          return [{ role: "user", content: "Hello" }];
         }
         
-        return optimizedMessages;
+        // Add code generation instructions if this is a code request
+        if ((isCodeRequest || codeGenerationEnabled) && cleanedMessages.length > 0) {
+          const lastMessage = cleanedMessages[cleanedMessages.length - 1];
+          if (lastMessage.role === "user") {
+            lastMessage.content = `${lastMessage.content}
+
+IMPORTANT CODE GENERATION INSTRUCTIONS:
+- Provide complete, working code that can be run immediately
+- Include all necessary imports, dependencies, and setup
+- Use modern best practices and clean, readable code
+- Add helpful comments explaining key functionality
+- If creating a web page/app, make it visually appealing with good UX
+- Ensure the code is production-ready and follows security best practices`;
+          }
+        }
+        
+        return cleanedMessages;
       } catch (error) {
         console.error("Error in message optimization:", error);
-        // Return original messages if optimization fails
-        return messages;
+        // Return a safe fallback
+        return [{ role: "user", content: "Hello" }];
       }
     };
 
-    // Helper function to add timeout to fetch requests (ultra-conservative for serverless)
+    // Helper function to add timeout to fetch requests
     const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 18000): Promise<Response> => {
-      // Emergency serverless protection - never exceed 20 seconds
-      const safeTimeout = Math.min(timeoutMs, 20000);
+      // Allow longer timeouts for code generation, but cap at 30 seconds
+      const safeTimeout = Math.min(timeoutMs, 30000);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), safeTimeout);
@@ -366,13 +348,25 @@ Please provide a comprehensive response using the above search results.`;
 
       case "gemini":
         const geminiParams = getOptimizedParams(15000, 3000);
-        const geminiMessages = optimizeMessagesForCode(messages.map((m: any) => ({
+        
+        // Clean messages first, then convert to Gemini format
+        const cleanedGeminiMessages = optimizeMessagesForCode(messages);
+        const geminiMessages = cleanedGeminiMessages.map((m: any) => ({
           role: m.role === "assistant" ? "model" : "user",
           parts: [{ text: m.content }]
-        })));
+        }));
         
-        // Use Gemini 2.5 Flash Preview (latest model)
-        response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
+        console.log("Gemini request - messages:", JSON.stringify(geminiMessages, null, 2));
+        
+        // Use correct Gemini 2.5 model names
+        let geminiModel = "gemini-1.5-pro"; // Default fallback
+        if (model.includes("2.5-flash")) {
+          geminiModel = "gemini-2.5-flash-preview-05-20"; // Correct 2.5 Flash model name
+        } else if (model.includes("2.5-pro")) {
+          geminiModel = "gemini-2.5-pro-preview-06-05"; // Correct 2.5 Pro model name
+        }
+        
+        response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -390,14 +384,15 @@ Please provide a comprehensive response using the above search results.`;
 
         if (!response.ok) {
           const errorData = await response.text();
+          console.error("Gemini API error:", response.status, errorData);
           if (response.status === 504) {
             throw new Error(`Gemini request timed out. Serverless time limit reached. Try a shorter request.`);
           }
-          throw new Error(`Gemini 2.5 Flash is currently unavailable (${response.status}). Please try again in a moment.`);
+          throw new Error(`Gemini API error (${response.status}): ${errorData}`);
         }
 
-        const geminiData = await safeJsonParse(response, "Gemini 2.5 Flash");
-        aiResponse = cleanAIResponse(geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini 2.5 Flash didn't provide a response. Please try again.", "Gemini 2.5 Flash");
+        const geminiData = await safeJsonParse(response, "Gemini");
+        aiResponse = cleanAIResponse(geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini didn't provide a response. Please try again.", "Gemini");
         break;
 
       case "deepseek":
@@ -544,6 +539,49 @@ Please provide a comprehensive response using the above search results.`;
         aiResponse = cleanAIResponse(openrouterData.choices[0]?.message?.content || "OpenRouter didn't provide a response. Please try again.", "OpenRouter");
         break;
 
+      case "mistral":
+        const mistralParams = getOptimizedParams(15000, 2500);
+        const mistralMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        
+        console.log("Mistral request - messages:", JSON.stringify(mistralMessages, null, 2));
+        
+        // Map model names to Mistral API model names
+        let mistralModel = "mistral-large-latest";
+        if (model.includes("large")) mistralModel = "mistral-large-latest";
+        else if (model.includes("medium")) mistralModel = "mistral-medium-latest";
+        else if (model.includes("small")) mistralModel = "mistral-small-latest";
+        else if (model.includes("codestral")) mistralModel = "codestral-latest";
+        
+        console.log("Using Mistral model:", mistralModel);
+        
+        response = await fetchWithTimeout("https://api.mistral.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: mistralModel,
+            messages: mistralMessages,
+            temperature: mistralParams.temperature,
+            max_tokens: mistralParams.maxTokens,
+            stream: false
+          })
+        }, mistralParams.timeout);
+
+        if (!response.ok) {
+          const errorData = await response.text();
+          console.error("Mistral API error:", response.status, errorData);
+          if (response.status === 504) {
+            throw new Error(`Mistral request timed out. Serverless time limit reached. Try a shorter request.`);
+          }
+          throw new Error(`Mistral API error (${response.status}): ${errorData}`);
+        }
+
+        const mistralData = await safeJsonParse(response, "Mistral");
+        aiResponse = cleanAIResponse(mistralData.choices[0]?.message?.content || "Mistral didn't provide a response. Please try again.", "Mistral");
+        break;
+
       case "veo2":
         // VEO2 video generation using dedicated endpoint
         const prompt = messages[messages.length - 1]?.content || "";
@@ -583,7 +621,8 @@ Please provide a comprehensive response using the above search results.`;
 
     clearTimeout(emergencyTimeout);
     return NextResponse.json({ 
-      response: aiResponse,
+      content: aiResponse,
+      response: aiResponse, // Keep both for compatibility
       model: model,
       provider: provider,
       searchResults: searchResults,

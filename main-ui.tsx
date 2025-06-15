@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatFileSize } from "@/lib/file-utils"
 import ModelLogo from "@/components/model-logos"
@@ -91,7 +89,7 @@ type Model = {
   name: string
   icon: string
   apiKey?: string
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral"
   isCustom?: boolean
   customModelName?: string
   enabled?: boolean
@@ -110,6 +108,7 @@ type UserSettings = {
   deepseekApiKey: string
   grokApiKey: string
   veo2ApiKey: string
+  mistralApiKey: string
   enabledSubModels: { [provider: string]: string[] } // Track which sub-models are enabled per provider
   selectedTheme?: string // Currently selected theme
 }
@@ -170,6 +169,7 @@ export default function MainUI({
     deepseekApiKey: "",
     grokApiKey: "",
     veo2ApiKey: "",
+    mistralApiKey: "",
     enabledSubModels: {}
   },
   isTyping = false,
@@ -194,6 +194,8 @@ export default function MainUI({
     openai: {
       name: "OpenAI",
       models: [
+        { id: "o3", name: "o3", description: "Latest breakthrough reasoning model" },
+        { id: "gpt-4.5", name: "GPT-4.5", description: "Enhanced flagship model with improved capabilities" },
         { id: "gpt-4.1", name: "GPT-4.1", description: "Latest flagship model with enhanced capabilities" },
         { id: "gpt-4o", name: "GPT-4o", description: "Multimodal model with vision and audio" },
         { id: "gpt-4", name: "GPT-4", description: "Previous generation model" },
@@ -203,9 +205,8 @@ export default function MainUI({
     claude: {
       name: "Anthropic (Claude)",
       models: [
-        { id: "claude-opus-4", name: "Claude 4 Opus", description: "Most powerful model for complex tasks" },
-        { id: "claude-sonnet-4", name: "Claude 4 Sonnet", description: "Balanced performance and efficiency" },
-        { id: "claude-3.7-sonnet", name: "Claude 3.7 Sonnet", description: "Extended thinking capabilities" },
+        { id: "claude-4-sonnet", name: "Claude 4 Sonnet", description: "Latest generation with advanced reasoning" },
+        { id: "claude-3.5-opus", name: "Claude 3.5 Opus", description: "Most powerful model for complex tasks" },
         { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet", description: "High performance model" }
       ]
     },
@@ -226,9 +227,16 @@ export default function MainUI({
     grok: {
       name: "xAI (Grok)",
       models: [
-        { id: "grok-3", name: "Grok 3", description: "Advanced reasoning with real-time data" },
-        { id: "grok-3-mini", name: "Grok 3 Mini", description: "Lightweight thinking model" },
-        { id: "grok-2", name: "Grok 2", description: "Previous generation model" }
+        { id: "grok-3", name: "Grok 3", description: "Advanced reasoning with real-time data" }
+      ]
+    },
+    mistral: {
+      name: "Mistral AI",
+      models: [
+        { id: "mistral-large", name: "Mistral Large", description: "Most capable model for complex reasoning" },
+        { id: "mistral-medium", name: "Mistral Medium", description: "Balanced performance and cost" },
+        { id: "mistral-small", name: "Mistral Small", description: "Fast and efficient for simple tasks" },
+        { id: "codestral", name: "Codestral", description: "Specialized coding and development model" }
       ]
     }
   }
@@ -237,15 +245,16 @@ export default function MainUI({
   const getModelIcon = (provider: string, modelId: string): string => {
     const iconMap: { [key: string]: { [key: string]: string } } = {
       openai: {
+        "o3": "O3",
+        "gpt-4.5": "45",
         "gpt-4.1": "41",
         "gpt-4o": "4O",
         "gpt-4": "G4",
         "gpt-3.5-turbo": "35"
       },
       claude: {
-        "claude-opus-4": "O4",
-        "claude-sonnet-4": "S4",
-        "claude-3.7-sonnet": "37",
+        "claude-4-sonnet": "C4",
+        "claude-3.5-opus": "CO",
         "claude-3.5-sonnet": "35"
       },
       gemini: {
@@ -257,9 +266,13 @@ export default function MainUI({
         "deepseek-v3": "D3"
       },
       grok: {
-        "grok-3": "G3",
-        "grok-3-mini": "3M",
-        "grok-2": "G2"
+        "grok-3": "G3"
+      },
+      mistral: {
+        "mistral-large": "ML",
+        "mistral-medium": "MM",
+        "mistral-small": "MS",
+        "codestral": "CS"
       }
     }
     return iconMap[provider]?.[modelId] || "AI"
@@ -314,7 +327,7 @@ export default function MainUI({
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
 
   const [settingsTab, setSettingsTab] = useState<"general" | "models" | "themes">("general")
-  const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter">("openai")
+  const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "mistral">("openai")
   const [newModelApiKey, setNewModelApiKey] = useState("")
   const [newModelCustomName, setNewModelCustomName] = useState("")
   const [showNewModelApiKey, setShowNewModelApiKey] = useState(false)
@@ -580,6 +593,9 @@ export default function MainUI({
         case "grok":
           updatedSettings.grokApiKey = newModelApiKey
           break
+        case "mistral":
+          updatedSettings.mistralApiKey = newModelApiKey
+          break
       }
       updatedSettings.openrouterEnabled = false
       
@@ -619,6 +635,9 @@ export default function MainUI({
         break
       case "grok":
         updatedSettings.grokApiKey = ""
+        break
+      case "mistral":
+        updatedSettings.mistralApiKey = ""
         break
     }
     
@@ -1081,7 +1100,13 @@ export default function MainUI({
 
 
                   <div className="mt-2 space-y-1">
-                    {conversations.map((conversation) => (
+                    {conversations.length === 0 ? (
+                      <div className="px-3 py-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                        <div className="mb-2">No conversations yet</div>
+                        <div className="text-xs">Click "New Chat" or start typing to begin</div>
+                      </div>
+                    ) : (
+                      conversations.map((conversation) => (
                       <div
                         key={conversation.id}
                         className={`
@@ -1097,9 +1122,29 @@ export default function MainUI({
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-800 dark:text-gray-200 truncate">
-                              {conversation.title}
-                            </div>
+                            {editingConversationId === conversation.id ? (
+                              <input
+                                type="text"
+                                value={editingTitle}
+                                onChange={(e) => setEditingTitle(e.target.value)}
+                                onKeyDown={handleRenameKeyPress}
+                                onBlur={handleSaveRename}
+                                className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
+                                autoFocus
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <div 
+                                className="font-medium text-gray-800 dark:text-gray-200 truncate cursor-pointer"
+                                title="Double-click to rename conversation"
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStartRename(conversation.id, conversation.title);
+                                }}
+                              >
+                                {conversation.title}
+                              </div>
+                            )}
                             <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                               <span>{new Date(conversation.timestamp).toLocaleDateString()}</span>
                             </div>
@@ -1120,7 +1165,8 @@ export default function MainUI({
                           </div>
                         </div>
                       </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -1353,7 +1399,27 @@ export default function MainUI({
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            {currentConversation.messages.map((message) => (
+            {currentConversation.messages.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center max-w-md mx-auto">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                    Start a conversation
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    Type your message below to begin chatting with AI
+                  </p>
+                  <div className="text-sm text-gray-500 dark:text-gray-500">
+                    💡 Tip: You can double-click conversation names to rename them
+                  </div>
+                </div>
+              </div>
+            ) : (
+              currentConversation.messages.map((message) => (
               <motion.div
                 key={message.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -1375,13 +1441,29 @@ export default function MainUI({
                   {message.role === "assistant" && (
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200/30 dark:border-gray-600/30">
                       <ModelLogo 
-                        provider={(message.provider as "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter") || "openai"} 
+                        provider={(() => {
+                          // First try to use the message provider
+                          if (message.provider) {
+                            return message.provider as "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral";
+                          }
+                          // Fallback: determine provider from model ID
+                          if (message.model) {
+                            if (message.model.includes('gpt') || message.model.includes('o3')) return 'openai';
+                            if (message.model.includes('claude')) return 'claude';
+                            if (message.model.includes('gemini')) return 'gemini';
+                            if (message.model.includes('veo2')) return 'veo2';
+                            if (message.model.includes('deepseek')) return 'deepseek';
+                            if (message.model.includes('grok')) return 'grok';
+                            if (message.model.includes('mistral') || message.model.includes('codestral')) return 'mistral';
+                          }
+                          return 'openai'; // final fallback
+                        })()} 
                         size="sm"
                       />
                       <span className="text-xs text-gray-600 dark:text-gray-400">
                         {(() => {
                           const model = availableModels.find(m => m.id === message.model || m.provider === message.provider);
-                          return model?.name || message.provider || 'AI';
+                          return model?.name || message.model || message.provider || 'AI';
                         })()}
                       </span>
                     </div>
@@ -1617,7 +1699,8 @@ export default function MainUI({
                   </div>
                 </div>
               </motion.div>
-            ))}
+              ))
+            )}
 
             {/* Typing Indicator with Model Logo */}
             {isTyping && (
@@ -1726,11 +1809,15 @@ export default function MainUI({
                     className="h-[48px] w-36 px-3 pr-8 rounded-xl bg-white/20 dark:bg-gray-800/40 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                     aria-label="Select AI model"
                   >
-                    {availableModels.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.name}
-                      </option>
-                    ))}
+                    {availableModels.length === 0 ? (
+                      <option value="" disabled>No models configured</option>
+                    ) : (
+                      availableModels.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400 pointer-events-none" />
                 </div>
@@ -2024,6 +2111,7 @@ export default function MainUI({
                                 <option value="gemini">Google (Gemini + VEO2)</option>
                                 <option value="deepseek">DeepSeek</option>
                                 <option value="grok">Grok (xAI)</option>
+                                <option value="mistral">Mistral AI</option>
                                 <option value="openrouter">OpenRouter</option>
                               </select>
                             </div>

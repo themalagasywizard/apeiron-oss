@@ -4,7 +4,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 
 interface ModelLogoProps {
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral"
   isLoading?: boolean
   size?: "sm" | "md" | "lg"
 }
@@ -33,8 +33,8 @@ const ModelLogo: React.FC<ModelLogoProps> = ({ provider, isLoading = false, size
     switch (provider) {
       case "openai":
         return (
-          <div className={`${sizeClasses[size]} rounded-lg bg-black dark:bg-white flex items-center justify-center`}>
-            <svg viewBox="0 0 24 24" className="w-3/4 h-3/4 fill-white dark:fill-black">
+          <div className={`${sizeClasses[size]} rounded-lg bg-black flex items-center justify-center`}>
+            <svg viewBox="0 0 24 24" className="w-3/4 h-3/4 fill-white">
               <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zm-2.4569-11.0932a4.4748 4.4748 0 0 1 2.35-1.9728V9.7731a.7806.7806 0 0 0 .3927.6813l5.8428 3.3685-2.02 1.1686a.0757.0757 0 0 1-.071 0L2.86 12.004a4.4992 4.4992 0 0 1-.6572-5.1537zm16.5666 3.9956a4.4708 4.4708 0 0 1-.5346 3.0137l-.142-.0852-4.7806-2.7582a.7712.7712 0 0 0-.7806 0L9.74 14.8447V12.5123a.0804.0804 0 0 1 .0332-.0615l4.9618-2.8626a4.4992 4.4992 0 0 1 6.1408 1.6464zM21.2457 14.225l-2.3258-1.3430a.0757.0757 0 0 1-.038-.052V7.2729a4.504 4.504 0 0 1 7.3536 1.1686zm-1.6464-3.9956A4.4708 4.4708 0 0 1 22.0716 6.8977L9.74 4.2395a4.4992 4.4992 0 0 1 6.1408-1.6464l4.9618 2.8626a.0804.0804 0 0 1 .0332.0615v5.5826z"/>
             </svg>
           </div>
@@ -87,6 +87,13 @@ const ModelLogo: React.FC<ModelLogoProps> = ({ provider, isLoading = false, size
             <svg viewBox="0 0 24 24" className="w-3/4 h-3/4 fill-white">
               <path d="M8 5v14l11-7z"/>
             </svg>
+          </div>
+        )
+        
+      case "mistral":
+        return (
+          <div className={`${sizeClasses[size]} rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm`}>
+            <span>M</span>
           </div>
         )
         

@@ -61,7 +61,7 @@ type Model = {
   name: string
   icon: string
   apiKey?: string
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral"
   isCustom?: boolean
   customModelName?: string
   enabled?: boolean
@@ -80,6 +80,7 @@ type UserSettings = {
   deepseekApiKey: string
   grokApiKey: string
   veo2ApiKey: string
+  mistralApiKey: string
   enabledSubModels: { [provider: string]: string[] } // Track which sub-models are enabled per provider
   selectedTheme?: string // Currently selected theme
 }
@@ -101,7 +102,7 @@ export default function Home() {
   const [isClient, setIsClient] = useState(false)
   const [conversations, setConversations] = useState<UIConversation[]>([])
   const [currentConversationId, setCurrentConversationId] = useState("")
-  const [currentModel, setCurrentModel] = useState("gpt-4")
+  const [currentModel, setCurrentModel] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [userSettings, setUserSettings] = useState<UserSettings>({
     temperature: 0.7,
@@ -115,6 +116,7 @@ export default function Home() {
     deepseekApiKey: "",
     grokApiKey: "",
     veo2ApiKey: "",
+    mistralApiKey: "",
     enabledSubModels: {},
     selectedTheme: "basic"
   })
@@ -153,6 +155,7 @@ export default function Home() {
             deepseekApiKey: parsed.deepseekApiKey || "",
             grokApiKey: parsed.grokApiKey || "",
             veo2ApiKey: parsed.veo2ApiKey || "",
+            mistralApiKey: parsed.mistralApiKey || "",
             enabledSubModels: parsed.enabledSubModels || {},
             selectedTheme: parsed.selectedTheme || "basic"
           }
@@ -173,6 +176,7 @@ export default function Home() {
         deepseekApiKey: "",
         grokApiKey: "",
         veo2ApiKey: "",
+        mistralApiKey: "",
         enabledSubModels: {},
         selectedTheme: "basic"
       }
@@ -201,9 +205,14 @@ export default function Home() {
           if (mappedConversations.length > 0 && !currentConversationId) {
             setCurrentConversationId(mappedConversations[0].id)
           }
+        } else {
+          // Don't create default conversations - start with empty state
+          setConversations([])
         }
       } catch (error) {
         console.error("Failed to load local conversations:", error)
+        // Don't create fallback conversations - start with empty state
+        setConversations([])
       }
     }
 
@@ -212,6 +221,20 @@ export default function Home() {
     
     const settings = loadSettings()
     setUserSettings(settings)
+    
+    // Set default model to first available model based on API keys
+    const getFirstAvailableModel = (settings: UserSettings): string => {
+      if (settings.geminiApiKey) return "gemini-2.5-flash"
+      if (settings.openaiApiKey) return "gpt-4"
+      if (settings.claudeApiKey) return "claude-3.5-sonnet"
+      if (settings.mistralApiKey) return "mistral-large"
+      if (settings.deepseekApiKey) return "deepseek-v3"
+      if (settings.grokApiKey) return "grok-3"
+      return "gemini-2.5-flash" // fallback
+    }
+    
+    const defaultModel = getFirstAvailableModel(settings)
+    setCurrentModel(defaultModel)
     
     // Apply saved theme
     if (settings.selectedTheme) {
@@ -222,9 +245,11 @@ export default function Home() {
       // Always add the theme class
       document.documentElement.classList.add(`theme-${settings.selectedTheme}`)
       
-      // Apply dark mode by default (light/dark can be toggled via header button)
-      // Don't add 'dark' class here - let the theme be the primary style
-      // Light/dark switching will be handled by adding .light class when needed
+      // Apply dark mode by default
+      document.documentElement.classList.add('dark')
+    } else {
+      // Fallback - ensure we have basic classes
+      document.documentElement.classList.add('theme-basic', 'dark')
     }
     
     loadLocalConversations() // Load local conversations for non-authenticated users
@@ -544,6 +569,50 @@ export default function Home() {
   ) => {
     if (!message.trim() && !attachments?.length) return
 
+    // Create a conversation if none exists
+    if (conversations.length === 0 || !currentConversationId) {
+      await handleCreateConversation()
+      // Wait a moment for the conversation to be created
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    // Check if any models are available
+    const availableModels = getAvailableModels()
+    if (availableModels.length === 0) {
+      // Create info message to guide user
+      const infoMessage = {
+        id: Date.now().toString(),
+        content: "👋 Welcome to T3 Chat! To start chatting, please configure an API key:\n\n1. Click the ⚙️ Settings button in the top-right\n2. Go to the 'Models' tab\n3. Add your API key for any provider (OpenAI, Claude, Gemini, etc.)\n4. Select which models you want to use\n\nOnce configured, you'll be able to chat with AI models!",
+        role: 'assistant' as const,
+        timestamp: new Date(),
+        isError: false
+      }
+
+      const infoConversations = conversations.map(conv =>
+        conv.id === currentConversationId
+          ? {
+              ...conv,
+              messages: [...conv.messages, infoMessage],
+              updated_at: new Date().toISOString()
+            }
+          : conv
+      )
+      setConversations(infoConversations)
+      saveConversationsLocally(infoConversations)
+      return
+    }
+
+    // Clean up any existing error messages from the current conversation
+    const cleanedConversations = conversations.map(conv =>
+      conv.id === currentConversationId
+        ? {
+            ...conv,
+            messages: conv.messages.filter(msg => !msg.isError)
+          }
+        : conv
+    )
+    setConversations(cleanedConversations)
+
     // Create user message
     const userMessage: UIMessage = {
       id: Date.now().toString(),
@@ -554,8 +623,8 @@ export default function Home() {
       model: currentModel
     }
 
-    // Add user message to conversation
-    const updatedConversations = conversations.map(conv =>
+    // Add user message to conversation (using cleaned conversations)
+    const updatedConversations = cleanedConversations.map(conv =>
       conv.id === currentConversationId
         ? {
             ...conv,
@@ -580,6 +649,23 @@ export default function Home() {
         })
       }
 
+      // Get provider and API key for current model
+      const provider = getProviderFromModel(currentModel)
+      const apiKey = getApiKeyForModel(currentModel, userSettings)
+      
+      if (!provider || !apiKey) {
+        throw new Error(`Please configure an API key for ${provider || 'this model'} in Settings → Models`)
+      }
+
+      // Filter out error messages before sending to API
+      const currentConv = updatedConversations.find(conv => conv.id === currentConversationId)
+      const cleanMessages = (currentConv?.messages || [])
+        .filter(msg => !msg.isError) // Remove error messages
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+
       // Make API call to get AI response
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -587,12 +673,13 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: updatedConversations.find(conv => conv.id === currentConversationId)?.messages || [],
+          messages: cleanMessages,
+          provider: provider,
+          apiKey: apiKey,
           model: currentModel,
           temperature: userSettings.temperature,
           webSearchEnabled,
-          codeGenerationEnabled,
-          settings: userSettings
+          codeGenerationEnabled
         }),
       })
 
@@ -609,6 +696,7 @@ export default function Home() {
         role: "assistant",
         timestamp: new Date(),
         model: currentModel,
+        provider: getProviderFromModel(currentModel),
         searchResults: data.searchResults
       }
 
@@ -694,18 +782,22 @@ export default function Home() {
       case 'openrouter':
         return settings.openrouterApiKey
       case 'veo2':
-        return settings.veo2ApiKey
+        return settings.geminiApiKey // VEO2 uses Google's API key
+      case 'mistral':
+        return settings.mistralApiKey
       default:
         return null
     }
   }
 
   const getProviderFromModel = (modelId: string): string => {
-    if (modelId.includes('gpt')) return 'openai'
+    if (modelId.includes('gpt') || modelId.includes('o3')) return 'openai'
     if (modelId.includes('claude')) return 'claude'
-    if (modelId.includes('gemini') || modelId.includes('veo2')) return modelId.includes('veo2') ? 'veo2' : 'gemini'
+    if (modelId.includes('gemini')) return 'gemini'
+    if (modelId.includes('veo2')) return 'veo2'
     if (modelId.includes('deepseek')) return 'deepseek'
     if (modelId.includes('grok')) return 'grok'
+    if (modelId.includes('mistral') || modelId.includes('codestral')) return 'mistral'
     return 'openrouter' // fallback
   }
 
@@ -728,17 +820,7 @@ export default function Home() {
   }
 
   // Get current conversation
-  const currentConversation = conversations.find(conv => conv.id === currentConversationId) || {
-    id: "default",
-    title: "New Conversation",
-    timestamp: new Date(),
-    model: currentModel,
-    messages: [],
-    user_id: user?.id || "local",
-    project_id: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
+  const currentConversation = conversations.find(conv => conv.id === currentConversationId) || null
 
   // Generate available models based on API keys
   const getAvailableModels = () => {
@@ -747,6 +829,9 @@ export default function Home() {
     // Add models based on available API keys
     if (userSettings.openaiApiKey) {
       models.push(
+        { id: "o3", name: "o3", icon: "O3", provider: "openai" },
+        { id: "gpt-4.5", name: "GPT-4.5", icon: "45", provider: "openai" },
+        { id: "gpt-4.1", name: "GPT-4.1", icon: "41", provider: "openai" },
         { id: "gpt-4", name: "GPT-4", icon: "G4", provider: "openai" },
         { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", icon: "35", provider: "openai" }
       )
@@ -754,6 +839,8 @@ export default function Home() {
     
     if (userSettings.claudeApiKey) {
       models.push(
+        { id: "claude-4-sonnet", name: "Claude 4 Sonnet", icon: "C4", provider: "claude" },
+        { id: "claude-3.5-opus", name: "Claude 3.5 Opus", icon: "CO", provider: "claude" },
         { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet", icon: "C3", provider: "claude" }
       )
     }
@@ -761,7 +848,8 @@ export default function Home() {
     if (userSettings.geminiApiKey) {
       models.push(
         { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", icon: "G2", provider: "gemini" },
-        { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", icon: "GP", provider: "gemini" }
+        { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", icon: "GP", provider: "gemini" },
+        { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" }
       )
     }
     
@@ -771,15 +859,18 @@ export default function Home() {
       )
     }
     
-    if (userSettings.veo2ApiKey) {
+    if (userSettings.grokApiKey) {
       models.push(
-        { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" }
+        { id: "grok-3", name: "Grok 3", icon: "G3", provider: "grok" }
       )
     }
     
-    if (userSettings.grokApiKey) {
+    if (userSettings.mistralApiKey) {
       models.push(
-        { id: "grok-beta", name: "Grok Beta", icon: "GX", provider: "grok" }
+        { id: "mistral-large", name: "Mistral Large", icon: "ML", provider: "mistral" },
+        { id: "mistral-medium", name: "Mistral Medium", icon: "MM", provider: "mistral" },
+        { id: "mistral-small", name: "Mistral Small", icon: "MS", provider: "mistral" },
+        { id: "codestral", name: "Codestral", icon: "CS", provider: "mistral" }
       )
     }
     
@@ -818,12 +909,18 @@ export default function Home() {
               .map(conv => conv.id)
           }))}
           models={getAvailableModels()}
-          currentConversation={{
+          currentConversation={currentConversation ? {
             id: currentConversation.id,
             title: currentConversation.title,
             timestamp: new Date(currentConversation.updated_at),
             model: currentConversation.model,
             messages: currentConversation.messages
+          } : {
+            id: "empty",
+            title: "No Conversation",
+            timestamp: new Date(),
+            model: currentModel,
+            messages: []
           }}
           currentModel={currentModel}
           userSettings={userSettings}
