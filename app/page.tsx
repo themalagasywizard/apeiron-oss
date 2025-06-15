@@ -259,14 +259,16 @@ export default function Home() {
     
     // Set default model to first available model based on API keys
     const getFirstAvailableModel = (settings: UserSettings): string => {
-      if (settings.geminiApiKey) return "gemini-2.5-flash"
-      if (settings.openaiApiKey) return "gpt-4"
-      if (settings.claudeApiKey) return "claude-3.5-sonnet"
-      if (settings.mistralApiKey) return "mistral-large"
-      if (settings.deepseekApiKey) return "deepseek-v3"
-      if (settings.grokApiKey) return "grok-3"
-      return "gemini-2.5-flash" // fallback
+      // Get available models and return the first one
+      const availableModels = getAvailableModelsForSettings(settings)
+      if (availableModels.length > 0) {
+        return availableModels[0].id
+      }
+      // If no API keys are configured, return a default that will show setup message
+      return "no-models-configured"
     }
+
+
     
     const defaultModel = getFirstAvailableModel(settings)
     setCurrentModel(defaultModel)
@@ -324,17 +326,19 @@ export default function Home() {
           console.log(`Loading messages for conversation ${conv.id}...`)
           const messages = await getMessages(conv.id)
           console.log(`Messages loaded for ${conv.id}:`, messages.length)
-          return {
-            ...conv,
-            messages: messages.map(msg => ({
-              id: msg.id,
-              content: msg.content,
-              role: msg.role as "user" | "assistant",
-              timestamp: new Date(msg.timestamp),
-              attachments: msg.attachments as any[] || undefined,
-              searchResults: msg.search_results as any[] || undefined
-            }))
-          }
+                      return {
+              ...conv,
+              messages: messages.map(msg => ({
+                id: msg.id,
+                content: msg.content,
+                role: msg.role as "user" | "assistant",
+                timestamp: new Date(msg.timestamp),
+                model: msg.model || undefined,
+                provider: msg.provider || undefined,
+                attachments: msg.attachments as any[] || undefined,
+                searchResults: msg.search_results as any[] || undefined
+              }))
+            }
         })
       )
       console.log('All conversations with messages loaded')
@@ -964,12 +968,12 @@ export default function Home() {
   // Get current conversation
   const currentConversation = conversations.find(conv => conv.id === currentConversationId) || null
 
-  // Generate available models based on API keys
-  const getAvailableModels = () => {
+  // Helper function to get available models based on settings
+  const getAvailableModelsForSettings = (settings: UserSettings) => {
     const models: Model[] = []
     
-    // Add models based on available API keys
-    if (userSettings.openaiApiKey) {
+    // Add models based on available API keys in priority order
+    if (settings.openaiApiKey) {
       models.push(
         { id: "o3", name: "o3", icon: "O3", provider: "openai" },
         { id: "gpt-4.5", name: "GPT-4.5", icon: "45", provider: "openai" },
@@ -979,7 +983,7 @@ export default function Home() {
       )
     }
     
-    if (userSettings.claudeApiKey) {
+    if (settings.claudeApiKey) {
       models.push(
         { id: "claude-4-sonnet", name: "Claude 4 Sonnet", icon: "C4", provider: "claude" },
         { id: "claude-3.5-opus", name: "Claude 3.5 Opus", icon: "CO", provider: "claude" },
@@ -987,7 +991,7 @@ export default function Home() {
       )
     }
     
-    if (userSettings.geminiApiKey) {
+    if (settings.geminiApiKey) {
       models.push(
         { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", icon: "G2", provider: "gemini" },
         { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", icon: "GP", provider: "gemini" },
@@ -995,19 +999,19 @@ export default function Home() {
       )
     }
     
-    if (userSettings.deepseekApiKey) {
+    if (settings.deepseekApiKey) {
       models.push(
         { id: "deepseek-v3", name: "DeepSeek V3", icon: "D3", provider: "deepseek" }
       )
     }
     
-    if (userSettings.grokApiKey) {
+    if (settings.grokApiKey) {
       models.push(
         { id: "grok-3", name: "Grok 3", icon: "G3", provider: "grok" }
       )
     }
     
-    if (userSettings.mistralApiKey) {
+    if (settings.mistralApiKey) {
       models.push(
         { id: "mistral-large", name: "Mistral Large", icon: "ML", provider: "mistral" },
         { id: "mistral-medium", name: "Mistral Medium", icon: "MM", provider: "mistral" },
@@ -1017,6 +1021,11 @@ export default function Home() {
     }
     
     return models
+  }
+
+  // Generate available models based on API keys
+  const getAvailableModels = () => {
+    return getAvailableModelsForSettings(userSettings)
   }
 
   // Don't show loading spinner - always show the main UI

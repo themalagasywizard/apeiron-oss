@@ -371,6 +371,38 @@ export default function MainUI({
   // Use models from props (calculated in page.tsx with proper API key logic)
   const availableModels = models
 
+  // Comprehensive model library for display purposes (includes all models, not just available ones)
+  const allModelsLibrary: Model[] = [
+    // OpenAI Models
+    { id: "o3", name: "o3", icon: "O3", provider: "openai" },
+    { id: "gpt-4.5", name: "GPT-4.5", icon: "45", provider: "openai" },
+    { id: "gpt-4.1", name: "GPT-4.1", icon: "41", provider: "openai" },
+    { id: "gpt-4", name: "GPT-4", icon: "G4", provider: "openai" },
+    { id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", icon: "35", provider: "openai" },
+    
+    // Claude Models
+    { id: "claude-4-sonnet", name: "Claude 4 Sonnet", icon: "C4", provider: "claude" },
+    { id: "claude-3.5-opus", name: "Claude 3.5 Opus", icon: "CO", provider: "claude" },
+    { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet", icon: "C3", provider: "claude" },
+    
+    // Gemini Models
+    { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", icon: "G2", provider: "gemini" },
+    { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", icon: "GP", provider: "gemini" },
+    { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" },
+    
+    // DeepSeek Models
+    { id: "deepseek-v3", name: "DeepSeek V3", icon: "D3", provider: "deepseek" },
+    
+    // Grok Models
+    { id: "grok-3", name: "Grok 3", icon: "G3", provider: "grok" },
+    
+    // Mistral Models
+    { id: "mistral-large", name: "Mistral Large", icon: "ML", provider: "mistral" },
+    { id: "mistral-medium", name: "Mistral Medium", icon: "MM", provider: "mistral" },
+    { id: "mistral-small", name: "Mistral Small", icon: "MS", provider: "mistral" },
+    { id: "codestral", name: "Codestral", icon: "CS", provider: "mistral" }
+  ]
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const recognitionRef = useRef<any>(null)
@@ -1667,7 +1699,11 @@ export default function MainUI({
                       />
                       <span className="text-xs text-gray-600 dark:text-gray-400">
                         {(() => {
-                          const model = availableModels.find(m => m.id === message.model || m.provider === message.provider);
+                          // First try to find in available models, then fall back to comprehensive library
+                          let model = availableModels.find(m => m.id === message.model || m.provider === message.provider);
+                          if (!model) {
+                            model = allModelsLibrary.find(m => m.id === message.model || m.provider === message.provider);
+                          }
                           return model?.name || message.model || message.provider || 'AI';
                         })()}
                       </span>
