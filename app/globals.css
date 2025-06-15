@@ -153,29 +153,61 @@
   }
 }
 
-/* Remove all hardcoded background colors and use CSS variables only */
-.bg-white { @apply bg-background; }
-.bg-gray-50 { @apply bg-card; }
-.bg-gray-100 { @apply bg-muted; }
-.bg-gray-200 { @apply bg-border; }
-.bg-gray-800 { @apply bg-card; }
-.bg-gray-900 { @apply bg-background; }
+/* Override all hardcoded background colors with theme variables */
+@layer utilities {
+  .bg-white { background-color: hsl(var(--background)) !important; }
+  .bg-gray-50 { background-color: hsl(var(--card)) !important; }
+  .bg-gray-100 { background-color: hsl(var(--muted)) !important; }
+  .bg-gray-200 { background-color: hsl(var(--border)) !important; }
+  .bg-gray-300 { background-color: hsl(var(--border)) !important; }
+  .bg-gray-700 { background-color: hsl(var(--muted)) !important; }
+  .bg-gray-800 { background-color: hsl(var(--card)) !important; }
+  .bg-gray-900 { background-color: hsl(var(--background)) !important; }
+  
+  /* Override with opacity variants */
+  .bg-white\/10 { background-color: hsl(var(--background) / 0.1) !important; }
+  .bg-white\/20 { background-color: hsl(var(--background) / 0.2) !important; }
+  .bg-white\/30 { background-color: hsl(var(--background) / 0.3) !important; }
+  .bg-white\/80 { background-color: hsl(var(--background) / 0.8) !important; }
+  .bg-white\/90 { background-color: hsl(var(--background) / 0.9) !important; }
+  
+  .bg-gray-800\/40 { background-color: hsl(var(--card) / 0.4) !important; }
+  .bg-gray-800\/60 { background-color: hsl(var(--card) / 0.6) !important; }
+  .bg-gray-800\/80 { background-color: hsl(var(--card) / 0.8) !important; }
+  .bg-gray-900\/40 { background-color: hsl(var(--background) / 0.4) !important; }
+  
+  /* Override text colors */
+  .text-white { color: hsl(var(--foreground)) !important; }
+  .text-gray-100 { color: hsl(var(--foreground)) !important; }
+  .text-gray-200 { color: hsl(var(--foreground)) !important; }
+  .text-gray-300 { color: hsl(var(--muted-foreground)) !important; }
+  .text-gray-400 { color: hsl(var(--muted-foreground)) !important; }
+  .text-gray-500 { color: hsl(var(--muted-foreground)) !important; }
+  .text-gray-600 { color: hsl(var(--muted-foreground)) !important; }
+  .text-gray-700 { color: hsl(var(--foreground)) !important; }
+  .text-gray-800 { color: hsl(var(--foreground)) !important; }
+  .text-gray-900 { color: hsl(var(--foreground)) !important; }
+  .text-black { color: hsl(var(--foreground)) !important; }
 
-.text-white { @apply text-foreground; }
-.text-gray-100 { @apply text-foreground; }
-.text-gray-200 { @apply text-muted-foreground; }
-.text-gray-300 { @apply text-muted-foreground; }
-.text-gray-400 { @apply text-muted-foreground; }
-.text-gray-500 { @apply text-muted-foreground; }
-.text-gray-600 { @apply text-muted-foreground; }
-.text-gray-700 { @apply text-foreground; }
-.text-gray-800 { @apply text-foreground; }
-.text-gray-900 { @apply text-foreground; }
-.text-black { @apply text-foreground; }
+  /* Override border colors */
+  .border-gray-200 { border-color: hsl(var(--border)) !important; }
+  .border-gray-300 { border-color: hsl(var(--border)) !important; }
+  .border-gray-700 { border-color: hsl(var(--border)) !important; }
+  
+  /* Override with opacity variants */
+  .border-gray-200\/20 { border-color: hsl(var(--border) / 0.2) !important; }
+  .border-gray-700\/20 { border-color: hsl(var(--border) / 0.2) !important; }
+  .border-gray-200\/30 { border-color: hsl(var(--border) / 0.3) !important; }
+  .border-gray-700\/30 { border-color: hsl(var(--border) / 0.3) !important; }
 
-.border-gray-200 { @apply border-border; }
-.border-gray-300 { @apply border-border; }
-.border-gray-700 { @apply border-border; }
+  /* Override hover states */
+  .hover\:bg-gray-200\/20:hover { background-color: hsl(var(--muted) / 0.2) !important; }
+  .hover\:bg-gray-700\/20:hover { background-color: hsl(var(--muted) / 0.2) !important; }
+  .hover\:bg-white\/20:hover { background-color: hsl(var(--background) / 0.2) !important; }
+  .hover\:bg-white\/30:hover { background-color: hsl(var(--background) / 0.3) !important; }
+  .hover\:bg-gray-800\/40:hover { background-color: hsl(var(--card) / 0.4) !important; }
+  .hover\:bg-gray-800\/60:hover { background-color: hsl(var(--card) / 0.6) !important; }
+}
 
 /* Custom scrollbar using theme variables */
 ::-webkit-scrollbar {
