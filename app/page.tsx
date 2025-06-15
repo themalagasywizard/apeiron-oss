@@ -760,11 +760,28 @@ export default function Home() {
     
     if (userSettings.geminiApiKey) {
       models.push(
-        { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", icon: "G2", provider: "gemini" }
+        { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", icon: "G2", provider: "gemini" },
+        { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", icon: "GP", provider: "gemini" }
       )
     }
     
-    // Add more models based on other API keys...
+    if (userSettings.deepseekApiKey) {
+      models.push(
+        { id: "deepseek-v3", name: "DeepSeek V3", icon: "D3", provider: "deepseek" }
+      )
+    }
+    
+    if (userSettings.veo2ApiKey) {
+      models.push(
+        { id: "veo2", name: "VEO 2", icon: "V2", provider: "veo2" }
+      )
+    }
+    
+    if (userSettings.grokApiKey) {
+      models.push(
+        { id: "grok-beta", name: "Grok Beta", icon: "GX", provider: "grok" }
+      )
+    }
     
     return models
   }

@@ -311,6 +311,7 @@ export default function MainUI({
   const [isMobile, setIsMobile] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
 
   const [settingsTab, setSettingsTab] = useState<"general" | "models" | "themes">("general")
   const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter">("openai")
@@ -344,6 +345,7 @@ export default function MainUI({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const recognitionRef = useRef<any>(null)
+  const profileDropdownRef = useRef<HTMLDivElement>(null)
 
   // Check if current model supports web search
   const isWebSearchCompatible = () => {
@@ -392,6 +394,20 @@ export default function MainUI({
       setCodeGenerationEnabled(false)
     }
   }, [currentModel])
+
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setProfileDropdownOpen(false)
+      }
+    }
+
+    if (profileDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [profileDropdownOpen])
 
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -1215,45 +1231,90 @@ export default function MainUI({
 
               {/* Profile and Settings Section */}
               <div className="px-4 py-3 h-[72px] flex items-center gap-3">
-                {/* Profile/Login Button */}
                 {isAuthenticated ? (
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium shadow-lg">
-                    {user?.email?.charAt(0).toUpperCase() || 'U'}
+                  <div ref={profileDropdownRef} className="relative flex-1">
+                    <button
+                      onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                      className="w-full h-12 flex items-center gap-3 px-3 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
+                    >
+                      {/* Avatar */}
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium text-sm">
+                        {user?.email?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                      
+                      {/* User Info */}
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="text-sm font-medium truncate">
+                          {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {user?.email}
+                        </div>
+                      </div>
+                      
+                      {/* Dropdown Arrow */}
+                      <ChevronDown className={`w-4 h-4 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    <AnimatePresence>
+                      {profileDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.2 }}
+                          className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200/20 dark:border-gray-600/20 shadow-lg backdrop-blur-sm overflow-hidden"
+                        >
+                          <button
+                            onClick={() => {
+                              setSettingsOpen(true)
+                              setProfileDropdownOpen(false)
+                            }}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors flex items-center gap-3 text-gray-800 dark:text-gray-200"
+                          >
+                            <Settings className="w-4 h-4" />
+                            <span>Settings</span>
+                          </button>
+                          
+                          <div className="border-t border-gray-200/20 dark:border-gray-600/20" />
+                          
+                          <button
+                            onClick={() => {
+                              onLogout?.()
+                              setProfileDropdownOpen(false)
+                            }}
+                            className="w-full px-4 py-3 text-left hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 text-red-600 dark:text-red-400"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>Sign Out</span>
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 ) : (
-                  <button
-                    onClick={onLogin}
-                    className="w-12 h-12 rounded-xl bg-gradient-to-r from-gray-400 to-gray-500 hover:from-purple-500 hover:to-pink-500 flex items-center justify-center text-white font-medium shadow-lg transition-all duration-200"
-                    title="Sign in to save conversations"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </button>
-                )}
+                  <>
+                    <button
+                      onClick={onLogin}
+                      className="w-12 h-12 rounded-xl bg-gradient-to-r from-gray-400 to-gray-500 hover:from-purple-500 hover:to-pink-500 flex items-center justify-center text-white font-medium shadow-lg transition-all duration-200"
+                      title="Sign in to save conversations"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </button>
 
-                {/* Settings Button */}
-                <button
-                  onClick={() => setSettingsOpen(true)}
-                  className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
-                  aria-label="Open settings"
-                >
-                  <Settings className="w-4 h-4" />
-                  <span>Settings</span>
-                </button>
-
-                {/* Logout Button (only show if authenticated) */}
-                {isAuthenticated && onLogout && (
-                  <button
-                    onClick={onLogout}
-                    className="w-12 h-12 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-red-500/20 dark:hover:bg-red-500/20 transition-colors text-gray-800 dark:text-gray-200 hover:text-red-600 dark:hover:text-red-400 flex items-center justify-center"
-                    title="Sign out"
-                    aria-label="Sign out"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                  </button>
+                    {/* Settings Button for Non-Authenticated Users */}
+                    <button
+                      onClick={() => setSettingsOpen(true)}
+                      className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
+                      aria-label="Open settings"
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span>Settings</span>
+                    </button>
+                  </>
                 )}
               </div>
             </motion.aside>
@@ -1305,7 +1366,7 @@ export default function MainUI({
                     max-w-[85%] md:max-w-[70%] rounded-2xl p-4 
                     ${
                       message.role === "user"
-                        ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                        ? "bg-white/20 dark:bg-gray-800/40 text-gray-800 dark:text-gray-200 border border-gray-200/20 dark:border-gray-700/20"
                         : "bg-white/20 dark:bg-gray-800/40 text-gray-800 dark:text-gray-200 border border-gray-200/20 dark:border-gray-700/20"
                     }
                   `}
