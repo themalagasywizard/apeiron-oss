@@ -215,19 +215,14 @@ export default function Home() {
     
     // Apply saved theme
     if (settings.selectedTheme) {
-      const themeClasses = ['theme-vercel', 'theme-default', 'theme-light']
+      const themeClasses = ['theme-vercel', 'theme-default']
       document.documentElement.classList.remove(...themeClasses)
       
-      if (settings.selectedTheme !== 'default') {
-        document.documentElement.classList.add(`theme-${settings.selectedTheme}`)
-      }
+      // Always add the theme class
+      document.documentElement.classList.add(`theme-${settings.selectedTheme}`)
       
-      // Handle light/dark mode based on theme
-      if (settings.selectedTheme === 'light') {
-        document.documentElement.classList.remove('dark')
-      } else {
-        document.documentElement.classList.add('dark')
-      }
+      // Apply dark mode by default (light/dark can be toggled via header button)
+      document.documentElement.classList.add('dark')
     }
     
     loadLocalConversations() // Load local conversations for non-authenticated users

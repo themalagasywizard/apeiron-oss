@@ -266,6 +266,7 @@ export default function MainUI({
   }
 
   // Theme library - easily expandable for future themes
+  // Each theme supports both light and dark modes via the header toggle
   const themeLibrary: Theme[] = [
     {
       id: "vercel",
@@ -275,15 +276,9 @@ export default function MainUI({
     },
     {
       id: "default",
-      name: "Default Dark",
-      description: "Original dark theme with purple accents",
+      name: "Default",
+      description: "Original theme with purple accents",
       preview: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"
-    },
-    {
-      id: "light",
-      name: "Light Mode",
-      description: "Clean light theme for bright environments",
-      preview: "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)"
     }
   ]
 
@@ -631,21 +626,11 @@ export default function MainUI({
     setCurrentTheme(themeId)
     
     // Apply theme-specific classes to document
-    const themeClasses = ['theme-vercel', 'theme-default', 'theme-light']
+    const themeClasses = ['theme-vercel', 'theme-default']
     document.documentElement.classList.remove(...themeClasses)
     
-    if (themeId !== 'default') {
-      document.documentElement.classList.add(`theme-${themeId}`)
-    }
-    
-    // Handle light/dark mode based on theme
-    if (themeId === 'light') {
-      document.documentElement.classList.remove('dark')
-      setTheme('light')
-    } else {
-      document.documentElement.classList.add('dark')
-      setTheme('dark')
-    }
+    // Always add the theme class
+    document.documentElement.classList.add(`theme-${themeId}`)
     
     // Save theme preference
     const updatedSettings = { 
@@ -2194,13 +2179,13 @@ export default function MainUI({
                         ))}
                       </div>
                       
-                      {/* Future Themes Coming Soon */}
+                      {/* Theme Note */}
                       <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
                         <h5 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
-                          🎨 More Themes Coming Soon
+                          💡 Light & Dark Modes
                         </h5>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          We're working on adding more beautiful themes including GitHub, Material Design, and custom color schemes. Stay tuned!
+                          Each theme supports both light and dark modes. Use the theme toggle button in the header to switch between light and dark modes for your selected theme.
                         </p>
                       </div>
                     </div>
