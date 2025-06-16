@@ -1367,6 +1367,28 @@ export default function MainUI({
       }
     }, 100)
   }, [currentConversation.id])
+  
+  // Auto-resize textarea based on content
+  useEffect(() => {
+    const adjustTextareaHeight = () => {
+      const textarea = chatInputRef.current
+      if (textarea) {
+        // Reset height to auto to get the correct scrollHeight
+        textarea.style.height = 'auto'
+        // Set the height to scrollHeight to fit all content
+        const newHeight = Math.min(160, Math.max(48, textarea.scrollHeight))
+        textarea.style.height = `${newHeight}px`
+      }
+    }
+    
+    // Call on mount and when input value changes
+    adjustTextareaHeight()
+  }, [inputValue])
+
+  // Handle input change with auto-resize
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value)
+  }
 
   const handleStartProjectRename = (projectId: string, currentName: string) => {
     setEditingProjectId(projectId)
@@ -2284,9 +2306,10 @@ export default function MainUI({
                 </div>
               </div>
             )}
+            
             {/* Attachments Preview */}
             {attachments.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-3 flex flex-wrap gap-2 justify-center">
                 {attachments.map((attachment) => (
                   <div
                     key={attachment.id}
@@ -2318,137 +2341,147 @@ export default function MainUI({
               </div>
             )}
 
-            <div className="flex items-center gap-3 w-full min-h-[48px]">
-              <div className="flex-shrink-0">
-                <div className="relative">
-                  <select
-                    value={currentModel}
-                    onChange={(e) => onSelectModel(e.target.value)}
-                    className="h-[48px] w-36 px-3 pr-8 rounded-xl bg-white/20 dark:bg-[#2b2b2b] backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                    aria-label="Select AI model"
-                  >
-                    {availableModels.length === 0 ? (
-                      <option value="" disabled>No models configured</option>
-                    ) : (
-                      availableModels.map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400 pointer-events-none" />
+            {/* Centralized Chat Input */}
+            <div className="flex flex-col items-center w-full">
+              <div className="w-full max-w-3xl">
+                {/* Main Chat Input Area */}
+                <div className="bg-white/20 dark:bg-gray-800/40 rounded-xl border border-gray-200/20 dark:border-gray-700/20 overflow-hidden focus-within:ring-2 focus-within:ring-purple-500/50">
+                  <div className="relative">
+                    <textarea
+                      ref={chatInputRef}
+                      value={inputValue}
+                      onChange={handleInputChange}
+                      onKeyDown={handleKeyPress}
+                      placeholder="Ask anything..."
+                      className="w-full px-4 py-3 bg-transparent text-gray-800 dark:text-gray-200 resize-none focus:outline-none pr-[100px]"
+                      rows={1}
+                      style={{
+                        height: "auto",
+                        minHeight: "48px",
+                      }}
+                      aria-label="Message input"
+                    />
+                    
+                    {/* Send Button (inside textarea) */}
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={!inputValue.trim() && attachments.length === 0}
+                      className={`
+                        absolute right-2 bottom-2 h-[32px] w-[32px] rounded-lg flex-shrink-0 transition-all duration-200 
+                        flex items-center justify-center border border-gray-200/20 dark:border-gray-600/20
+                        ${
+                          inputValue.trim() || attachments.length > 0
+                            ? "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-300"
+                            : "bg-gray-200/50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                        }
+                      `}
+                      aria-label="Send message"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  {/* Bottom toolbar inside chatbar */}
+                  <div className="flex items-center justify-between px-3 py-2 border-t border-gray-200/20 dark:border-gray-700/20 bg-white/5 dark:bg-gray-800/20">
+                    {/* Left side buttons */}
+                    <div className="flex items-center gap-2">
+                      {/* Model Selector */}
+                      <div className="relative">
+                        <select
+                          value={currentModel}
+                          onChange={(e) => onSelectModel(e.target.value)}
+                          className="h-[28px] px-2 pr-7 rounded-md bg-white/10 dark:bg-[#2b2b2b]/80 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-xs appearance-none focus:outline-none focus:ring-1 focus:ring-purple-500/50"
+                          aria-label="Select AI model"
+                        >
+                          {availableModels.length === 0 ? (
+                            <option value="" disabled>No models</option>
+                          ) : (
+                            availableModels.map((model) => (
+                              <option key={model.id} value={model.id}>
+                                {model.name}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 dark:text-gray-400 pointer-events-none" />
+                      </div>
+
+                      {/* Web Search Toggle Button */}
+                      {isWebSearchCompatible() && (
+                        <button
+                          onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                          className={`h-[28px] w-[28px] rounded-md border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
+                            webSearchEnabled
+                              ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
+                              : "bg-white/10 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
+                          }`}
+                          title={webSearchEnabled ? "Web search enabled" : "Enable web search"}
+                          aria-label={webSearchEnabled ? "Disable web search" : "Enable web search"}
+                        >
+                          {webSearchEnabled ? (
+                            <Globe className="w-3 h-3" />
+                          ) : (
+                            <Search className="w-3 h-3" />
+                          )}
+                        </button>
+                      )}
+
+                      {/* Code Generation Toggle Button */}
+                      {isCodeGenerationCompatible() && (
+                        <button
+                          onClick={() => setCodeGenerationEnabled(!codeGenerationEnabled)}
+                          className={`h-[28px] w-[28px] rounded-md border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
+                            codeGenerationEnabled
+                              ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white"
+                              : "bg-white/10 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
+                          }`}
+                          title={codeGenerationEnabled ? "Code generation enabled" : "Enable code generation"}
+                          aria-label={codeGenerationEnabled ? "Disable code generation" : "Enable code generation"}
+                        >
+                          <Code className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    {/* Right side buttons */}
+                    <div className="flex items-center gap-2">
+                      {/* File Upload Button */}
+                      <label className="h-[28px] w-[28px] rounded-md bg-white/10 dark:bg-[#2b2b2b]/80 hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 border border-gray-200/20 dark:border-gray-700/20 transition-colors cursor-pointer flex items-center justify-center">
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*,application/pdf,.txt,.doc,.docx"
+                          onChange={handleFileInputChange}
+                          className="hidden"
+                          aria-label="Upload files"
+                        />
+                        {isUploading ? (
+                          <Loader2 className="w-3 h-3 text-gray-600 dark:text-gray-400 animate-spin" />
+                        ) : (
+                          <Paperclip className="w-3 h-3 text-gray-600 dark:text-gray-400" />
+                        )}
+                      </label>
+                      
+                      {/* Voice Input Button */}
+                      <button
+                        onClick={isListening ? stopListening : startListening}
+                        className={`h-[28px] w-[28px] rounded-md flex-shrink-0 flex items-center justify-center transition-all duration-200 relative ${
+                          isListening
+                            ? "bg-gradient-to-r from-red-500 to-red-600 text-white"
+                            : "bg-white/10 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400 border border-gray-200/20 dark:border-gray-700/20"
+                        }`}
+                        aria-label={isListening ? "Stop voice input" : "Start voice input"}
+                        title={isListening ? "🎤 Listening... Click to stop" : "🎤 Click to start voice input"}
+                      >
+                        <Mic className={`w-3 h-3 ${isListening ? 'animate-pulse' : ''}`} />
+                        {isListening && (
+                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-ping"></div>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {/* Web Search Toggle Button (only for compatible models) */}
-              {isWebSearchCompatible() && (
-                <div className="flex-shrink-0">
-                  <button
-                    onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                    className={`h-[48px] w-[48px] rounded-xl border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
-                      webSearchEnabled
-                        ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg hover:shadow-blue-500/25"
-                        : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
-                    }`}
-                    title={webSearchEnabled ? "Web search enabled" : "Enable web search"}
-                    aria-label={webSearchEnabled ? "Disable web search" : "Enable web search"}
-                  >
-                    {webSearchEnabled ? (
-                      <Globe className="w-5 h-5" />
-                    ) : (
-                      <Search className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-              )}
-
-              {/* Code Generation Toggle Button (only for compatible models) */}
-              {isCodeGenerationCompatible() && (
-                <div className="flex-shrink-0">
-                  <button
-                    onClick={() => setCodeGenerationEnabled(!codeGenerationEnabled)}
-                    className={`h-[48px] w-[48px] rounded-xl border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
-                      codeGenerationEnabled
-                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:shadow-emerald-500/25"
-                        : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
-                    }`}
-                    title={codeGenerationEnabled ? "Code generation mode enabled - Uses Edge Function for longer processing" : "Enable code generation mode"}
-                    aria-label={codeGenerationEnabled ? "Disable code generation mode" : "Enable code generation mode"}
-                  >
-                    <Code className="w-5 h-5" />
-                  </button>
-                </div>
-              )}
-
-              {/* File Upload Button */}
-              <div className="flex-shrink-0">
-                <label className="h-[48px] w-[48px] rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 border border-gray-200/20 dark:border-gray-700/20 transition-colors cursor-pointer flex items-center justify-center">
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*,application/pdf,.txt,.doc,.docx"
-                    onChange={handleFileInputChange}
-                    className="hidden"
-                    aria-label="Upload files"
-                  />
-                  {isUploading ? (
-                    <Loader2 className="w-5 h-5 text-gray-600 dark:text-gray-400 animate-spin" />
-                  ) : (
-                    <Paperclip className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                  )}
-                </label>
-              </div>
-
-              <div className="flex-1 bg-white/20 dark:bg-gray-800/40 rounded-xl border border-gray-200/20 dark:border-gray-700/20 overflow-hidden focus-within:ring-2 focus-within:ring-purple-500/50">
-                <textarea
-                  ref={chatInputRef}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  placeholder="Ask anything..."
-                  className="w-full px-4 py-3 bg-transparent text-gray-800 dark:text-gray-200 resize-none focus:outline-none"
-                  rows={1}
-                  style={{
-                    height: "auto",
-                    minHeight: "48px",
-                    maxHeight: "200px",
-                  }}
-                  aria-label="Message input"
-                />
-              </div>
-
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() && attachments.length === 0}
-                className={`
-                  h-[48px] w-[48px] rounded-xl flex-shrink-0 transition-all duration-200 flex items-center justify-center border border-gray-200/20 dark:border-gray-600/20
-                  ${
-                    inputValue.trim() || attachments.length > 0
-                      ? "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-300"
-                      : "bg-gray-200/50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-                  }
-                `}
-                aria-label="Send message"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-
-              <button
-                onClick={isListening ? stopListening : startListening}
-                className={`h-[48px] w-[48px] rounded-xl flex-shrink-0 flex items-center justify-center transition-all duration-200 relative ${
-                  isListening
-                    ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg hover:shadow-red-500/25"
-                    : "bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400 border border-gray-200/20 dark:border-gray-700/20"
-                }`}
-                aria-label={isListening ? "Click to stop voice input" : "Click to start voice input"}
-                title={isListening ? "🎤 Listening... Click to stop" : "🎤 Click to start voice input"}
-              >
-                <Mic className={`w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
-                {isListening && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-ping"></div>
-                )}
-              </button>
             </div>
           </div>
         </main>
