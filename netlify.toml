@@ -11,10 +11,12 @@
 [build.environment]
   NEXT_USE_NETLIFY_EDGE = "true"
 
-[edge_functions]
-  included_files = ["netlify/edge-functions/**"]
-  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
-
+# Define edge function handler
 [[edge_functions]]
+  path = "/api/generate-code"
   function = "generate-code"
-  path = "/api/generate-code" 
+
+# Global edge functions configuration
+[edge_handlers_config]
+  included_files = ["netlify/edge-functions/**"]
+  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"] 
