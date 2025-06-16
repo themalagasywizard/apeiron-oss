@@ -11,11 +11,9 @@
 [build.environment]
   NEXT_USE_NETLIFY_EDGE = "true"
 
-[edge_functions]
-  included_files = ["netlify/edge-functions/**"]
-  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
-
 [[edge_functions]]
   function = "generate-code"
   path = "/api/generate-code"
-  timeout = 120 
+  timeout = 120
+  included_files = ["netlify/edge-functions/**"]
+  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"] 
