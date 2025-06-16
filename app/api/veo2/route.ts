@@ -139,7 +139,8 @@ export async function POST(request: NextRequest) {
   try {
     const { 
       prompt, 
-      apiKey, 
+      apiKey,
+      geminiApiKey,
       duration = 8, 
       aspectRatio = "16:9",
       personGeneration = "dont_allow",
@@ -147,8 +148,11 @@ export async function POST(request: NextRequest) {
       seed
     } = await request.json();
 
+    // Use geminiApiKey as fallback if apiKey is not provided
+    const effectiveApiKey = apiKey || geminiApiKey;
+
     // Validate input parameters
-    validateParameters(prompt, apiKey, duration, aspectRatio);
+    validateParameters(prompt, effectiveApiKey, duration, aspectRatio);
 
     console.log("=== NEW VEO 2 VIDEO GENERATION REQUEST ===");
     console.log("Starting VEO 2 video generation:", {
@@ -156,11 +160,12 @@ export async function POST(request: NextRequest) {
       duration,
       aspectRatio,
       personGeneration,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      usingGeminiKey: !apiKey && !!geminiApiKey
     });
 
     // Check if this is a demo request (no API key or demo key)
-    if (!apiKey || apiKey === "demo" || apiKey === "your-google-api-key") {
+    if (!effectiveApiKey || effectiveApiKey === "demo" || effectiveApiKey === "your-google-api-key") {
       // Return demo response for testing
       const mockOperationName = `operations/generate-video-demo-${Date.now()}`;
       
@@ -196,7 +201,7 @@ The production VEO 2 integration is ready and will work with a valid API key.`
     // Call the real VEO 2 API
     const operation = await generateVideoWithVEO2(
       prompt,
-      apiKey,
+      effectiveApiKey,
       duration,
       aspectRatio,
       personGeneration,
@@ -281,10 +286,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const operationName = searchParams.get('operationName');
     const apiKey = searchParams.get('apiKey');
+    const geminiApiKey = searchParams.get('geminiApiKey');
+
+    // Use geminiApiKey as fallback if apiKey is not provided
+    const effectiveApiKey = apiKey || geminiApiKey;
 
     console.log("=== VEO 2 Status Check Request ===");
     console.log("Operation Name:", operationName);
-    console.log("API Key:", apiKey ? `${apiKey.substring(0, 10)}...` : "not provided");
+    console.log("API Key:", effectiveApiKey ? `${effectiveApiKey.substring(0, 10)}...` : "not provided");
+    console.log("Using Gemini API Key as fallback:", !apiKey && !!geminiApiKey);
     console.log("Timestamp:", new Date().toISOString());
 
     if (!operationName) {
@@ -294,7 +304,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!apiKey) {
+    if (!effectiveApiKey) {
       return NextResponse.json(
         { error: "API key is required" },
         { status: 400 }
@@ -302,7 +312,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Handle demo operations
-    if (operationName.includes('demo') || !apiKey || apiKey === "demo" || apiKey === "your-google-api-key") {
+    if (operationName.includes('demo') || !effectiveApiKey || effectiveApiKey === "demo" || effectiveApiKey === "your-google-api-key") {
       console.log("Processing demo operation status check");
       // Simulate processing for demo
       const progress = Math.min(95, 20 + Math.floor(Math.random() * 60));
@@ -328,7 +338,7 @@ export async function GET(request: NextRequest) {
     console.log("Checking real VEO 2 operation status...");
     
     // Check the real operation status
-    const statusResult = await checkOperationStatus(operationName, apiKey);
+    const statusResult = await checkOperationStatus(operationName, effectiveApiKey);
 
     let status = "processing";
     let progress = 50;

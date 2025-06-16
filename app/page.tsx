@@ -910,6 +910,7 @@ export default function Home() {
 
   // Helper functions
   const getApiKeyForModel = (modelId: string, settings: UserSettings): string | null => {
+    // Get provider from model ID
     const provider = getProviderFromModel(modelId)
     
     switch (provider) {
@@ -926,7 +927,8 @@ export default function Home() {
       case 'openrouter':
         return settings.openrouterApiKey
       case 'veo2':
-        return settings.veo2ApiKey
+        // Use VEO2 API key if available, otherwise fall back to Gemini API key
+        return settings.veo2ApiKey || settings.geminiApiKey
       case 'mistral':
         return settings.mistralApiKey
       case 'runway':

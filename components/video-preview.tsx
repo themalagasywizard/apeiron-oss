@@ -109,7 +109,8 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     console.log("Current Error:", error);
 
     try {
-      const url = `/api/veo2?operationName=${encodeURIComponent(operationName)}&apiKey=${encodeURIComponent(apiKey)}`
+      // Pass both apiKey and geminiApiKey (they are the same in this case)
+      const url = `/api/veo2?operationName=${encodeURIComponent(operationName)}&apiKey=${encodeURIComponent(apiKey)}&geminiApiKey=${encodeURIComponent(apiKey)}`
       console.log("Making status request to:", url);
       
       const response = await fetch(url)

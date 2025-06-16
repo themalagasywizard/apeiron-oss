@@ -3,16 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 // API Route optimized for serverless environments (Netlify/Vercel)
 // Timeouts are kept under 25 seconds due to serverless function limits
 export async function POST(request: NextRequest) {
-  let provider = "unknown"; // Declare in outer scope for error handling
-  
-  // Emergency timeout - kill the entire function after 35 seconds (to accommodate code generation)
+  // Set up timeout to handle long-running requests
   const emergencyTimeout = setTimeout(() => {
-    console.error("Emergency timeout hit - function taking too long");
-  }, 35000);
+    console.error("Emergency timeout triggered - request took too long");
+  }, 58000); // Just under Vercel's 60s limit
+  
+  let provider = "unknown"; // Declare outside try block for error handling
   
   try {
     const requestBody = await request.json();
-    const { messages, provider: requestProvider, apiKey, model, temperature, customModelName, webSearchEnabled, codeGenerationEnabled } = requestBody;
+    const { messages, provider: requestProvider, apiKey, geminiApiKey, model, temperature, customModelName, webSearchEnabled, codeGenerationEnabled } = requestBody;
     provider = requestProvider; // Assign to outer scope variable
 
     // Validate required inputs
@@ -197,8 +197,8 @@ export async function POST(request: NextRequest) {
         };
         
         // Add API keys as headers based on available keys
-        if (requestBody.geminiApiKey) {
-          headers['x-gemini-api-key'] = requestBody.geminiApiKey;
+        if (geminiApiKey) {
+          headers['x-gemini-api-key'] = geminiApiKey;
         }
         if (requestBody.runwayApiKey) {
           headers['x-runway-api-key'] = requestBody.runwayApiKey;
@@ -830,6 +830,7 @@ Please provide a comprehensive response using the above search results.`;
           body: JSON.stringify({
             prompt: prompt,
             apiKey: apiKey,
+            geminiApiKey: geminiApiKey,
             duration: 8, // Use number instead of string
             aspectRatio: "16:9"
           })
