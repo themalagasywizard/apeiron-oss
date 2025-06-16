@@ -15,6 +15,7 @@
   included_files = ["netlify/edge-functions/**"]
   external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
 
-[edge_functions.generate-code]
+[[edge_functions]]
+  function = "generate-code"
   path = "/api/generate-code"
   timeout = 120 
