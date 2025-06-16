@@ -61,7 +61,7 @@ type Model = {
   name: string
   icon: string
   apiKey?: string
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral" | "runway"
   isCustom?: boolean
   customModelName?: string
   enabled?: boolean
@@ -70,7 +70,11 @@ type Model = {
 
 type UserSettings = {
   temperature: number
-  models: Model[]
+  models: Array<{
+    id: string
+    name: string
+    enabled: boolean
+  }>
   openrouterEnabled: boolean
   openrouterApiKey: string
   openrouterModelName: string
@@ -81,8 +85,8 @@ type UserSettings = {
   grokApiKey: string
   veo2ApiKey: string
   mistralApiKey: string
-  enabledSubModels: { [provider: string]: string[] } // Track which sub-models are enabled per provider
-  selectedTheme?: string // Currently selected theme
+  runwayApiKey: string
+  enabledSubModels: { [key: string]: string[] }
 }
 
 type UIConversation = DBConversation & {
@@ -127,8 +131,8 @@ export default function Home() {
     grokApiKey: "",
     veo2ApiKey: "",
     mistralApiKey: "",
-    enabledSubModels: {},
-    selectedTheme: "basic"
+    runwayApiKey: "",
+    enabledSubModels: {}
   })
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [projects, setProjects] = useState<UIProject[]>([])
@@ -168,8 +172,8 @@ export default function Home() {
             grokApiKey: parsed.grokApiKey || "",
             veo2ApiKey: parsed.veo2ApiKey || "",
             mistralApiKey: parsed.mistralApiKey || "",
-            enabledSubModels: parsed.enabledSubModels || {},
-            selectedTheme: parsed.selectedTheme || "basic"
+            runwayApiKey: parsed.runwayApiKey || "",
+            enabledSubModels: parsed.enabledSubModels || {}
           }
         }
       } catch (error) {
@@ -189,8 +193,8 @@ export default function Home() {
         grokApiKey: "",
         veo2ApiKey: "",
         mistralApiKey: "",
-        enabledSubModels: {},
-        selectedTheme: "basic"
+        runwayApiKey: "",
+        enabledSubModels: {}
       }
     }
 
@@ -274,21 +278,8 @@ export default function Home() {
     const defaultModel = getFirstAvailableModel(settings)
     setCurrentModel(defaultModel)
     
-    // Apply saved theme
-    if (settings.selectedTheme) {
-      const themeClasses = ['theme-basic']
-      const lightDarkClasses = ['light', 'dark']
-      document.documentElement.classList.remove(...themeClasses, ...lightDarkClasses)
-      
-      // Always add the theme class
-      document.documentElement.classList.add(`theme-${settings.selectedTheme}`)
-      
-      // Apply dark mode by default
-      document.documentElement.classList.add('dark')
-    } else {
-      // Fallback - ensure we have basic classes
-      document.documentElement.classList.add('theme-basic', 'dark')
-    }
+    // Apply basic theme classes
+    document.documentElement.classList.add('theme-basic', 'dark')
     
     loadLocalConversations() // Load local conversations for non-authenticated users
     loadLocalProjects() // Load local projects for non-authenticated users
@@ -824,7 +815,16 @@ export default function Home() {
           model: currentModel,
           temperature: userSettings.temperature,
           webSearchEnabled,
-          codeGenerationEnabled
+          codeGenerationEnabled,
+          // Include all individual API keys for image generation routing
+          openaiApiKey: userSettings.openaiApiKey,
+          claudeApiKey: userSettings.claudeApiKey,
+          geminiApiKey: userSettings.geminiApiKey,
+          deepseekApiKey: userSettings.deepseekApiKey,
+          grokApiKey: userSettings.grokApiKey,
+          veo2ApiKey: userSettings.veo2ApiKey,
+          mistralApiKey: userSettings.mistralApiKey,
+          runwayApiKey: userSettings.runwayApiKey
         }),
       })
 
@@ -926,23 +926,26 @@ export default function Home() {
       case 'openrouter':
         return settings.openrouterApiKey
       case 'veo2':
-        return settings.geminiApiKey // VEO2 uses Google's API key
+        return settings.veo2ApiKey
       case 'mistral':
         return settings.mistralApiKey
+      case 'runway':
+        return settings.runwayApiKey
       default:
         return null
     }
   }
 
   const getProviderFromModel = (modelId: string): string => {
-    if (modelId.includes('gpt') || modelId.includes('o3')) return 'openai'
     if (modelId.includes('claude')) return 'claude'
+    if (modelId.includes('gpt') || modelId.includes('o3')) return 'openai'
     if (modelId.includes('gemini')) return 'gemini'
     if (modelId.includes('veo2')) return 'veo2'
     if (modelId.includes('deepseek')) return 'deepseek'
     if (modelId.includes('grok')) return 'grok'
     if (modelId.includes('mistral') || modelId.includes('codestral')) return 'mistral'
-    return 'openrouter' // fallback
+    if (modelId.includes('gen3') || modelId.includes('gen2') || modelId.includes('runway')) return 'runway'
+    return 'openai'
   }
 
   // Handle logout
@@ -1015,6 +1018,14 @@ export default function Home() {
         { id: "mistral-medium", name: "Mistral Medium", icon: "MM", provider: "mistral" },
         { id: "mistral-small", name: "Mistral Small", icon: "MS", provider: "mistral" },
         { id: "codestral", name: "Codestral", icon: "CS", provider: "mistral" }
+      )
+    }
+    
+    if (settings.runwayApiKey) {
+      models.push(
+        { id: "gen3a-turbo", name: "Gen3 Alpha Turbo", icon: "GT", provider: "runway" },
+        { id: "gen3a", name: "Gen3 Alpha", icon: "G3", provider: "runway" },
+        { id: "gen2", name: "Gen2", icon: "G2", provider: "runway" }
       )
     }
     

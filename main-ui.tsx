@@ -36,6 +36,7 @@ import {
   Globe,
   Code,
   Trash2,
+  Save,
 } from "lucide-react"
 
 // Types
@@ -329,33 +330,46 @@ export default function MainUI({
       const savedTheme = userSettings.selectedTheme || 'basic'
       setCurrentTheme(savedTheme)
       
+      // Add font preload for notebook theme
+      if (savedTheme === 'notebook') {
+        const fontLink = document.createElement('link')
+        fontLink.href = 'https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap'
+        fontLink.rel = 'stylesheet'
+        fontLink.id = 'notebook-font-preload'
+        document.head.appendChild(fontLink)
+      }
+      
       // Check for saved light/dark preference
       const savedThemeMode = localStorage.getItem('t3-chat-theme-mode')
+      let actualThemeMode = savedThemeMode
+      
       if (savedThemeMode === 'light') {
         setTheme('light')
-        document.documentElement.classList.remove('dark')
-        document.documentElement.classList.add('light')
       } else if (savedThemeMode === 'dark') {
         setTheme('dark')
-        document.documentElement.classList.remove('light')
-        document.documentElement.classList.add('dark')
       } else {
-        // Default to light mode for better testing
-        setTheme('light')
-        document.documentElement.classList.remove('dark')
-        document.documentElement.classList.add('light')
-        localStorage.setItem('t3-chat-theme-mode', 'light')
+        // Default to dark mode
+        setTheme('dark')
+        actualThemeMode = 'dark'
+        localStorage.setItem('t3-chat-theme-mode', 'dark')
       }
       
       // Apply the saved theme class
       const themeClasses = ['theme-basic', 'theme-notebook']
-      document.documentElement.classList.remove(...themeClasses)
+      document.documentElement.classList.remove(...themeClasses, 'light', 'dark')
       document.documentElement.classList.add(`theme-${savedTheme}`)
       
-      // Debug logging to help troubleshoot
+      // Apply light/dark mode class
+      if (actualThemeMode === 'light') {
+        document.documentElement.classList.add('light')
+      } else if (savedTheme === 'basic') {
+        document.documentElement.classList.add('dark')
+      }
+      
+      // Debug logging
       console.log('Theme initialized:', {
         selectedTheme: savedTheme,
-        lightDarkMode: theme,
+        lightDarkMode: actualThemeMode,
         documentClasses: Array.from(document.documentElement.classList)
       })
     }
@@ -765,10 +779,15 @@ export default function MainUI({
     
     // Remove both light and dark classes, then add the appropriate one
     document.documentElement.classList.remove("light", "dark")
+    
     if (newTheme === "light") {
       document.documentElement.classList.add("light")
     } else {
-      document.documentElement.classList.add("dark")
+      // For dark mode, only add 'dark' class for basic theme
+      // Notebook theme uses .theme-notebook alone for dark mode
+      if (currentTheme === "basic") {
+        document.documentElement.classList.add("dark")
+      }
     }
     
     // Debug logging
@@ -777,25 +796,118 @@ export default function MainUI({
       currentTheme,
       documentClasses: Array.from(document.documentElement.classList)
     })
+    
+    // TEMPORARY DIRECT STYLE APPLICATION for notebook theme debugging
+    if (currentTheme === 'notebook') {
+      if (newTheme === 'light') {
+        document.body.style.backgroundColor = '#f9f9f9'
+        document.body.style.color = '#333333'
+        document.documentElement.style.backgroundColor = '#f9f9f9'
+      } else {
+        document.body.style.backgroundColor = '#2b2b2b'
+        document.body.style.color = '#f0f0f0'
+        document.documentElement.style.backgroundColor = '#2b2b2b'
+      }
+      
+      // Apply Architects Daughter font universally using CSS injection
+      let fontStyleElement = document.getElementById('notebook-font-style')
+      if (!fontStyleElement) {
+        fontStyleElement = document.createElement('style')
+        fontStyleElement.id = 'notebook-font-style'
+        document.head.appendChild(fontStyleElement)
+      }
+      
+      fontStyleElement.textContent = `
+        * {
+          font-family: "Architects Daughter", sans-serif !important;
+        }
+        body, html {
+          font-family: "Architects Daughter", sans-serif !important;
+        }
+      `
+      
+      // Also apply directly to body and html for immediate effect
+      document.body.style.fontFamily = '"Architects Daughter", sans-serif'
+      document.documentElement.style.fontFamily = '"Architects Daughter", sans-serif'
+      
+      // Apply different backgrounds for dark mode: sidebar vs chat area
+      if (newTheme === 'dark') {
+        setTimeout(() => {
+          // More specific selectors for sidebar and chat areas
+          const sidebar = document.querySelector('.w-64') || document.querySelector('[style*="width: 16rem"]')
+          const chatAreas = document.querySelectorAll('main, .flex-1, .min-h-screen > div:last-child')
+          
+          // Apply sidebar color
+          if (sidebar) {
+            (sidebar as HTMLElement).style.backgroundColor = '#2b2b2b !important'
+            // Also apply to all children to ensure consistency
+            const sidebarChildren = sidebar.querySelectorAll('*')
+            sidebarChildren.forEach(child => {
+              (child as HTMLElement).style.backgroundColor = 'inherit'
+            })
+          }
+          
+          // Apply chat area color
+          chatAreas.forEach(area => {
+            if (area && !area.classList.contains('w-64')) {
+              (area as HTMLElement).style.backgroundColor = '#333333 !important'
+            }
+          })
+          
+          // Force specific components
+          const mainContent = document.querySelector('.flex.h-screen > div:last-child')
+          if (mainContent) {
+            (mainContent as HTMLElement).style.backgroundColor = '#333333 !important'
+          }
+        }, 100)
+      }
+    } else {
+      // Reset for basic theme
+      document.body.style.backgroundColor = ''
+      document.body.style.color = ''
+      document.body.style.fontFamily = ''
+      document.documentElement.style.backgroundColor = ''
+      document.documentElement.style.fontFamily = ''
+      
+      // Remove the injected font style
+      const fontStyleElement = document.getElementById('notebook-font-style')
+      if (fontStyleElement) {
+        fontStyleElement.remove()
+      }
+    }
   }
 
   // Handle theme selection
   const handleThemeSelect = (themeId: string) => {
     setCurrentTheme(themeId)
     
+    // Add or remove font preload based on theme
+    if (themeId === 'notebook') {
+      if (!document.getElementById('notebook-font-preload')) {
+        const fontLink = document.createElement('link')
+        fontLink.href = 'https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap'
+        fontLink.rel = 'stylesheet'
+        fontLink.id = 'notebook-font-preload'
+        document.head.appendChild(fontLink)
+      }
+    } else {
+      const fontLink = document.getElementById('notebook-font-preload')
+      if (fontLink) {
+        fontLink.remove()
+      }
+    }
+    
+    // Rest of your existing theme selection code...
+    
     // Apply theme-specific classes to document
     const themeClasses = ['theme-basic', 'theme-notebook']
-    document.documentElement.classList.remove(...themeClasses)
-    
-    // Always add the theme class
+    document.documentElement.classList.remove(...themeClasses, 'light', 'dark')
     document.documentElement.classList.add(`theme-${themeId}`)
     
-    // Re-apply the current light/dark mode (keep existing light/dark state)
+    // Re-apply the current light/dark mode
     if (theme === "light") {
-      document.documentElement.classList.remove("dark")
       document.documentElement.classList.add("light")
-    } else {
-      document.documentElement.classList.remove("light")
+    } else if (themeId === "basic") {
       document.documentElement.classList.add("dark")
     }
     
@@ -805,6 +917,13 @@ export default function MainUI({
       selectedTheme: themeId 
     }
     onSaveSettings(updatedSettings)
+    
+    // Debug logging
+    console.log('Theme selected:', {
+      themeId,
+      lightDarkMode: theme,
+      documentClasses: Array.from(document.documentElement.classList)
+    })
   }
 
   // Speech recognition functions
@@ -1310,8 +1429,8 @@ export default function MainUI({
               `}
             >
               {/* Sidebar Header with Title and Controls */}
-                              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-300 dark:border-gray-600/20 h-[60px]">
-                <h1 className="text-lg font-bold text-gray-800 dark:text-gray-200">
+                              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-300 dark:border-gray-600/20 h-[60px] bg-white dark:bg-[#2b2b2b]">
+                <h1 className="text-lg font-bold text-gray-800 dark:text-[#f0f0f0]">
                   Apeiron
                 </h1>
                 <div className="flex items-center gap-1">
@@ -1377,8 +1496,8 @@ export default function MainUI({
                           `}
                           onClick={() => onSelectConversation(conversation.id)}
                         >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between bg-white dark:bg-[#2b2b2b]">
+                          <div className="flex-1 min-w-0 bg-white dark:bg-[#2b2b2b]">
                             {editingConversationId === conversation.id ? (
                               <input
                                 type="text"
@@ -1386,13 +1505,13 @@ export default function MainUI({
                                 onChange={(e) => setEditingTitle(e.target.value)}
                                 onKeyDown={handleRenameKeyPress}
                                 onBlur={handleSaveRename}
-                                className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
+                                className="w-full font-medium text-gray-800 dark:text-[#f0f0f0] bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
                                 autoFocus
                                 onClick={(e) => e.stopPropagation()}
                               />
                             ) : (
                               <div 
-                                className="font-medium text-gray-800 dark:text-gray-200 truncate cursor-pointer"
+                                className="font-medium text-gray-800 dark:text-[#f0f0f0] truncate cursor-pointer bg-white dark:bg-[#2b2b2b]"
                                 title="Double-click to rename conversation"
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
@@ -1402,7 +1521,7 @@ export default function MainUI({
                                 {conversation.title}
                               </div>
                             )}
-                            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 bg-white dark:bg-[#2b2b2b]">
                               <span>{new Date(conversation.timestamp).toLocaleDateString()}</span>
                             </div>
                           </div>
@@ -1429,11 +1548,12 @@ export default function MainUI({
 
                 {/* Projects */}
                 <div>
-                  <div className="flex items-center justify-between px-2 py-1">
-                    <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">Projects</h2>
+                  {/* Project header with count */}
+                  <div className="flex items-center justify-between px-2 py-1 bg-white dark:bg-[#2b2b2b]">
+                    <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#2b2b2b]">Projects</h2>
                     <button
                       onClick={onCreateProject}
-                      className="p-1 rounded hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
+                      className="p-1 rounded hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors bg-white dark:bg-[#2b2b2b]"
                       aria-label="New project"
                     >
                       <Folder className="w-4 h-4 text-gray-600 dark:text-gray-400" />
@@ -1442,7 +1562,7 @@ export default function MainUI({
 
                   {/* Unorganized conversations drop zone */}
                   <div 
-                    className={`mt-2 mb-2 p-2 rounded-lg border-2 border-dashed transition-colors ${
+                    className={`mt-2 mb-2 p-2 rounded-lg border-2 border-dashed transition-colors bg-white dark:bg-[#2b2b2b] ${
                       dragOverProjectId === null && draggedConversationId
                         ? 'border-purple-400 bg-purple-50/10 dark:bg-purple-900/10'
                         : 'border-gray-300/30 dark:border-gray-600/30'
@@ -1451,7 +1571,7 @@ export default function MainUI({
                     onDragLeave={handleProjectDragLeave}
                     onDrop={(e) => handleProjectDrop(e, null)}
                   >
-                    <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 text-center bg-white dark:bg-[#2b2b2b]">
                       {draggedConversationId ? 'Drop here to remove from project' : 'Unorganized conversations'}
                     </div>
                   </div>
@@ -1462,25 +1582,25 @@ export default function MainUI({
                         <div 
                           className={`group relative rounded-lg transition-all duration-200 ${
                             dragOverProjectId === project.id 
-                              ? 'bg-purple-50/20 dark:bg-purple-900/20 border-2 border-purple-400 border-dashed' 
+                              ? 'bg-purple-50/20 dark:bg-[#2b2b2b] border-2 border-purple-400 border-dashed' 
                               : 'border-2 border-transparent'
                           } ${
                             selectedProjectId === project.id
-                              ? 'bg-white/30 dark:bg-gray-800/60 shadow-sm'
-                              : 'hover:bg-white/20 dark:hover:bg-gray-800/40'
+                              ? 'bg-white/30 dark:bg-[#2b2b2b] shadow-sm'
+                              : 'hover:bg-white/20 dark:hover:bg-[#2b2b2b]'
                           }`}
                           onDragOver={(e) => handleProjectDragOver(e, project.id)}
                           onDragLeave={handleProjectDragLeave}
                           onDrop={(e) => handleProjectDrop(e, project.id)}
                         >
-                          <div className="flex items-center justify-between px-3 py-2">
-                            <div className="flex items-center flex-1 min-w-0">
+                          <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-[#2b2b2b]">
+                            <div className="flex items-center flex-1 min-w-0 bg-white dark:bg-[#2b2b2b]">
                               <button
                                 onClick={() => {
                                   onSelectProject?.(project.id)
                                   toggleProject(project.id)
                                 }}
-                                className="flex items-center flex-1 min-w-0 text-left"
+                                className="flex items-center flex-1 min-w-0 text-left bg-white dark:bg-[#2b2b2b]"
                               >
                                 {expandedProjects[project.id] ? (
                                   <ChevronDown className="w-4 h-4 text-gray-600 dark:text-gray-400 mr-2 flex-shrink-0" />
@@ -1495,13 +1615,13 @@ export default function MainUI({
                                     onChange={(e) => setEditingProjectName(e.target.value)}
                                     onKeyDown={handleProjectRenameKeyPress}
                                     onBlur={handleSaveProjectRename}
-                                    className="flex-1 font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
+                                    className="flex-1 font-medium text-gray-800 dark:text-[#f0f0f0] bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
                                     autoFocus
                                     onClick={(e) => e.stopPropagation()}
                                   />
                                 ) : (
                                   <span 
-                                    className="font-medium text-gray-800 dark:text-gray-200 truncate"
+                                    className="font-medium text-gray-800 dark:text-[#f0f0f0] truncate bg-white dark:bg-[#2b2b2b]"
                                     title="Double-click to rename project"
                                     onDoubleClick={(e) => {
                                       e.stopPropagation();
@@ -1513,12 +1633,13 @@ export default function MainUI({
                                 )}
                               </button>
                               
-                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
+                              {/* Project count */}
+                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0 bg-white dark:bg-[#2b2b2b]">
                                 {project.conversations.length}
                               </span>
                             </div>
                             
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-[#2b2b2b]">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -1526,7 +1647,7 @@ export default function MainUI({
                                     onDeleteProject?.(project.id)
                                   }
                                 }}
-                                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                className="p-1 text-gray-400 hover:text-red-500 transition-colors bg-white dark:bg-[#2b2b2b]"
                                 title="Delete project"
                               >
                                 <Trash2 className="w-3 h-3" />
@@ -1535,7 +1656,7 @@ export default function MainUI({
                           </div>
 
                           {expandedProjects[project.id] && (
-                            <div className="ml-6 pb-2 space-y-1 border-l-2 border-gray-200/30 dark:border-gray-600/15 pl-2">
+                            <div className="ml-6 pb-2 space-y-1 border-l-2 border-gray-200/30 dark:border-gray-600/15 pl-2 bg-white dark:bg-[#2b2b2b]">
                               {project.conversations.map((convId) => {
                                 const conv = conversations.find((c) => c.id === convId)
                                 if (!conv) return null
@@ -1549,17 +1670,17 @@ export default function MainUI({
                                     onClick={() => onSelectConversation(conv.id)}
                                     className={`
                                       w-full text-left px-3 py-1.5 rounded-lg text-xs transition-all duration-200
-                                      hover:bg-white/20 dark:hover:bg-gray-800/40 cursor-pointer group relative
+                                      bg-white dark:bg-[#2b2b2b] cursor-pointer group relative
                                       ${draggedConversationId === conv.id ? 'opacity-50' : ''}
                                       ${
                                         currentConversation.id === conv.id
-                                          ? "bg-white/30 dark:bg-gray-800/60 shadow-sm"
-                                          : "bg-transparent"
+                                          ? "shadow-sm"
+                                          : ""
                                       }
                                     `}
                                   >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between bg-white dark:bg-[#2b2b2b]">
+                                      <div className="flex-1 min-w-0 bg-white dark:bg-[#2b2b2b]">
                                         {editingConversationId === conv.id ? (
                                           <input
                                             type="text"
@@ -1567,13 +1688,13 @@ export default function MainUI({
                                             onChange={(e) => setEditingTitle(e.target.value)}
                                             onKeyDown={handleRenameKeyPress}
                                             onBlur={handleSaveRename}
-                                            className="w-full font-medium text-gray-800 dark:text-gray-200 bg-white/20 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
+                                            className="w-full font-medium text-gray-800 dark:text-[#f0f0f0] bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
                                             autoFocus
                                             onClick={(e) => e.stopPropagation()}
                                           />
                                         ) : (
                                           <div 
-                                            className="font-medium text-gray-800 dark:text-gray-200 truncate"
+                                            className="font-medium text-gray-800 dark:text-gray-200 truncate bg-white dark:bg-[#2b2b2b]"
                                             title="Double-click to rename conversation"
                                             onDoubleClick={(e) => {
                                               e.stopPropagation();
@@ -1584,7 +1705,7 @@ export default function MainUI({
                                           </div>
                                         )}
                                       </div>
-                                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-[#2b2b2b]">
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation()
@@ -1617,7 +1738,7 @@ export default function MainUI({
                   <div ref={profileDropdownRef} className="relative flex-1">
                     <button
                       onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                      className="w-full h-12 flex items-center gap-3 px-3 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
+                      className="w-full h-12 flex items-center gap-3 px-3 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b] transition-colors text-gray-800 dark:text-gray-200"
                     >
                       {/* Avatar */}
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium text-sm">
@@ -1646,7 +1767,7 @@ export default function MainUI({
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
                           transition={{ duration: 0.2 }}
-                          className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200/20 dark:border-gray-600/20 shadow-lg backdrop-blur-sm overflow-hidden"
+                          className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#2b2b2b] rounded-xl border border-gray-200/20 dark:border-gray-600/20 shadow-lg backdrop-blur-sm overflow-hidden"
                         >
                           <button
                             onClick={() => {
@@ -2156,7 +2277,7 @@ export default function MainUI({
                 {attachments.map((attachment) => (
                   <div
                     key={attachment.id}
-                    className="flex items-center gap-2 bg-white/20 dark:bg-gray-800/40 rounded-lg p-2 text-sm text-gray-800 dark:text-gray-200"
+                    className="flex items-center gap-2 bg-white/20 dark:bg-[#2b2b2b] rounded-lg p-2 text-sm text-gray-800 dark:text-gray-200"
                   >
                     {attachment.type.startsWith('image/') ? (
                       <>
@@ -2190,7 +2311,7 @@ export default function MainUI({
                   <select
                     value={currentModel}
                     onChange={(e) => onSelectModel(e.target.value)}
-                    className="h-[48px] w-36 px-3 pr-8 rounded-xl bg-white/20 dark:bg-gray-800/40 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    className="h-[48px] w-36 px-3 pr-8 rounded-xl bg-white/20 dark:bg-[#2b2b2b] backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                     aria-label="Select AI model"
                   >
                     {availableModels.length === 0 ? (

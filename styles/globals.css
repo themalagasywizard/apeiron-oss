@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@100;200;300;400;500;600;700;800;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100;200;300;400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Fira+Code:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Architects+Daughter:wght@400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -15,41 +16,41 @@
 @layer base {
   /* Vercel Theme - Default */
   :root {
-    --background: oklch(0.9900 0 0);
-    --foreground: oklch(0 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0 0 0);
-    --popover: oklch(0.9900 0 0);
-    --popover-foreground: oklch(0 0 0);
-    --primary: oklch(0 0 0);
-    --primary-foreground: oklch(1 0 0);
-    --secondary: oklch(0.9400 0 0);
-    --secondary-foreground: oklch(0 0 0);
-    --muted: oklch(0.9700 0 0);
-    --muted-foreground: oklch(0.4400 0 0);
-    --accent: oklch(0.9400 0 0);
-    --accent-foreground: oklch(0 0 0);
-    --destructive: oklch(0.6300 0.1900 23.0300);
-    --destructive-foreground: oklch(1 0 0);
-    --border: oklch(0.9200 0 0);
-    --input: oklch(0.9400 0 0);
-    --ring: oklch(0 0 0);
-    --chart-1: oklch(0.8100 0.1700 75.3500);
-    --chart-2: oklch(0.5500 0.2200 264.5300);
-    --chart-3: oklch(0.7200 0 0);
-    --chart-4: oklch(0.9200 0 0);
-    --chart-5: oklch(0.5600 0 0);
-    --sidebar: oklch(0.9900 0 0);
-    --sidebar-foreground: oklch(0 0 0);
-    --sidebar-primary: oklch(0 0 0);
-    --sidebar-primary-foreground: oklch(1 0 0);
-    --sidebar-accent: oklch(0.9400 0 0);
-    --sidebar-accent-foreground: oklch(0 0 0);
-    --sidebar-border: oklch(0.9400 0 0);
-    --sidebar-ring: oklch(0 0 0);
-    --font-sans: Geist, sans-serif;
-    --font-serif: Georgia, serif;
-    --font-mono: Geist Mono, monospace;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --sidebar: 0 0% 98%;
+    --sidebar-foreground: 0 0% 3.9%;
+    --sidebar-primary: 0 0% 9%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 0 0% 96.1%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 89.8%;
+    --sidebar-ring: 0 0% 3.9%;
+    --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
     --radius: 0.5rem;
     --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
     --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
@@ -63,41 +64,41 @@
 
   /* Vercel Theme - Dark Mode */
   .dark {
-    --background: oklch(0 0 0);
-    --foreground: oklch(1 0 0);
-    --card: oklch(0.1400 0 0);
-    --card-foreground: oklch(1 0 0);
-    --popover: oklch(0.1800 0 0);
-    --popover-foreground: oklch(1 0 0);
-    --primary: oklch(1 0 0);
-    --primary-foreground: oklch(0 0 0);
-    --secondary: oklch(0.2500 0 0);
-    --secondary-foreground: oklch(1 0 0);
-    --muted: oklch(0.2300 0 0);
-    --muted-foreground: oklch(0.7200 0 0);
-    --accent: oklch(0.3200 0 0);
-    --accent-foreground: oklch(1 0 0);
-    --destructive: oklch(0.6900 0.2000 23.9100);
-    --destructive-foreground: oklch(0 0 0);
-    --border: oklch(0.2600 0 0);
-    --input: oklch(0.3200 0 0);
-    --ring: oklch(0.7200 0 0);
-    --chart-1: oklch(0.8100 0.1700 75.3500);
-    --chart-2: oklch(0.5800 0.2100 260.8400);
-    --chart-3: oklch(0.5600 0 0);
-    --chart-4: oklch(0.4400 0 0);
-    --chart-5: oklch(0.9200 0 0);
-    --sidebar: oklch(0.1800 0 0);
-    --sidebar-foreground: oklch(1 0 0);
-    --sidebar-primary: oklch(1 0 0);
-    --sidebar-primary-foreground: oklch(0 0 0);
-    --sidebar-accent: oklch(0.3200 0 0);
-    --sidebar-accent-foreground: oklch(1 0 0);
-    --sidebar-border: oklch(0.3200 0 0);
-    --sidebar-ring: oklch(0.7200 0 0);
-    --font-sans: Geist, sans-serif;
-    --font-serif: Georgia, serif;
-    --font-mono: Geist Mono, monospace;
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar: 0 0% 3.9%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 0 0% 9%;
+    --sidebar-accent: 0 0% 14.9%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 14.9%;
+    --sidebar-ring: 0 0% 83.1%;
+    --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
     --radius: 0.5rem;
     --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
     --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
@@ -110,40 +111,89 @@
   }
 
   /* ===== NOTEBOOK THEME ===== */
-  
-  /* Notebook Theme - Light Mode (default) */
-  .theme-notebook {
-    --background: #f0f0f0 !important;
+
+/* Notebook Theme - Dark Mode (default when just .theme-notebook is applied) */
+:root.theme-notebook {
+  --background: #2b2b2b !important;
+  --foreground: #f0f0f0 !important;
+    --card: #2b2b2b !important;
+    --card-foreground: #f0f0f0 !important;
+    --popover: #2b2b2b !important;
+    --popover-foreground: #f0f0f0 !important;
+    --primary: #cccccc !important;
+    --primary-foreground: #2b2b2b !important;
+    --secondary: #404040 !important;
+    --secondary-foreground: #f0f0f0 !important;
+    --muted: #363636 !important;
+    --muted-foreground: #cccccc !important;
+    --accent: #505050 !important;
+    --accent-foreground: #f0f0f0 !important;
+    --destructive: #ef4444 !important;
+    --destructive-foreground: #2b2b2b !important;
+    --border: #505050 !important;
+    --input: #2b2b2b !important;
+    --ring: #999999 !important;
+    --chart-1: #f0f0f0 !important;
+    --chart-2: #e5e5e5 !important;
+    --chart-3: #cccccc !important;
+    --chart-4: #999999 !important;
+    --chart-5: #666666 !important;
+    --sidebar: #2b2b2b !important;
+    --sidebar-foreground: #f0f0f0 !important;
+    --sidebar-primary: #cccccc !important;
+    --sidebar-primary-foreground: #2b2b2b !important;
+    --sidebar-accent: #505050 !important;
+    --sidebar-accent-foreground: #f0f0f0 !important;
+    --sidebar-border: #505050 !important;
+    --sidebar-ring: #999999 !important;
+    --font-sans: "Architects Daughter", sans-serif !important;
+    --font-serif: Georgia, serif !important;
+    --font-mono: "Fira Code", "Courier New", monospace !important;
+    --radius: 0.625rem;
+    --shadow-2xs: 1px 4px 5px 0px rgba(0, 0, 0, 0.2);
+    --shadow-xs: 1px 4px 5px 0px rgba(0, 0, 0, 0.2);
+    --shadow-sm: 1px 4px 5px 0px rgba(0, 0, 0, 0.3), 1px 1px 2px -1px rgba(0, 0, 0, 0.3);
+    --shadow: 1px 4px 5px 0px rgba(0, 0, 0, 0.3), 1px 1px 2px -1px rgba(0, 0, 0, 0.3);
+    --shadow-md: 1px 4px 5px 0px rgba(0, 0, 0, 0.3), 1px 2px 4px -1px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 1px 4px 5px 0px rgba(0, 0, 0, 0.3), 1px 4px 6px -1px rgba(0, 0, 0, 0.3);
+    --shadow-xl: 1px 4px 5px 0px rgba(0, 0, 0, 0.3), 1px 8px 10px -1px rgba(0, 0, 0, 0.3);
+    --shadow-2xl: 1px 4px 5px 0px rgba(0, 0, 0, 0.4);
+    --tracking-normal: 0.5px;
+  }
+
+  /* Notebook Theme - Light Mode */
+:root.theme-notebook.light {
+  --background: #f9f9f9 !important;
     --foreground: #333333 !important;
-    --card: #f0f0f0 !important;
+    --card: #f9f9f9 !important;
     --card-foreground: #333333 !important;
-    --popover: #f0f0f0 !important;
+    --popover: #f9f9f9 !important;
     --popover-foreground: #333333 !important;
     --primary: #666666 !important;
     --primary-foreground: #ffffff !important;
-    --secondary: #e5e5e5 !important;
+    --secondary: #e8e8e8 !important;
     --secondary-foreground: #333333 !important;
-    --muted: #e8e8e8 !important;
+    --muted: #eeeeee !important;
     --muted-foreground: #666666 !important;
-    --accent: #dddee0 !important;
+    --accent: #e0e0e0 !important;
     --accent-foreground: #333333 !important;
     --destructive: #dc2626 !important;
     --destructive-foreground: #ffffff !important;
-    --border: #cccccc !important;
-    --input: #f0f0f0 !important;
+    --border: #d0d0d0 !important;
+    --input: #f9f9f9 !important;
     --ring: #999999 !important;
     --chart-1: #333333 !important;
     --chart-2: #666666 !important;
     --chart-3: #999999 !important;
     --chart-4: #cccccc !important;
     --chart-5: #e5e5e5 !important;
-    --sidebar: #f0f0f0 !important;
+    --sidebar: #f9f9f9 !important;
     --sidebar-foreground: #333333 !important;
     --sidebar-primary: #666666 !important;
     --sidebar-primary-foreground: #ffffff !important;
-    --sidebar-accent: #dddee0 !important;
+    --sidebar-accent: #e0e0e0 !important;
     --sidebar-accent-foreground: #333333 !important;
-    --sidebar-border: #cccccc !important;
+    --sidebar-border: #d0d0d0 !important;
     --sidebar-ring: #999999 !important;
     --font-sans: "Architects Daughter", sans-serif !important;
     --font-serif: "Times New Roman", Times, serif !important;
@@ -159,55 +209,6 @@
     --shadow-2xl: 1px 4px 5px 0px rgba(0, 0, 0, 0.07);
     --tracking-normal: 0.5px;
   }
-
-  /* Notebook Theme - Dark Mode */
-  .theme-notebook.dark {
-    --background: #333333 !important;
-    --foreground: #f0f0f0 !important;
-    --card: #333333 !important;
-    --card-foreground: #f0f0f0 !important;
-    --popover: #333333 !important;
-    --popover-foreground: #f0f0f0 !important;
-    --primary: #cccccc !important;
-    --primary-foreground: #333333 !important;
-    --secondary: #555555 !important;
-    --secondary-foreground: #f0f0f0 !important;
-    --muted: #444444 !important;
-    --muted-foreground: #cccccc !important;
-    --accent: #666666 !important;
-    --accent-foreground: #f0f0f0 !important;
-    --destructive: #ef4444 !important;
-    --destructive-foreground: #333333 !important;
-    --border: #666666 !important;
-    --input: #333333 !important;
-    --ring: #999999 !important;
-    --chart-1: #f0f0f0 !important;
-    --chart-2: #e5e5e5 !important;
-    --chart-3: #cccccc !important;
-    --chart-4: #999999 !important;
-    --chart-5: #666666 !important;
-    --sidebar: #333333 !important;
-    --sidebar-foreground: #f0f0f0 !important;
-    --sidebar-primary: #cccccc !important;
-    --sidebar-primary-foreground: #333333 !important;
-    --sidebar-accent: #666666 !important;
-    --sidebar-accent-foreground: #f0f0f0 !important;
-    --sidebar-border: #666666 !important;
-    --sidebar-ring: #999999 !important;
-    --font-sans: "Architects Daughter", sans-serif !important;
-    --font-serif: Georgia, serif !important;
-    --font-mono: "Fira Code", "Courier New", monospace !important;
-    --radius: 0.625rem;
-    --shadow-2xs: 1px 4px 5px 0px rgba(0, 0, 0, 0.01);
-    --shadow-xs: 1px 4px 5px 0px rgba(0, 0, 0, 0.01);
-    --shadow-sm: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 1px 2px -1px rgba(0, 0, 0, 0.03);
-    --shadow: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 1px 2px -1px rgba(0, 0, 0, 0.03);
-    --shadow-md: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 2px 4px -1px rgba(0, 0, 0, 0.03);
-    --shadow-lg: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 4px 6px -1px rgba(0, 0, 0, 0.03);
-    --shadow-xl: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 8px 10px -1px rgba(0, 0, 0, 0.03);
-    --shadow-2xl: 1px 4px 5px 0px rgba(0, 0, 0, 0.07);
-  }
-}
 
 @theme inline {
   --color-background: var(--background);
@@ -271,38 +272,214 @@
     font-family: var(--font-sans);
   }
   
-  /* NOTEBOOK THEME FONT OVERRIDES */
-  .theme-notebook body {
-    letter-spacing: var(--tracking-normal) !important;
+  /* NOTEBOOK THEME SPECIFIC OVERRIDES */
+  
+  /* Force body and html background colors for notebook theme */
+  html.theme-notebook,
+  html.theme-notebook body {
+    background-color: #2b2b2b !important;
+    color: #f0f0f0 !important;
     font-family: "Architects Daughter", sans-serif !important;
   }
   
-  /* Force Architects Daughter font for all elements in notebook theme */
-  .theme-notebook,
-  .theme-notebook *,
-  .theme-notebook body,
-  .theme-notebook body *,
-  .theme-notebook h1, .theme-notebook h2, .theme-notebook h3, .theme-notebook h4, .theme-notebook h5, .theme-notebook h6,
-  .theme-notebook p, .theme-notebook span, .theme-notebook div, .theme-notebook li, .theme-notebook ul, .theme-notebook ol,
-  .theme-notebook button, .theme-notebook input, .theme-notebook textarea, .theme-notebook select,
-  .theme-notebook label, .theme-notebook a, .theme-notebook strong, .theme-notebook em, .theme-notebook i, .theme-notebook b,
-  .theme-notebook th, .theme-notebook td, .theme-notebook table, .theme-notebook caption,
-  .theme-notebook .text-sm, .theme-notebook .text-xs, .theme-notebook .text-lg, .theme-notebook .text-xl,
-  .theme-notebook .font-medium, .theme-notebook .font-semibold, .theme-notebook .font-bold {
+  html.theme-notebook.light,
+  html.theme-notebook.light body {
+    background-color: #f9f9f9 !important;
+    color: #333333 !important;
+    font-family: "Architects Daughter", sans-serif !important;
+  }
+  
+  /* Force background for all major containers in notebook theme */
+  html.theme-notebook .min-h-screen,
+  html.theme-notebook .h-screen,
+  html.theme-notebook main,
+  html.theme-notebook [data-sidebar],
+  html.theme-notebook .sidebar {
+    background-color: var(--background) !important;
+  }
+
+  /* NOTEBOOK THEME FONT OVERRIDES */
+  
+  /* Universal font application for notebook theme */
+  html.theme-notebook,
+  html.theme-notebook *,
+  html.theme-notebook body,
+  html.theme-notebook body *,
+  html.theme-notebook h1, html.theme-notebook h2, html.theme-notebook h3, 
+  html.theme-notebook h4, html.theme-notebook h5, html.theme-notebook h6,
+  html.theme-notebook p, html.theme-notebook span, html.theme-notebook div, 
+  html.theme-notebook li, html.theme-notebook ul, html.theme-notebook ol,
+  html.theme-notebook button, html.theme-notebook input, html.theme-notebook textarea, 
+  html.theme-notebook select, html.theme-notebook label, html.theme-notebook a, 
+  html.theme-notebook strong, html.theme-notebook em, html.theme-notebook i, 
+  html.theme-notebook b, html.theme-notebook th, html.theme-notebook td, 
+  html.theme-notebook table, html.theme-notebook caption,
+  html.theme-notebook .text-sm, html.theme-notebook .text-xs, 
+  html.theme-notebook .text-lg, html.theme-notebook .text-xl,
+  html.theme-notebook .font-medium, html.theme-notebook .font-semibold, 
+  html.theme-notebook .font-bold {
     font-family: "Architects Daughter", sans-serif !important;
     letter-spacing: 0.5px !important;
   }
 
   /* Ensure specific UI components get the font */
-  .theme-notebook .sidebar *,
-  .theme-notebook .chat-message *,
-  .theme-notebook .settings-panel *,
-  .theme-notebook .dropdown-menu *,
-  .theme-notebook .button *,
-  .theme-notebook .input *,
-  .theme-notebook [role="dialog"] *,
-  .theme-notebook [role="menu"] *,
-  .theme-notebook [role="menuitem"] * {
+  html.theme-notebook .sidebar *,
+  html.theme-notebook .chat-message *,
+  html.theme-notebook .settings-panel *,
+  html.theme-notebook .dropdown-menu *,
+  html.theme-notebook .button *,
+  html.theme-notebook .input *,
+  html.theme-notebook [role="dialog"] *,
+  html.theme-notebook [role="menu"] *,
+  html.theme-notebook [role="menuitem"] * {
     font-family: "Architects Daughter", sans-serif !important;
+  }
+  
+  /* Override any hardcoded Tailwind classes for notebook theme */
+  html.theme-notebook .bg-white,
+  html.theme-notebook .bg-white\/80,
+  html.theme-notebook .bg-white\/90,
+  html.theme-notebook .bg-white\/20,
+  html.theme-notebook .bg-white\/30,
+  html.theme-notebook .bg-white\/10 { 
+    background-color: var(--background) !important; 
+  }
+  
+  html.theme-notebook .bg-gray-50,
+  html.theme-notebook .bg-gray-100,
+  html.theme-notebook .bg-gray-100\/50 { 
+    background-color: var(--muted) !important; 
+  }
+  
+  html.theme-notebook .bg-gray-800,
+  html.theme-notebook .bg-gray-800\/80,
+  html.theme-notebook .bg-gray-800\/90,
+  html.theme-notebook .bg-gray-800\/60,
+  html.theme-notebook .bg-gray-800\/40,
+  html.theme-notebook .bg-gray-800\/30 { 
+    background-color: var(--card) !important; 
+  }
+  
+  html.theme-notebook .bg-gray-900,
+  html.theme-notebook .bg-gray-900\/30 { 
+    background-color: var(--background) !important; 
+  }
+  
+  html.theme-notebook .bg-gray-200\/20,
+  html.theme-notebook .bg-gray-200\/50 { 
+    background-color: var(--accent) !important; 
+  }
+  
+  html.theme-notebook .bg-gray-700\/20,
+  html.theme-notebook .bg-gray-700\/30,
+  html.theme-notebook .bg-gray-700\/50 { 
+    background-color: var(--accent) !important; 
+  }
+  
+  /* Notebook theme text colors */
+  html.theme-notebook .text-gray-200,
+  html.theme-notebook .text-gray-300,
+  html.theme-notebook .text-gray-400,
+  html.theme-notebook .text-gray-500,
+  html.theme-notebook .text-gray-600,
+  html.theme-notebook .text-gray-700,
+  html.theme-notebook .text-gray-800,
+  html.theme-notebook .text-gray-900 { 
+    color: var(--foreground) !important; 
+  }
+  
+  /* Notebook theme border colors */
+  html.theme-notebook .border-gray-200,
+  html.theme-notebook .border-gray-200\/20,
+  html.theme-notebook .border-gray-200\/30,
+  html.theme-notebook .border-gray-300,
+  html.theme-notebook .border-gray-600,
+  html.theme-notebook .border-gray-600\/20,
+  html.theme-notebook .border-gray-700,
+  html.theme-notebook .border-gray-700\/20,
+  html.theme-notebook .border-white\/30 { 
+    border-color: var(--border) !important; 
+  }
+  
+  /* Hover states for notebook theme */
+  html.theme-notebook .hover\:bg-gray-200\/20:hover,
+  html.theme-notebook .hover\:bg-gray-700\/20:hover,
+  html.theme-notebook .hover\:bg-white\/20:hover,
+  html.theme-notebook .hover\:bg-gray-800\/40:hover,
+  html.theme-notebook .hover\:bg-white\/30:hover,
+  html.theme-notebook .hover\:bg-gray-800\/60:hover,
+  html.theme-notebook .hover\:bg-gray-700\/50:hover,
+  html.theme-notebook .hover\:bg-white\/90:hover,
+  html.theme-notebook .hover\:bg-gray-800\/90:hover,
+  html.theme-notebook .hover\:bg-gray-100\/50:hover {
+    background-color: var(--accent) !important;
+  }
+  
+  /* Force background override for main containers */
+  html.theme-notebook body,
+  html.theme-notebook #__next,
+  html.theme-notebook main,
+  html.theme-notebook .flex.h-screen {
+    background-color: var(--background) !important;
+  }
+  
+  /* More specific overrides for common UI elements */
+  html.theme-notebook * {
+    font-family: "Architects Daughter", sans-serif !important;
+  }
+  
+  /* Debugging rule - this should make the theme obvious when applied */
+  html.theme-notebook {
+    /* This will help you see if the theme class is being applied */
+    border: 3px solid red !important;
+  }
+  
+  html.theme-notebook.light {
+    border: 3px solid blue !important;
+  }
+  
+  /* IMMEDIATE VISUAL FIXES - Force notebook theme backgrounds */
+  
+  /* Dark mode notebook - force dark background */
+  html.theme-notebook:not(.light),
+  html.theme-notebook:not(.light) body,
+  html.theme-notebook:not(.light) #__next,
+  html.theme-notebook:not(.light) main {
+    background-color: #2b2b2b !important;
+    color: #f0f0f0 !important;
+  }
+  
+  /* Light mode notebook - force light background */
+  html.theme-notebook.light,
+  html.theme-notebook.light body,
+  html.theme-notebook.light #__next,
+  html.theme-notebook.light main {
+    background-color: #f9f9f9 !important;
+    color: #333333 !important;
+  }
+  
+  /* Force all containers to inherit background */
+  html.theme-notebook *:not(button):not(input):not(select):not(textarea) {
+    background-color: inherit !important;
+  }
+  
+  /* Override specific Tailwind classes for immediate effect */
+  html.theme-notebook .bg-white,
+  html.theme-notebook .bg-gray-50,
+  html.theme-notebook .bg-gray-100,
+  html.theme-notebook .bg-gray-200,
+  html.theme-notebook .bg-gray-800,
+  html.theme-notebook .bg-gray-900 {
+    background-color: transparent !important;
+  }
+  
+  html.theme-notebook.light .bg-white,
+  html.theme-notebook.light .bg-gray-50 {
+    background-color: #f9f9f9 !important;
+  }
+  
+  html.theme-notebook:not(.light) .bg-gray-800,
+  html.theme-notebook:not(.light) .bg-gray-900 {
+    background-color: #2b2b2b !important;
   }
 }

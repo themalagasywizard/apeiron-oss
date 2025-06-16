@@ -1,3 +1,6 @@
+/* Import fonts */
+@import url('https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -109,6 +112,237 @@
   html.theme-basic.light * {
     border-color: var(--border);
   }
+
+  /* Notebook Theme Specific Styles */
+  html.theme-notebook {
+    --background: #2b2b2b;
+    --foreground: #f0f0f0;
+    --sidebar-bg: #2b2b2b;
+    --chat-bg: #333333;
+    --font-sans: "Architects Daughter", -apple-system, BlinkMacSystemFont, sans-serif !important;
+    --font-serif: "Architects Daughter", serif !important;
+    --font-mono: "Architects Daughter", monospace !important;
+
+    /* Theme selector styles - both light and dark mode */
+    & .theme-selector [role="radiogroup"] button[data-state="checked"],
+    & .theme-selector [role="radio"][data-state="checked"],
+    & .theme-selector button[aria-checked="true"],
+    & .theme-selector .theme-option.selected,
+    & .theme-selector .theme-button[data-selected="true"] {
+      background-color: #e5e5e5 !important;
+    }
+
+    /* Dark mode specific styles */
+    &:not(.light) {
+      /* Existing dark mode styles */
+
+      /* Theme selector in dark mode */
+      & .theme-selector [role="radiogroup"] button[data-state="checked"],
+      & .theme-selector [role="radio"][data-state="checked"],
+      & .theme-selector button[aria-checked="true"],
+      & .theme-selector .theme-option.selected,
+      & .theme-selector .theme-button[data-selected="true"] {
+        background-color: #404040 !important;
+        color: #f0f0f0 !important;
+      }
+
+      /* Settings button border color in dark mode */
+      & .settings-button,
+      & button[aria-label*="Settings"],
+      & button[aria-label*="settings"],
+      & [data-settings-button],
+      & .settings-icon-button {
+        border-color: #505050 !important;
+        border-width: 1px !important;
+        border-style: solid !important;
+      }
+    }
+
+    /* Light mode specific styles */
+    &.light {
+      /* Existing light mode styles */
+
+      /* Theme selector in light mode */
+      & .theme-selector [role="radiogroup"] button[data-state="checked"],
+      & .theme-selector [role="radio"][data-state="checked"],
+      & .theme-selector button[aria-checked="true"],
+      & .theme-selector .theme-option.selected,
+      & .theme-selector .theme-button[data-selected="true"] {
+        background-color: #e5e5e5 !important;
+        color: #333333 !important;
+      }
+    }
+  }
+
+  html.theme-notebook.light {
+    --background: #f9f9f9;
+    --foreground: #333333;
+    --sidebar-bg: #f9f9f9;
+    --chat-bg: #f9f9f9;
+  }
+
+  /* Force notebook theme styles */
+  html.theme-notebook,
+  html.theme-notebook body {
+    background-color: var(--background) !important;
+    color: var(--foreground) !important;
+    font-family: var(--font-sans) !important;
+  }
+
+  /* Notebook theme sidebar */
+  html.theme-notebook .w-64,
+  html.theme-notebook [style*="width: 16rem"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Notebook theme chat area */
+  html.theme-notebook main,
+  html.theme-notebook .flex-1,
+  html.theme-notebook .min-h-screen > div:last-child {
+    background-color: var(--chat-bg) !important;
+  }
+
+  /* Force font on all elements in notebook theme */
+  html.theme-notebook *,
+  html.theme-notebook button,
+  html.theme-notebook input,
+  html.theme-notebook textarea,
+  html.theme-notebook select {
+    font-family: var(--font-sans) !important;
+  }
+
+  /* Notebook Theme Sidebar Specific Styles */
+  html.theme-notebook:not(.light) {
+    /* Force sidebar background in dark mode */
+    & [data-sidebar],
+    & .w-64,
+    & div[style*="width: 16rem"],
+    & aside,
+    & nav {
+      background-color: #2b2b2b !important;
+    }
+
+    /* Ensure all direct children of sidebar also get the background */
+    & [data-sidebar] > *,
+    & .w-64 > *,
+    & div[style*="width: 16rem"] > *,
+    & aside > *,
+    & nav > * {
+      background-color: #2b2b2b !important;
+    }
+
+    /* Target specific sidebar elements */
+    & .flex.h-screen > div:first-child,
+    & .flex.min-h-screen > div:first-child {
+      background-color: #2b2b2b !important;
+    }
+
+    /* Fix theme selector highlight */
+    & [role="radiogroup"] button[data-state="checked"],
+    & [role="radio"][data-state="checked"],
+    & .theme-selector button[aria-checked="true"],
+    & .theme-option.selected,
+    & .theme-button[data-selected="true"] {
+      background-color: #404040 !important;
+      color: #f0f0f0 !important;
+    }
+  }
+
+  /* Override any Tailwind classes that might affect sidebar */
+  html.theme-notebook:not(.light) .bg-gray-50,
+  html.theme-notebook:not(.light) .bg-gray-100,
+  html.theme-notebook:not(.light) .bg-gray-200,
+  html.theme-notebook:not(.light) .bg-white,
+  html.theme-notebook:not(.light) .bg-black,
+  html.theme-notebook:not(.light) .bg-transparent {
+    &[data-sidebar],
+    &.w-64,
+    &[style*="width: 16rem"],
+    &.flex.h-screen > div:first-child,
+    &.flex.min-h-screen > div:first-child {
+      background-color: #2b2b2b !important;
+    }
+  }
+
+  /* Notebook Theme Font Application */
+  html.theme-notebook {
+    /* Universal font application */
+    & *:not(i):not(.icon):not(.fa):not(.fas):not(.far):not(.fab) {
+      font-family: "Architects Daughter", -apple-system, BlinkMacSystemFont, sans-serif !important;
+      letter-spacing: 0.5px !important;
+    }
+
+    /* Specific element targeting */
+    & h1, & h2, & h3, & h4, & h5, & h6,
+    & p, & span, & div, & button,
+    & input, & textarea, & select,
+    & a, & label, & li {
+      font-family: "Architects Daughter", -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }
+
+    /* Target chat messages and UI components */
+    & .chat-message,
+    & .message-content,
+    & .sidebar-content,
+    & .dropdown-content,
+    & [role="dialog"],
+    & [role="menu"],
+    & [role="menuitem"] {
+      font-family: "Architects Daughter", -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }
+
+    /* Target input fields and buttons */
+    & input::placeholder,
+    & textarea::placeholder,
+    & button span,
+    & .btn,
+    & .button {
+      font-family: "Architects Daughter", -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }
+
+    /* Force font on dynamic content */
+    & [class*="text-"],
+    & [class*="font-"] {
+      font-family: "Architects Daughter", -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }
+  }
+
+  /* Notebook Theme Border Colors */
+  html.theme-notebook:not(.light) {
+    /* Set border color variables */
+    --border-color: #4f4f4f;
+
+    /* Apply border color to elements with borders */
+    & *[class*="border"],
+    & *[style*="border"] {
+      border-color: #4f4f4f !important;
+    }
+
+    /* Target specific border classes */
+    & .border,
+    & .border-t,
+    & .border-r,
+    & .border-b,
+    & .border-l {
+      border-color: #4f4f4f !important;
+    }
+
+    /* Target divider elements */
+    & hr,
+    & .divider {
+      border-color: #4f4f4f !important;
+    }
+  }
+}
+
+/* Ensure font is loaded */
+@font-face {
+  font-family: "Architects Daughter";
+  src: url("https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap") format("woff2"),
+       url("https://fonts.gstatic.com/s/architectsdaughter/v18/KtkxAKiDZI_td1Lkx62xHZHDtgO_Y-bvfY0.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
 /* Override all hardcoded background colors with theme variables */
@@ -320,4 +554,122 @@
 .prose th {
   background: color-mix(in oklch, var(--muted), transparent 50%);
   font-weight: 600;
+}
+
+/* Notebook Theme Light Mode Styles */
+html.theme-notebook.light {
+  /* Sidebar styles - comprehensive */
+  & .w-64,
+  & div[style*="width: 16rem"],
+  & [data-sidebar],
+  & aside,
+  & nav,
+  & .sidebar-component,
+  & .sidebar-menu,
+  & .sidebar-item,
+  & .nav-item,
+  & .menu-item,
+  & .sidebar *,
+  & aside *,
+  & nav * {
+    background-color: #e5e5e5 !important;
+  }
+
+  /* Model selector with proper border radius */
+  & .model-selector,
+  & select.model-select,
+  & .model-dropdown,
+  & [aria-label*="Model"],
+  & select,
+  & .select,
+  & [role="combobox"],
+  & button[aria-haspopup="listbox"],
+  & div[aria-expanded],
+  & .relative.flex.h-10.w-full.items-center.justify-between,
+  & .flex.h-10.items-center.justify-between {
+    background-color: #e5e5e5 !important;
+    border-color: #4f4f4f !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-radius: 0.5rem !important;
+
+    /* Ensure dropdown elements also have the same background */
+    & * {
+      background-color: #e5e5e5 !important;
+    }
+  }
+
+  /* Input area elements */
+  & .input-container,
+  & .chat-input-container,
+  & [data-input-container],
+  & .chat-controls,
+  & .bottom-container {
+    & input,
+    & textarea,
+    & button,
+    & [role="textbox"],
+    & [role="button"],
+    & [contenteditable="true"],
+    & .pdf-button,
+    & .audio-button,
+    & .microphone-button,
+    & .send-button,
+    & [aria-label*="PDF"],
+    & [aria-label*="Audio"],
+    & [aria-label*="Microphone"],
+    & [aria-label*="Send"],
+    & .model-selector,
+    & select.model-select,
+    & .model-dropdown,
+    & [aria-label*="Model"] {
+      background-color: #e5e5e5 !important;
+      border-color: #4f4f4f !important;
+      border-width: 1px !important;
+      border-style: solid !important;
+      border-radius: 0.5rem !important;
+    }
+  }
+
+  /* Chat input field specific styles */
+  & .flex-1.bg-white\/20,
+  & .flex-1.dark\:bg-gray-800\/40 {
+    background-color: #e5e5e5 !important;
+  }
+
+  /* Settings button and other action buttons */
+  & .settings-button,
+  & button[aria-label*="Settings"],
+  & button[aria-label*="settings"],
+  & [data-settings-button],
+  & .settings-icon-button,
+  & .h-\[48px\].w-\[48px\].rounded-xl,
+  & .h-\[48px\].w-\[48px\].flex-shrink-0 {
+    background-color: #e5e5e5 !important;
+    border-color: #4f4f4f !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-radius: 0.5rem !important;
+
+    &:hover {
+      background-color: #d5d5d5 !important;
+      
+      /* Ensure text and content stays consistent on hover */
+      & * {
+        background-color: transparent !important;
+      }
+    }
+  }
+
+  /* Ensure all input area buttons have consistent hover state */
+  & button:hover:not(:disabled),
+  & [role="button"]:hover:not(:disabled) {
+    background-color: #d5d5d5 !important;
+  }
+
+  /* Ensure hover states don't affect backgrounds of nested elements */
+  & button:hover:not(:disabled) *,
+  & [role="button"]:hover:not(:disabled) * {
+    background-color: transparent !important;
+  }
 }

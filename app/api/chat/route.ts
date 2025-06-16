@@ -75,43 +75,59 @@ export async function POST(request: NextRequest) {
 
     // Detect if this is a code generation request
     let isCodeRequest = false;
+    let isImageRequest = false;
     try {
-      // First check if code generation is explicitly enabled
-      if (codeGenerationEnabled) {
-        isCodeRequest = true;
-      } else {
-        // Fallback to content-based detection
-        const lastUserMessage = messages[messages.length - 1]?.content?.toLowerCase() || "";
-        isCodeRequest = lastUserMessage.includes("html") || 
-                       lastUserMessage.includes("css") || 
-                       lastUserMessage.includes("javascript") || 
-                       lastUserMessage.includes("js") ||
-                       lastUserMessage.includes("code") ||
-                       lastUserMessage.includes("function") ||
-                       lastUserMessage.includes("component") ||
-                       lastUserMessage.includes("website") ||
-                       lastUserMessage.includes("app") ||
-                       lastUserMessage.includes("build") ||
-                       lastUserMessage.includes("create") ||
-                       lastUserMessage.includes("develop") ||
-                       lastUserMessage.includes("program") ||
-                       lastUserMessage.includes("script") ||
-                       lastUserMessage.includes("react") ||
-                       lastUserMessage.includes("vue") ||
-                       lastUserMessage.includes("angular") ||
-                       lastUserMessage.includes("node") ||
-                       lastUserMessage.includes("python") ||
-                       lastUserMessage.includes("java") ||
-                       lastUserMessage.includes("php") ||
-                       lastUserMessage.includes("sql") ||
-                       lastUserMessage.includes("landing page") ||
-                       lastUserMessage.includes("make me") ||
-                       lastUserMessage.includes("<") ||
-                       lastUserMessage.includes("```");
-      }
+      const lastMessage = messages[messages.length - 1]?.content?.toLowerCase() || "";
+      
+      // Enhanced code detection patterns
+      const codePatterns = [
+        /create.*(?:website|web.*page|html.*page|landing.*page)/i,
+        /build.*(?:app|application|website|component)/i,
+        /generate.*(?:code|script|function|class|component)/i,
+        /write.*(?:code|script|function|program)/i,
+        /make.*(?:website|app|component|function)/i,
+        /develop.*(?:website|app|application)/i,
+        /code.*(?:for|to|that)/i,
+        /html.*css/i,
+        /javascript.*function/i,
+        /react.*component/i,
+        /vue.*component/i,
+        /angular.*component/i,
+        /python.*script/i,
+        /node.*js/i,
+        /create.*api/i,
+        /build.*dashboard/i,
+        /design.*interface/i
+      ];
+
+      // Enhanced image detection patterns
+      const imagePatterns = [
+        /generate.*(?:image|picture|photo|artwork|illustration)/i,
+        /create.*(?:image|picture|photo|artwork|illustration|visual)/i,
+        /draw.*(?:image|picture|illustration)/i,
+        /make.*(?:image|picture|photo|artwork)/i,
+        /design.*(?:image|logo|icon|graphic)/i,
+        /paint.*(?:image|picture|artwork)/i,
+        /sketch.*(?:image|drawing)/i,
+        /render.*(?:image|artwork)/i,
+        /visualize.*(?:image|concept)/i,
+        /show.*me.*(?:image|picture|visual)/i,
+        /can.*you.*(?:draw|create|generate|make).*(?:image|picture)/i
+      ];
+      
+      isCodeRequest = codePatterns.some(pattern => pattern.test(lastMessage)) || codeGenerationEnabled;
+      
+      // 2. Selected model is an image/video generation model (automatic routing like VEO2)
+      const isImageModel = model && (model.includes('gen3') || model.includes('gen2'));
+      
+      // 3. Message content suggests image generation
+      isImageRequest = imagePatterns.some(pattern => pattern.test(lastMessage)) || isImageModel;
+      
+      console.log("Request analysis:", { isCodeRequest, isImageRequest, isImageModel, model, lastMessage: lastMessage.substring(0, 100) });
     } catch (error) {
-      console.error("Error in code detection:", error);
-      isCodeRequest = false; // Fallback to false if detection fails
+      console.error("Error in request detection:", error);
+      isCodeRequest = false;
+      isImageRequest = false;
     }
 
     // Route code generation requests to Edge Function for better performance (both dev and production)
@@ -164,6 +180,99 @@ export async function POST(request: NextRequest) {
       } catch (edgeError) {
         console.error('Edge function failed, falling back to serverless:', edgeError);
         // Continue with regular serverless processing as fallback
+      }
+    }
+
+    // Route image generation requests to dedicated image API
+    if (isImageRequest) {
+      try {
+        console.log('Routing image generation request to image API');
+        const imageApiUrl = `${new URL(request.url).origin}/api/generate-image`;
+        
+        const prompt = messages[messages.length - 1]?.content || "";
+        
+        // Prepare headers with API keys for the image generation API
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        
+        // Add API keys as headers based on available keys
+        if (requestBody.geminiApiKey) {
+          headers['x-gemini-api-key'] = requestBody.geminiApiKey;
+        }
+        if (requestBody.runwayApiKey) {
+          headers['x-runway-api-key'] = requestBody.runwayApiKey;
+        }
+        if (requestBody.openaiApiKey) {
+          headers['x-openai-api-key'] = requestBody.openaiApiKey;
+        }
+        
+        const imageResponse = await fetchWithTimeout(imageApiUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            prompt: prompt,
+            model: model
+          })
+        }, 30000); // 30 second timeout for image generation
+
+        if (!imageResponse.ok) {
+          const errorText = await imageResponse.text().catch(() => 'Unknown error');
+          console.error(`Image generation failed with status ${imageResponse.status}:`, errorText);
+          throw new Error(`Image generation error (${imageResponse.status}): ${errorText}`);
+        }
+
+        const imageResult = await imageResponse.json();
+        
+        if (!imageResult.imageUrl) {
+          throw new Error('Image generation returned no image URL');
+        }
+        
+        // Format the response with image information
+        const imageResponseText = `🎨 **Image Generation Complete**
+
+**Prompt:** ${prompt}
+
+**Provider:** ${imageResult.provider}
+
+**Model:** ${imageResult.model || model}
+
+**Image URL:** ${imageResult.imageUrl}
+
+**Status:** Generated successfully
+
+Your image has been generated and is displayed above. You can download it using the download button.`;
+        
+        clearTimeout(emergencyTimeout);
+        
+        return NextResponse.json({
+          content: imageResponseText,
+          response: imageResponseText,
+          model: imageResult.model || model,
+          provider: imageResult.provider,
+          imageGeneration: true,
+          imageUrl: imageResult.imageUrl,
+          searchResults: null
+        });
+
+      } catch (error) {
+        console.error(`Image generation failed:`, error);
+        // Fall through to regular chat response with error message
+        const errorMessage = error instanceof Error ? error.message : "Image generation failed";
+        const fallbackResponse = `I apologize, but I encountered an error while trying to generate an image: ${errorMessage}. 
+
+I can still help you with text-based responses. Would you like me to describe what the image might look like instead, or help you with something else?`;
+        
+        clearTimeout(emergencyTimeout);
+        
+        return NextResponse.json({
+          content: fallbackResponse,
+          response: fallbackResponse,
+          model: model,
+          provider: provider,
+          isError: true,
+          searchResults: null
+        });
       }
     }
 

@@ -4,12 +4,13 @@ import React from 'react'
 import { motion } from 'framer-motion'
 
 interface ModelLogoProps {
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral" | "runway"
+  modelId: string
   isLoading?: boolean
   size?: "sm" | "md" | "lg"
 }
 
-const ModelLogo: React.FC<ModelLogoProps> = ({ provider, isLoading = false, size = "md" }) => {
+const ModelLogo: React.FC<ModelLogoProps> = ({ provider, modelId, isLoading = false, size = "md" }) => {
   const sizeClasses = {
     sm: "w-6 h-6",
     md: "w-8 h-8", 
@@ -94,6 +95,13 @@ const ModelLogo: React.FC<ModelLogoProps> = ({ provider, isLoading = false, size
         return (
           <div className={`${sizeClasses[size]} rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm`}>
             <span>M</span>
+          </div>
+        )
+        
+      case "runway":
+        return (
+          <div className={`${sizeClasses[size]} rounded-lg bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center text-white font-bold text-sm`}>
+            <span>R</span>
           </div>
         )
         
