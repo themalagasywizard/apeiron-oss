@@ -8,4 +8,18 @@
 # Edge Function for code generation
 [[edge_functions]]
   function = "generate-code"
-  path = "/api/generate-code" 
+  path = "/api/generate-code"
+
+[functions]
+  node_bundler = "esbuild"
+
+[build.environment]
+  NEXT_USE_NETLIFY_EDGE = "true"
+
+[edge_functions]
+  included_files = ["netlify/edge-functions/**"]
+  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
+  
+[[edge_functions.config]]
+  function = "generate-code"
+  timeout = 120 

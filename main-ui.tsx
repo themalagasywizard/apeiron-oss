@@ -316,6 +316,12 @@ export default function MainUI({
       name: "Notebook",
       description: "Handwritten notebook style with Architects Daughter font",
       preview: "linear-gradient(135deg, #f8f6f4 0%, #e8e2db 100%)"
+    },
+    {
+      id: "t3",
+      name: "T3",
+      description: "Modern theme with OKLCH color system and refined UI elements",
+      preview: "linear-gradient(135deg, oklch(0.9754 0.0084 325.6414) 0%, oklch(0.3257 0.1161 325.0372) 100%)"
     }
   ]
 
@@ -326,52 +332,63 @@ export default function MainUI({
   // Initialize theme based on current document classes and saved preference
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Check for saved theme preference
-      const savedTheme = userSettings.selectedTheme || 'basic'
-      setCurrentTheme(savedTheme)
-      
-      // Add font preload for notebook theme
-      if (savedTheme === 'notebook') {
-        const fontLink = document.createElement('link')
-        fontLink.href = 'https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap'
-        fontLink.rel = 'stylesheet'
-        fontLink.id = 'notebook-font-preload'
-        document.head.appendChild(fontLink)
+      try {
+        // Check for saved theme preference
+        const savedTheme = userSettings.selectedTheme || 'basic'
+        console.log('Initializing theme:', {
+          savedTheme,
+          currentClasses: Array.from(document.documentElement.classList),
+          userSettings
+        })
+        setCurrentTheme(savedTheme)
+        
+        // Add font preload for notebook theme
+        if (savedTheme === 'notebook') {
+          if (!document.getElementById('notebook-font-preload')) {
+            const fontLink = document.createElement('link')
+            fontLink.href = 'https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap'
+            fontLink.rel = 'stylesheet'
+            fontLink.id = 'notebook-font-preload'
+            document.head.appendChild(fontLink)
+          }
+        }
+        
+        // Check for saved light/dark preference
+        const savedThemeMode = localStorage.getItem('t3-chat-theme-mode')
+        let actualThemeMode = savedThemeMode
+        
+        if (savedThemeMode === 'light') {
+          setTheme('light')
+        } else if (savedThemeMode === 'dark') {
+          setTheme('dark')
+        } else {
+          // Default to dark mode
+          setTheme('dark')
+          actualThemeMode = 'dark'
+          localStorage.setItem('t3-chat-theme-mode', 'dark')
+        }
+        
+        // Apply the saved theme class
+        const themeClasses = ['theme-basic', 'theme-notebook', 'theme-t3']
+        document.documentElement.classList.remove(...themeClasses, 'light', 'dark')
+        document.documentElement.classList.add(`theme-${savedTheme}`)
+        
+        // Apply light/dark mode class
+        if (actualThemeMode === 'light') {
+          document.documentElement.classList.add('light')
+        } else if (savedTheme === 'basic' || savedTheme === 't3') {
+          document.documentElement.classList.add('dark')
+        }
+        
+        // Debug logging
+        console.log('Theme initialized:', {
+          selectedTheme: savedTheme,
+          lightDarkMode: actualThemeMode,
+          documentClasses: Array.from(document.documentElement.classList)
+        })
+      } catch (error) {
+        console.error('Error initializing theme:', error)
       }
-      
-      // Check for saved light/dark preference
-      const savedThemeMode = localStorage.getItem('t3-chat-theme-mode')
-      let actualThemeMode = savedThemeMode
-      
-      if (savedThemeMode === 'light') {
-        setTheme('light')
-      } else if (savedThemeMode === 'dark') {
-        setTheme('dark')
-      } else {
-        // Default to dark mode
-        setTheme('dark')
-        actualThemeMode = 'dark'
-        localStorage.setItem('t3-chat-theme-mode', 'dark')
-      }
-      
-      // Apply the saved theme class
-      const themeClasses = ['theme-basic', 'theme-notebook']
-      document.documentElement.classList.remove(...themeClasses, 'light', 'dark')
-      document.documentElement.classList.add(`theme-${savedTheme}`)
-      
-      // Apply light/dark mode class
-      if (actualThemeMode === 'light') {
-        document.documentElement.classList.add('light')
-      } else if (savedTheme === 'basic') {
-        document.documentElement.classList.add('dark')
-      }
-      
-      // Debug logging
-      console.log('Theme initialized:', {
-        selectedTheme: savedTheme,
-        lightDarkMode: actualThemeMode,
-        documentClasses: Array.from(document.documentElement.classList)
-      })
     }
   }, [userSettings.selectedTheme])
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -637,10 +654,14 @@ export default function MainUI({
         ...prev,
         [projectId]: !prev[projectId],
       }
-      onExpandedProjectsChange?.(newExpandedProjects)
       return newExpandedProjects
     })
   }
+
+  // Effect to handle expanded projects change callback
+  useEffect(() => {
+    onExpandedProjectsChange?.(expandedProjects)
+  }, [expandedProjects, onExpandedProjectsChange])
 
   // Add new model (save API keys and enable sub-models)
   const handleAddModel = () => {
@@ -770,160 +791,166 @@ export default function MainUI({
 
   // Toggle theme
   const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark"
-    setTheme(newTheme)
-    onToggleTheme()
-    
-    // Save preference to localStorage
-    localStorage.setItem('t3-chat-theme-mode', newTheme)
-    
-    // Remove both light and dark classes, then add the appropriate one
-    document.documentElement.classList.remove("light", "dark")
-    
-    if (newTheme === "light") {
-      document.documentElement.classList.add("light")
-    } else {
-      // For dark mode, only add 'dark' class for basic theme
-      // Notebook theme uses .theme-notebook alone for dark mode
-      if (currentTheme === "basic") {
-        document.documentElement.classList.add("dark")
-      }
-    }
-    
-    // Debug logging
-    console.log('Theme toggled:', {
-      newTheme,
-      currentTheme,
-      documentClasses: Array.from(document.documentElement.classList)
-    })
-    
-    // TEMPORARY DIRECT STYLE APPLICATION for notebook theme debugging
-    if (currentTheme === 'notebook') {
-      if (newTheme === 'light') {
-        document.body.style.backgroundColor = '#f9f9f9'
-        document.body.style.color = '#333333'
-        document.documentElement.style.backgroundColor = '#f9f9f9'
+    try {
+      const newTheme = theme === "dark" ? "light" : "dark"
+      setTheme(newTheme)
+      onToggleTheme()
+      
+      // Save preference to localStorage
+      localStorage.setItem('t3-chat-theme-mode', newTheme)
+      
+      // Remove both light and dark classes, then add the appropriate one
+      document.documentElement.classList.remove("light", "dark")
+      
+      if (newTheme === "light") {
+        document.documentElement.classList.add("light")
       } else {
-        document.body.style.backgroundColor = '#2b2b2b'
-        document.body.style.color = '#f0f0f0'
-        document.documentElement.style.backgroundColor = '#2b2b2b'
+        // For dark mode, add 'dark' class for basic and t3 themes
+        // Notebook theme uses .theme-notebook alone for dark mode
+        if (currentTheme === "basic" || currentTheme === "t3") {
+          document.documentElement.classList.add("dark")
+        }
       }
       
-      // Apply Architects Daughter font universally using CSS injection
-      let fontStyleElement = document.getElementById('notebook-font-style')
-      if (!fontStyleElement) {
-        fontStyleElement = document.createElement('style')
-        fontStyleElement.id = 'notebook-font-style'
-        document.head.appendChild(fontStyleElement)
-      }
+      // Debug logging
+      console.log('Theme toggled:', {
+        newTheme,
+        currentTheme,
+        documentClasses: Array.from(document.documentElement.classList)
+      })
       
-      fontStyleElement.textContent = `
-        * {
-          font-family: "Architects Daughter", sans-serif !important;
+      // TEMPORARY DIRECT STYLE APPLICATION for notebook theme debugging
+      if (currentTheme === 'notebook') {
+        if (newTheme === 'light') {
+          document.body.style.backgroundColor = '#f9f9f9'
+          document.body.style.color = '#333333'
+          document.documentElement.style.backgroundColor = '#f9f9f9'
+        } else {
+          document.body.style.backgroundColor = '#2b2b2b'
+          document.body.style.color = '#f0f0f0'
+          document.documentElement.style.backgroundColor = '#2b2b2b'
         }
-        body, html {
-          font-family: "Architects Daughter", sans-serif !important;
+        
+        // Apply Architects Daughter font universally using CSS injection
+        let fontStyleElement = document.getElementById('notebook-font-style')
+        if (!fontStyleElement) {
+          fontStyleElement = document.createElement('style')
+          fontStyleElement.id = 'notebook-font-style'
+          document.head.appendChild(fontStyleElement)
         }
-      `
-      
-      // Also apply directly to body and html for immediate effect
-      document.body.style.fontFamily = '"Architects Daughter", sans-serif'
-      document.documentElement.style.fontFamily = '"Architects Daughter", sans-serif'
-      
-      // Apply different backgrounds for dark mode: sidebar vs chat area
-      if (newTheme === 'dark') {
-        setTimeout(() => {
-          // More specific selectors for sidebar and chat areas
-          const sidebar = document.querySelector('.w-64') || document.querySelector('[style*="width: 16rem"]')
-          const chatAreas = document.querySelectorAll('main, .flex-1, .min-h-screen > div:last-child')
-          
-          // Apply sidebar color
-          if (sidebar) {
-            (sidebar as HTMLElement).style.backgroundColor = '#2b2b2b !important'
-            // Also apply to all children to ensure consistency
-            const sidebarChildren = sidebar.querySelectorAll('*')
-            sidebarChildren.forEach(child => {
-              (child as HTMLElement).style.backgroundColor = 'inherit'
-            })
+        
+        fontStyleElement.textContent = `
+          * {
+            font-family: "Architects Daughter", sans-serif !important;
           }
-          
-          // Apply chat area color
-          chatAreas.forEach(area => {
-            if (area && !area.classList.contains('w-64')) {
-              (area as HTMLElement).style.backgroundColor = '#333333 !important'
+          body, html {
+            font-family: "Architects Daughter", sans-serif !important;
+          }
+        `
+        
+        // Also apply directly to body and html for immediate effect
+        document.body.style.fontFamily = '"Architects Daughter", sans-serif'
+        document.documentElement.style.fontFamily = '"Architects Daughter", sans-serif'
+        
+        // Apply different backgrounds for dark mode: sidebar vs chat area
+        if (newTheme === 'dark') {
+          setTimeout(() => {
+            // More specific selectors for sidebar and chat areas
+            const sidebar = document.querySelector('.w-64') || document.querySelector('[style*="width: 16rem"]')
+            const chatAreas = document.querySelectorAll('main, .flex-1, .min-h-screen > div:last-child')
+            
+            // Apply sidebar color
+            if (sidebar) {
+              (sidebar as HTMLElement).style.backgroundColor = '#2b2b2b !important'
+              // Also apply to all children to ensure consistency
+              const sidebarChildren = sidebar.querySelectorAll('*')
+              sidebarChildren.forEach(child => {
+                (child as HTMLElement).style.backgroundColor = 'inherit'
+              })
             }
-          })
-          
-          // Force specific components
-          const mainContent = document.querySelector('.flex.h-screen > div:last-child')
-          if (mainContent) {
-            (mainContent as HTMLElement).style.backgroundColor = '#333333 !important'
-          }
-        }, 100)
+            
+            // Apply chat area color
+            chatAreas.forEach(area => {
+              if (area && !area.classList.contains('w-64')) {
+                (area as HTMLElement).style.backgroundColor = '#333333 !important'
+              }
+            })
+            
+            // Force specific components
+            const mainContent = document.querySelector('.flex.h-screen > div:last-child')
+            if (mainContent) {
+              (mainContent as HTMLElement).style.backgroundColor = '#333333 !important'
+            }
+          }, 100)
+        }
+      } else {
+        // Reset for basic theme
+        document.body.style.backgroundColor = ''
+        document.body.style.color = ''
+        document.body.style.fontFamily = ''
+        document.documentElement.style.backgroundColor = ''
+        document.documentElement.style.fontFamily = ''
+        
+        // Remove the injected font style
+        const fontStyleElement = document.getElementById('notebook-font-style')
+        if (fontStyleElement) {
+          fontStyleElement.remove()
+        }
       }
-    } else {
-      // Reset for basic theme
-      document.body.style.backgroundColor = ''
-      document.body.style.color = ''
-      document.body.style.fontFamily = ''
-      document.documentElement.style.backgroundColor = ''
-      document.documentElement.style.fontFamily = ''
-      
-      // Remove the injected font style
-      const fontStyleElement = document.getElementById('notebook-font-style')
-      if (fontStyleElement) {
-        fontStyleElement.remove()
-      }
+    } catch (error) {
+      console.error('Error toggling theme:', error)
     }
   }
 
   // Handle theme selection
   const handleThemeSelect = (themeId: string) => {
-    setCurrentTheme(themeId)
-    
-    // Add or remove font preload based on theme
-    if (themeId === 'notebook') {
-      if (!document.getElementById('notebook-font-preload')) {
-        const fontLink = document.createElement('link')
-        fontLink.href = 'https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap'
-        fontLink.rel = 'stylesheet'
-        fontLink.id = 'notebook-font-preload'
-        document.head.appendChild(fontLink)
+    try {
+      setCurrentTheme(themeId)
+      
+      // Add or remove font preload based on theme
+      if (themeId === 'notebook') {
+        if (!document.getElementById('notebook-font-preload')) {
+          const fontLink = document.createElement('link')
+          fontLink.href = 'https://fonts.googleapis.com/css2?family=Architects+Daughter&display=swap'
+          fontLink.rel = 'stylesheet'
+          fontLink.id = 'notebook-font-preload'
+          document.head.appendChild(fontLink)
+        }
+      } else {
+        const fontLink = document.getElementById('notebook-font-preload')
+        if (fontLink) {
+          fontLink.remove()
+        }
       }
-    } else {
-      const fontLink = document.getElementById('notebook-font-preload')
-      if (fontLink) {
-        fontLink.remove()
+      
+      // Apply theme-specific classes to document
+      const themeClasses = ['theme-basic', 'theme-notebook', 'theme-t3']
+      document.documentElement.classList.remove(...themeClasses, 'light', 'dark')
+      document.documentElement.classList.add(`theme-${themeId}`)
+      
+      // Re-apply the current light/dark mode
+      if (theme === "light") {
+        document.documentElement.classList.add("light")
+      } else if (themeId === "basic" || themeId === "t3") {
+        document.documentElement.classList.add("dark")
       }
+      
+      // Save theme preference
+      const updatedSettings = { 
+        ...userSettings, 
+        selectedTheme: themeId 
+      }
+      onSaveSettings(updatedSettings)
+      
+      // Debug logging
+      console.log('Theme selected:', {
+        themeId,
+        lightDarkMode: theme,
+        documentClasses: Array.from(document.documentElement.classList)
+      })
+    } catch (error) {
+      console.error('Error selecting theme:', error)
     }
-    
-    // Rest of your existing theme selection code...
-    
-    // Apply theme-specific classes to document
-    const themeClasses = ['theme-basic', 'theme-notebook']
-    document.documentElement.classList.remove(...themeClasses, 'light', 'dark')
-    document.documentElement.classList.add(`theme-${themeId}`)
-    
-    // Re-apply the current light/dark mode
-    if (theme === "light") {
-      document.documentElement.classList.add("light")
-    } else if (themeId === "basic") {
-      document.documentElement.classList.add("dark")
-    }
-    
-    // Save theme preference
-    const updatedSettings = { 
-      ...userSettings, 
-      selectedTheme: themeId 
-    }
-    onSaveSettings(updatedSettings)
-    
-    // Debug logging
-    console.log('Theme selected:', {
-      themeId,
-      lightDarkMode: theme,
-      documentClasses: Array.from(document.documentElement.classList)
-    })
   }
 
   // Speech recognition functions
@@ -1406,7 +1433,7 @@ export default function MainUI({
         {isMobile && !sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-gray-800/90 transition-colors shadow-lg"
+            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-[#2b2b2b]/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
             aria-label="Open sidebar"
           >
             <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
@@ -1550,10 +1577,10 @@ export default function MainUI({
                 <div>
                   {/* Project header with count */}
                   <div className="flex items-center justify-between px-2 py-1 bg-white dark:bg-[#2b2b2b]">
-                    <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-[#2b2b2b]">Projects</h2>
+                    <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">Projects</h2>
                     <button
                       onClick={onCreateProject}
-                      className="p-1 rounded hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors bg-white dark:bg-[#2b2b2b]"
+                      className="p-1 rounded hover:bg-gray-200/20 dark:hover:bg-[#2b2b2b]/90 transition-colors"
                       aria-label="New project"
                     >
                       <Folder className="w-4 h-4 text-gray-600 dark:text-gray-400" />
@@ -1562,7 +1589,7 @@ export default function MainUI({
 
                   {/* Unorganized conversations drop zone */}
                   <div 
-                    className={`mt-2 mb-2 p-2 rounded-lg border-2 border-dashed transition-colors bg-white dark:bg-[#2b2b2b] ${
+                    className={`mt-2 mb-2 p-2 rounded-lg border-2 border-dashed transition-colors dark:bg-[#2b2b2b] ${
                       dragOverProjectId === null && draggedConversationId
                         ? 'border-purple-400 bg-purple-50/10 dark:bg-purple-900/10'
                         : 'border-gray-300/30 dark:border-gray-600/30'
@@ -1571,7 +1598,7 @@ export default function MainUI({
                     onDragLeave={handleProjectDragLeave}
                     onDrop={(e) => handleProjectDrop(e, null)}
                   >
-                    <div className="text-xs text-gray-500 dark:text-gray-400 text-center bg-white dark:bg-[#2b2b2b]">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
                       {draggedConversationId ? 'Drop here to remove from project' : 'Unorganized conversations'}
                     </div>
                   </div>
@@ -1580,27 +1607,27 @@ export default function MainUI({
                     {projects.map((project) => (
                       <div key={project.id}>
                         <div 
-                          className={`group relative rounded-lg transition-all duration-200 ${
+                          className={`group relative rounded-lg transition-all duration-200 dark:bg-[#2b2b2b] ${
                             dragOverProjectId === project.id 
                               ? 'bg-purple-50/20 dark:bg-[#2b2b2b] border-2 border-purple-400 border-dashed' 
                               : 'border-2 border-transparent'
                           } ${
                             selectedProjectId === project.id
                               ? 'bg-white/30 dark:bg-[#2b2b2b] shadow-sm'
-                              : 'hover:bg-white/20 dark:hover:bg-[#2b2b2b]'
+                              : 'hover:bg-white/20 dark:hover:bg-[#2b2b2b]/90'
                           }`}
                           onDragOver={(e) => handleProjectDragOver(e, project.id)}
                           onDragLeave={handleProjectDragLeave}
                           onDrop={(e) => handleProjectDrop(e, project.id)}
                         >
-                          <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-[#2b2b2b]">
-                            <div className="flex items-center flex-1 min-w-0 bg-white dark:bg-[#2b2b2b]">
+                          <div className="flex items-center justify-between px-3 py-2">
+                            <div className="flex items-center flex-1 min-w-0">
                               <button
                                 onClick={() => {
                                   onSelectProject?.(project.id)
                                   toggleProject(project.id)
                                 }}
-                                className="flex items-center flex-1 min-w-0 text-left bg-white dark:bg-[#2b2b2b]"
+                                className="flex items-center flex-1 min-w-0 text-left"
                               >
                                 {expandedProjects[project.id] ? (
                                   <ChevronDown className="w-4 h-4 text-gray-600 dark:text-gray-400 mr-2 flex-shrink-0" />
@@ -1621,7 +1648,7 @@ export default function MainUI({
                                   />
                                 ) : (
                                   <span 
-                                    className="font-medium text-gray-800 dark:text-[#f0f0f0] truncate bg-white dark:bg-[#2b2b2b]"
+                                    className="font-medium text-gray-800 dark:text-[#f0f0f0] truncate"
                                     title="Double-click to rename project"
                                     onDoubleClick={(e) => {
                                       e.stopPropagation();
@@ -1634,12 +1661,12 @@ export default function MainUI({
                               </button>
                               
                               {/* Project count */}
-                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0 bg-white dark:bg-[#2b2b2b]">
+                              <span className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
                                 {project.conversations.length}
                               </span>
                             </div>
                             
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-[#2b2b2b]">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -1647,7 +1674,7 @@ export default function MainUI({
                                     onDeleteProject?.(project.id)
                                   }
                                 }}
-                                className="p-1 text-gray-400 hover:text-red-500 transition-colors bg-white dark:bg-[#2b2b2b]"
+                                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
                                 title="Delete project"
                               >
                                 <Trash2 className="w-3 h-3" />
@@ -1656,7 +1683,7 @@ export default function MainUI({
                           </div>
 
                           {expandedProjects[project.id] && (
-                            <div className="ml-6 pb-2 space-y-1 border-l-2 border-gray-200/30 dark:border-gray-600/15 pl-2 bg-white dark:bg-[#2b2b2b]">
+                            <div className="ml-6 pb-2 space-y-1 border-l-2 border-gray-200/30 dark:border-gray-600/15 pl-2">
                               {project.conversations.map((convId) => {
                                 const conv = conversations.find((c) => c.id === convId)
                                 if (!conv) return null
@@ -1670,7 +1697,7 @@ export default function MainUI({
                                     onClick={() => onSelectConversation(conv.id)}
                                     className={`
                                       w-full text-left px-3 py-1.5 rounded-lg text-xs transition-all duration-200
-                                      bg-white dark:bg-[#2b2b2b] cursor-pointer group relative
+                                      dark:bg-[#2b2b2b] cursor-pointer group relative
                                       ${draggedConversationId === conv.id ? 'opacity-50' : ''}
                                       ${
                                         currentConversation.id === conv.id
@@ -1679,8 +1706,8 @@ export default function MainUI({
                                       }
                                     `}
                                   >
-                                    <div className="flex items-center justify-between bg-white dark:bg-[#2b2b2b]">
-                                      <div className="flex-1 min-w-0 bg-white dark:bg-[#2b2b2b]">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex-1 min-w-0">
                                         {editingConversationId === conv.id ? (
                                           <input
                                             type="text"
@@ -1694,7 +1721,7 @@ export default function MainUI({
                                           />
                                         ) : (
                                           <div 
-                                            className="font-medium text-gray-800 dark:text-gray-200 truncate bg-white dark:bg-[#2b2b2b]"
+                                            className="font-medium text-gray-800 dark:text-gray-200 truncate"
                                             title="Double-click to rename conversation"
                                             onDoubleClick={(e) => {
                                               e.stopPropagation();
@@ -1704,20 +1731,6 @@ export default function MainUI({
                                             {conv.title}
                                           </div>
                                         )}
-                                      </div>
-                                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-[#2b2b2b]">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            if (window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
-                                              onDeleteConversation(conv.id)
-                                            }
-                                          }}
-                                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                          title="Delete conversation"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
                                       </div>
                                     </div>
                                   </div>
@@ -1738,7 +1751,7 @@ export default function MainUI({
                   <div ref={profileDropdownRef} className="relative flex-1">
                     <button
                       onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                      className="w-full h-12 flex items-center gap-3 px-3 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b] transition-colors text-gray-800 dark:text-gray-200"
+                      className="w-full h-12 flex items-center gap-3 px-3 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 transition-colors text-gray-800 dark:text-gray-200"
                     >
                       {/* Avatar */}
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium text-sm">
@@ -1811,7 +1824,7 @@ export default function MainUI({
                     {/* Settings Button for Non-Authenticated Users */}
                     <button
                       onClick={() => setSettingsOpen(true)}
-                      className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-800/60 transition-colors text-gray-800 dark:text-gray-200"
+                      className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 transition-colors text-gray-800 dark:text-gray-200"
                       aria-label="Open settings"
                     >
                       <Settings className="w-4 h-4" />
@@ -1828,7 +1841,7 @@ export default function MainUI({
               {!isMobile && !sidebarOpen && (
                 <button
                   onClick={() => setSidebarOpen(true)}
-            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-gray-800/90 transition-colors shadow-lg"
+            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-[#2b2b2b]/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
                   aria-label="Open sidebar"
                 >
             <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
@@ -2148,7 +2161,7 @@ export default function MainUI({
                               href={safeUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className={`group flex items-start gap-3 p-3 bg-white/30 dark:bg-gray-800/30 hover:bg-white/50 dark:hover:bg-gray-800/50 border border-gray-200/30 dark:border-gray-600/30 rounded-lg transition-all hover:shadow-sm ${!isValidUrl ? 'cursor-not-allowed opacity-75' : ''}`}
+                              className={`group flex items-start gap-3 p-3 bg-white/30 dark:bg-[#2b2b2b] hover:bg-white/50 dark:hover:bg-[#2b2b2b]/90 border border-gray-200/30 dark:border-gray-600/30 rounded-lg transition-all hover:shadow-sm ${!isValidUrl ? 'cursor-not-allowed opacity-50' : ''}`}
                               id={`source-${index + 1}`}
                               onClick={!isValidUrl ? (e) => e.preventDefault() : undefined}
                             >
@@ -2370,7 +2383,7 @@ export default function MainUI({
 
               {/* File Upload Button */}
               <div className="flex-shrink-0">
-                <label className="h-[48px] w-[48px] rounded-xl bg-white/20 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 border border-gray-200/20 dark:border-gray-700/20 transition-colors cursor-pointer flex items-center justify-center">
+                <label className="h-[48px] w-[48px] rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 border border-gray-200/20 dark:border-gray-700/20 transition-colors cursor-pointer flex items-center justify-center">
                   <input
                     type="file"
                     multiple

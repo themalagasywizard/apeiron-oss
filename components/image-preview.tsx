@@ -186,7 +186,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
           <div className="flex items-center space-x-2">
             <button
               onClick={handleCopyUrl}
-              className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              className="p-2 rounded-lg bg-gray-200 dark:bg-[#2b2b2b] hover:bg-gray-300 dark:hover:bg-[#2b2b2b]/90 transition-colors"
               title="Copy image URL"
             >
               <Copy className="w-4 h-4 text-gray-600 dark:text-gray-400" />

@@ -74,38 +74,28 @@ export default async (request, context) => {
     // Log for debugging (Deno compatible)
     console.log(`Edge Function: Code generation request for provider: ${provider}`);
 
-    // Enhanced code generation instructions
+    // Enhanced parameters for code generation - increased for better quality
+    const codeParams = {
+      maxTokens: 4000, // Reduced from 8000 to prevent timeouts
+      temperature: 0.1, // Lower temperature for consistent code
+      timeout: 120000  // 120 second timeout for quality generation
+    };
+
+    // Optimize messages for code generation
     const optimizeMessagesForCode = (messages) => {
       try {
         const optimizedMessages = [...messages];
         const lastMessage = optimizedMessages[optimizedMessages.length - 1];
         
         if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
-          // More sophisticated code generation instructions that don't restrict output
-          const codeInstructions = `EXPERT CODE GENERATION MODE:
-
-You are an expert developer. Generate high-quality, production-ready code based on this request:
-
-"${lastMessage.content}"
-
-REQUIREMENTS:
-- Generate complete, working code that runs immediately
-- Use modern best practices and clean architecture
-- Include comprehensive styling for web projects (CSS/HTML)
-- Add meaningful comments and documentation
-- Ensure responsive design for web interfaces
-- Follow security best practices
-- Make it visually appealing with excellent UX/UI
-- Include all necessary dependencies and imports
-- Provide complete file structure when needed
-
-OUTPUT FORMAT:
-- Use proper code blocks with language specification
-- For web projects, provide complete HTML with embedded CSS
-- Include JavaScript functionality when appropriate
-- Ensure all code is properly formatted and indented
-
-Generate the complete solution now:`;
+          // Simplified instructions to reduce token count
+          const codeInstructions = `Generate production-ready code for: "${lastMessage.content}"
+Requirements:
+- Complete, working code
+- Modern best practices
+- Necessary imports/dependencies
+- Clear comments
+- Security best practices`;
 
           optimizedMessages[optimizedMessages.length - 1] = {
             ...lastMessage,
@@ -123,36 +113,44 @@ Generate the complete solution now:`;
     // Optimize messages for code generation
     const codeOptimizedMessages = optimizeMessagesForCode(messages);
 
-    // Fetch with timeout for Deno
-    const fetchWithTimeout = async (url, options, timeoutMs = 30000) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    // Fetch with timeout and retry for Deno
+    const fetchWithTimeout = async (url, options, timeoutMs = 120000) => {
+      const maxRetries = 2;
+      let lastError;
 
-      try {
-        const response = await fetch(url, {
-          ...options,
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        return response;
-      } catch (error) {
-        clearTimeout(timeoutId);
-        if (error.name === 'AbortError') {
-          throw new Error(`Code generation timed out after ${timeoutMs / 1000} seconds. Please try a shorter request.`);
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+          const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          return response;
+        } catch (error) {
+          clearTimeout(timeoutId);
+          lastError = error;
+          
+          if (error.name === 'AbortError') {
+            console.error(`Attempt ${attempt + 1} timed out after ${timeoutMs / 1000} seconds`);
+          } else {
+            console.error(`Attempt ${attempt + 1} failed:`, error);
+          }
+
+          // Wait before retrying
+          if (attempt < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
-        throw error;
       }
+
+      throw new Error(`Failed after ${maxRetries} attempts. Last error: ${lastError.message}`);
     };
 
     let response;
     let aiResponse = "";
-
-    // Enhanced parameters for code generation - increased for better quality
-    const codeParams = {
-      maxTokens: 8000, // Increased from 4000 for complete code generation
-      temperature: 0.1, // Lower temperature for consistent code
-      timeout: 60000   // 60 second timeout for quality generation
-    };
 
     switch (provider) {
       case "openai":

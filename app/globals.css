@@ -673,3 +673,762 @@ html.theme-notebook.light {
     background-color: transparent !important;
   }
 }
+
+/* T3 Theme */
+html.theme-t3 {
+  --background: oklch(0.9754 0.0084 325.6414);
+  --foreground: oklch(0.3257 0.1161 325.0372);
+  --card: oklch(0.9754 0.0084 325.6414);
+  --card-foreground: oklch(0.3257 0.1161 325.0372);
+  --popover: oklch(1.0000 0 0);
+  --popover-foreground: oklch(0.3257 0.1161 325.0372);
+  --primary: oklch(0.5316 0.1409 355.1999);
+  --primary-foreground: oklch(1.0000 0 0);
+  --secondary: oklch(0.8696 0.0675 334.8991);
+  --secondary-foreground: oklch(0.4448 0.1341 324.7991);
+  --muted: oklch(0.9395 0.0260 331.5454);
+  --muted-foreground: oklch(0.4924 0.1244 324.4523);
+  --accent: oklch(0.8696 0.0675 334.8991);
+  --accent-foreground: oklch(0.4448 0.1341 324.7991);
+  --destructive: oklch(0.5248 0.1368 20.8317);
+  --destructive-foreground: oklch(1.0000 0 0);
+  --border: oklch(0.8568 0.0829 328.9110);
+  --input: oklch(0.8517 0.0558 336.6002);
+  --ring: oklch(0.5916 0.2180 0.5844);
+  --chart-1: oklch(0.6038 0.2363 344.4657);
+  --chart-2: oklch(0.4445 0.2251 300.6246);
+  --chart-3: oklch(0.3790 0.0438 226.1538);
+  --chart-4: oklch(0.8330 0.1185 88.3461);
+  --chart-5: oklch(0.7843 0.1256 58.9964);
+  --sidebar: oklch(0.9360 0.0288 320.5788);
+  --sidebar-foreground: oklch(0.4948 0.1909 354.5435);
+  --sidebar-primary: oklch(0.3963 0.0251 285.1962);
+  --sidebar-primary-foreground: oklch(0.9668 0.0124 337.5228);
+  --sidebar-accent: oklch(0.9789 0.0013 106.4235);
+  --sidebar-accent-foreground: oklch(0.3963 0.0251 285.1962);
+  --sidebar-border: oklch(0.9383 0.0026 48.7178);
+  --sidebar-ring: oklch(0.5916 0.2180 0.5844);
+  --sidebar-bg: oklch(0.9360 0.0288 320.5788);
+  --chat-bg: oklch(0.9754 0.0084 325.6414);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --radius: 0.5rem;
+  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
+  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 1px 2px -1px hsl(0 0% 0% / 0.10);
+  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 2px 4px -1px hsl(0 0% 0% / 0.10);
+  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 4px 6px -1px hsl(0 0% 0% / 0.10);
+  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.10), 0 8px 10px -1px hsl(0 0% 0% / 0.10);
+  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+}
+
+/* T3 Theme - Dark Mode */
+html.theme-t3.dark {
+  --background: #221d27;
+  --foreground: oklch(0.8398 0.0387 309.5391);
+  --card: oklch(0.2803 0.0232 307.5413);
+  --card-foreground: oklch(0.8456 0.0302 341.4597);
+  --popover: oklch(0.1548 0.0132 338.9015);
+  --popover-foreground: oklch(0.9647 0.0091 341.8035);
+  --primary: oklch(0.4607 0.1853 4.0994);
+  --primary-foreground: oklch(0.8560 0.0618 346.3684);
+  --secondary: oklch(0.3137 0.0306 310.0610);
+  --secondary-foreground: oklch(0.8483 0.0382 307.9613);
+  --muted: oklch(0.2634 0.0219 309.4748);
+  --muted-foreground: oklch(0.7940 0.0372 307.1032);
+  --accent: oklch(0.3649 0.0508 308.4911);
+  --accent-foreground: oklch(0.9647 0.0091 341.8035);
+  --destructive: oklch(0.2258 0.0524 12.6119);
+  --destructive-foreground: oklch(1.0000 0 0);
+  --border: oklch(0.3286 0.0154 343.4461);
+  --input: oklch(0.3387 0.0195 332.8347);
+  --ring: oklch(0.5916 0.2180 0.5844);
+  --chart-1: oklch(0.5316 0.1409 355.1999);
+  --chart-2: oklch(0.5633 0.1912 306.8561);
+  --chart-3: oklch(0.7227 0.1502 60.5799);
+  --chart-4: oklch(0.6193 0.2029 312.7422);
+  --chart-5: oklch(0.6118 0.2093 6.1387);
+  --sidebar: #181117;
+  --sidebar-foreground: oklch(0.8607 0.0293 343.6612);
+  --sidebar-primary: oklch(0.4882 0.2172 264.3763);
+  --sidebar-primary-foreground: oklch(1.0000 0 0);
+  --sidebar-accent: oklch(0.2337 0.0261 338.1961);
+  --sidebar-accent-foreground: oklch(0.9674 0.0013 286.3752);
+  --sidebar-border: #181117;
+  --sidebar-ring: oklch(0.5916 0.2180 0.5844);
+  --sidebar-bg: #181117;
+  --chat-bg: #221d27;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --radius: 0.5rem;
+  --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
+  --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
+  --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
+  --shadow: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
+  --shadow-md: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 2px 4px -1px hsl(0 0% 0% / 0.18);
+  --shadow-lg: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 4px 6px -1px hsl(0 0% 0% / 0.18);
+  --shadow-xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 8px 10px -1px hsl(0 0% 0% / 0.18);
+  --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
+
+  /* Main sidebar section specific overrides */
+  & .flex.h-screen > div:first-child,
+  & .flex.min-h-screen > div:first-child,
+  & aside[class*="w-full"],
+  & aside[class*="w-full"] > div,
+  & aside[class*="w-full"] > div > div,
+  & aside[class*="w-full"] nav,
+  & aside[class*="w-full"] .flex-1,
+  & aside[class*="w-full"] .overflow-auto,
+  & aside[class*="w-full"] .space-y-2,
+  & aside[class*="w-full"] .space-y-4,
+  & aside[class*="w-full"] [class*="bg-"],
+  & aside[class*="w-full"] [class*="dark:bg-"] {
+    background-color: #181117 !important;
+  }
+
+  /* Ensure the main content area of the sidebar uses the correct color */
+  & aside[class*="w-full"] > div:nth-child(2),
+  & aside[class*="w-full"] > div:nth-child(2) > div,
+  & aside[class*="w-full"] > div:nth-child(2) > div > div,
+  & aside[class*="w-full"] .flex-1.overflow-auto,
+  & aside[class*="w-full"] .flex-1.overflow-y-auto {
+    background-color: #181117 !important;
+  }
+
+  /* Override any Tailwind background classes in the main sidebar area */
+  & aside[class*="w-full"] .bg-white,
+  & aside[class*="w-full"] .bg-gray-50,
+  & aside[class*="w-full"] .bg-gray-100,
+  & aside[class*="w-full"] .dark\:bg-gray-800,
+  & aside[class*="w-full"] .dark\:bg-gray-900,
+  & aside[class*="w-full"] .dark\:bg-\[\#2b2b2b\] {
+    background-color: #181117 !important;
+  }
+
+  /* Ensure nested elements in the main sidebar area inherit the correct color */
+  & aside[class*="w-full"] .flex-1.overflow-auto *,
+  & aside[class*="w-full"] .flex-1.overflow-y-auto * {
+    background-color: #181117 !important;
+  }
+
+  /* Keep text and icons transparent */
+  & aside[class*="w-full"] span,
+  & aside[class*="w-full"] p,
+  & aside[class*="w-full"] svg,
+  & aside[class*="w-full"] path {
+    background-color: transparent !important;
+  }
+
+  /* Hover states for interactive elements */
+  & aside[class*="w-full"] button:hover,
+  & aside[class*="w-full"] a:hover {
+    background-color: color-mix(in oklch, #181117, white 10%) !important;
+  }
+}
+
+/* Additional T3 Theme Sidebar Overrides */
+html.theme-t3:not(.light) {
+  /* Force the main sidebar area to use the correct color */
+  & aside[class*="w-full"],
+  & aside[class*="w-full"] > div,
+  & aside[class*="w-full"] .flex-1,
+  & aside[class*="w-full"] .overflow-auto,
+  & aside[class*="w-full"] [class*="bg-"] {
+    background-color: #181117 !important;
+  }
+
+  /* Ensure all direct children of the sidebar use the correct color */
+  & aside[class*="w-full"] > *,
+  & aside[class*="w-full"] > * > *,
+  & aside[class*="w-full"] > * > * > * {
+    background-color: #181117 !important;
+  }
+}
+
+/* Force T3 theme styles */
+html.theme-t3,
+html.theme-t3 body {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* T3 theme sidebar */
+html.theme-t3 .w-64,
+html.theme-t3 [style*="width: 16rem"] {
+  background-color: var(--sidebar-bg) !important;
+}
+
+/* T3 theme chat area */
+html.theme-t3 main,
+html.theme-t3 .flex-1,
+html.theme-t3 .min-h-screen > div:last-child {
+  background-color: var(--chat-bg) !important;
+}
+
+/* T3 Theme Sidebar Specific Styles - Dark Mode */
+html.theme-t3:not(.light) {
+  /* Force sidebar background in dark mode */
+  & [data-sidebar],
+  & .w-64,
+  & div[style*="width: 16rem"],
+  & aside,
+  & nav,
+  & aside[class*="w-full max-w-[280px]"],
+  & aside[class*="w-full max-w-[280px]"] > *,
+  & aside[class*="w-full max-w-[280px]"] div,
+  & aside[class*="w-full max-w-[280px]"] nav {
+    background-color: #181117 !important;
+  }
+
+  /* Ensure all direct children of sidebar also get the background */
+  & [data-sidebar] > *,
+  & .w-64 > *,
+  & div[style*="width: 16rem"] > *,
+  & aside > *,
+  & nav > * {
+    background-color: #181117 !important;
+  }
+
+  /* Target specific sidebar elements */
+  & .flex.h-screen > div:first-child,
+  & .flex.min-h-screen > div:first-child {
+    background-color: #181117 !important;
+  }
+
+  /* Force all sidebar content sections */
+  & .w-64 .space-y-4,
+  & .w-64 .space-y-2,
+  & .w-64 .space-y-1,
+  & [style*="width: 16rem"] .space-y-4,
+  & [style*="width: 16rem"] .space-y-2,
+  & [style*="width: 16rem"] .space-y-1 {
+    background-color: #181117 !important;
+  }
+
+  /* Target conversations and projects sections specifically */
+  & .w-64 > div,
+  & [style*="width: 16rem"] > div,
+  & .w-64 section,
+  & [style*="width: 16rem"] section {
+    background-color: #181117 !important;
+  }
+
+  /* Force all nested divs in sidebar */
+  & .w-64 div,
+  & [style*="width: 16rem"] div {
+    background-color: #181117 !important;
+  }
+
+  /* Target specific UI elements in sidebar */
+  & .w-64 ul,
+  & .w-64 li,
+  & .w-64 button,
+  & [style*="width: 16rem"] ul,
+  & [style*="width: 16rem"] li,
+  & [style*="width: 16rem"] button {
+    background-color: #181117 !important;
+  }
+
+  /* Ensure hover states work correctly */
+  & .w-64 button:hover,
+  & [style*="width: 16rem"] button:hover {
+    background-color: color-mix(in oklch, #181117, white 10%) !important;
+  }
+
+  /* Target conversation and project list items */
+  & .w-64 [class*="conversation"],
+  & .w-64 [class*="project"],
+  & [style*="width: 16rem"] [class*="conversation"],
+  & [style*="width: 16rem"] [class*="project"] {
+    background-color: #181117 !important;
+  }
+
+  /* Override any background classes within sidebar */
+  & .w-64 .bg-gray-50,
+  & .w-64 .bg-gray-100,
+  & .w-64 .bg-gray-200,
+  & .w-64 .bg-white,
+  & .w-64 .bg-transparent,
+  & .w-64 .dark\:bg-gray-800,
+  & .w-64 .dark\:bg-gray-900,
+  & .w-64 .dark\:bg-\[\#2b2b2b\],
+  & [style*="width: 16rem"] .bg-gray-50,
+  & [style*="width: 16rem"] .bg-gray-100,
+  & [style*="width: 16rem"] .bg-gray-200,
+  & [style*="width: 16rem"] .bg-white,
+  & [style*="width: 16rem"] .bg-transparent,
+  & [style*="width: 16rem"] .dark\:bg-gray-800,
+  & [style*="width: 16rem"] .dark\:bg-gray-900,
+  & [style*="width: 16rem"] .dark\:bg-\[\#2b2b2b\] {
+    background-color: #181117 !important;
+  }
+
+  /* Ensure chat area gets the correct background */
+  & main,
+  & .flex-1:not(.w-64):not([style*="width: 16rem"]),
+  & .min-h-screen > div:last-child:not(.w-64):not([style*="width: 16rem"]) {
+    background-color: var(--chat-bg) !important;
+  }
+
+  /* Override for text elements to ensure they don't have backgrounds */
+  & .w-64 span,
+  & .w-64 p,
+  & .w-64 a,
+  & [style*="width: 16rem"] span,
+  & [style*="width: 16rem"] p,
+  & [style*="width: 16rem"] a {
+    background-color: transparent !important;
+  }
+
+  /* Override for SVG elements */
+  & .w-64 svg,
+  & .w-64 path,
+  & .w-64 circle,
+  & .w-64 rect,
+  & [style*="width: 16rem"] svg,
+  & [style*="width: 16rem"] path,
+  & [style*="width: 16rem"] circle,
+  & [style*="width: 16rem"] rect {
+    background-color: transparent !important;
+  }
+
+  /* Additional specific overrides for sidebar elements */
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center justify-between px-4"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="border-b border-gray-300"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex-1 overflow-auto"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="space-y-2"],
+  & aside[class*="w-full max-w-[280px]"] button[class*="flex items-center"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center gap-2 p-4"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="border-t border-gray-300"] {
+    background-color: #181117 !important;
+  }
+
+  /* Ensure all elements with specific classes get the correct background */
+  & aside[class*="w-full max-w-[280px]"] .bg-white,
+  & aside[class*="w-full max-w-[280px]"] .dark\:bg-\[\#2b2b2b\],
+  & aside[class*="w-full max-w-[280px]"] .bg-gray-50,
+  & aside[class*="w-full max-w-[280px]"] .dark\:bg-gray-800,
+  & aside[class*="w-full max-w-[280px]"] .dark\:bg-gray-900 {
+    background-color: #181117 !important;
+  }
+
+  /* Target section headings in sidebar */
+  & aside[class*="w-full max-w-[280px]"] h2,
+  & aside[class*="w-full max-w-[280px]"] h3,
+  & aside[class*="w-full max-w-[280px]"] h4,
+  & aside[class*="w-full max-w-[280px]"] div[class*="text-lg"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="text-md"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="text-sm"] {
+    background-color: #181117 !important;
+  }
+
+  /* Target section labels specifically */
+  & aside[class*="w-full max-w-[280px]"] div:has(> h2),
+  & aside[class*="w-full max-w-[280px]"] div:has(> h3),
+  & aside[class*="w-full max-w-[280px]"] div:has(> h4) {
+    background-color: #181117 !important;
+  }
+
+  /* Specifically target the "Conversations" and "Projects" headers */
+  & aside[class*="w-full max-w-[280px]"] div[class*="px-4 py-2"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex justify-between items-center"] {
+    background-color: #181117 !important;
+  }
+
+  /* Target any text elements in the sidebar */
+  & aside[class*="w-full max-w-[280px]"] span,
+  & aside[class*="w-full max-w-[280px]"] p,
+  & aside[class*="w-full max-w-[280px]"] strong,
+  & aside[class*="w-full max-w-[280px]"] em {
+    background-color: transparent !important;
+  }
+
+  /* Target all div elements in the sidebar with more specificity */
+  & aside[class*="w-full max-w-[280px]"] > div,
+  & aside[class*="w-full max-w-[280px]"] > div > div,
+  & aside[class*="w-full max-w-[280px]"] > div > div > div {
+    background-color: #181117 !important;
+  }
+
+  /* Force background on all elements with flex class in sidebar */
+  & aside[class*="w-full max-w-[280px]"] [class*="flex"] {
+    background-color: #181117 !important;
+  }
+
+  /* Force background on all elements with specific padding classes in sidebar */
+  & aside[class*="w-full max-w-[280px]"] [class*="px-"],
+  & aside[class*="w-full max-w-[280px]"] [class*="py-"],
+  & aside[class*="w-full max-w-[280px]"] [class*="p-"] {
+    background-color: #181117 !important;
+  }
+}
+
+/* T3 Theme cards and containers */
+html.theme-t3 .card,
+html.theme-t3 [class*="card"] {
+  background-color: var(--card) !important;
+  color: var(--card-foreground) !important;
+  border-color: var(--border) !important;
+}
+
+/* T3 theme text colors */
+html.theme-t3 .text-muted,
+html.theme-t3 [class*="text-gray"] {
+  color: var(--muted-foreground) !important;
+}
+
+html.theme-t3 .text-primary,
+html.theme-t3 [class*="text-purple"] {
+  color: var(--primary) !important;
+}
+
+/* T3 Theme - Universal Sidebar Color Override */
+html.theme-t3:not(.light) {
+  /* Universal override for ALL elements within sidebar */
+  & .w-64 *,
+  & [style*="width: 16rem"] * {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Specific override for common layout elements */
+  & .w-64 div,
+  & .w-64 section,
+  & .w-64 nav,
+  & .w-64 header,
+  & .w-64 main,
+  & .w-64 aside,
+  & .w-64 article,
+  & .w-64 ul,
+  & .w-64 ol,
+  & .w-64 li,
+  & .w-64 p,
+  & .w-64 span,
+  & .w-64 h1,
+  & .w-64 h2,
+  & .w-64 h3,
+  & .w-64 h4,
+  & .w-64 h5,
+  & .w-64 h6,
+  & [style*="width: 16rem"] div,
+  & [style*="width: 16rem"] section,
+  & [style*="width: 16rem"] nav,
+  & [style*="width: 16rem"] header,
+  & [style*="width: 16rem"] main,
+  & [style*="width: 16rem"] aside,
+  & [style*="width: 16rem"] article,
+  & [style*="width: 16rem"] ul,
+  & [style*="width: 16rem"] ol,
+  & [style*="width: 16rem"] li,
+  & [style*="width: 16rem"] p,
+  & [style*="width: 16rem"] span,
+  & [style*="width: 16rem"] h1,
+  & [style*="width: 16rem"] h2,
+  & [style*="width: 16rem"] h3,
+  & [style*="width: 16rem"] h4,
+  & [style*="width: 16rem"] h5,
+  & [style*="width: 16rem"] h6 {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Button states */
+  & .w-64 button,
+  & [style*="width: 16rem"] button {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  & .w-64 button:hover,
+  & [style*="width: 16rem"] button:hover {
+    background-color: color-mix(in oklch, var(--sidebar-bg), white 10%) !important;
+  }
+
+  /* Input and form elements */
+  & .w-64 input,
+  & .w-64 textarea,
+  & .w-64 select,
+  & [style*="width: 16rem"] input,
+  & [style*="width: 16rem"] textarea,
+  & [style*="width: 16rem"] select {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Ensure chat area gets the correct background */
+  & main,
+  & .flex-1:not(.w-64):not([style*="width: 16rem"]),
+  & .min-h-screen > div:last-child:not(.w-64):not([style*="width: 16rem"]) {
+    background-color: var(--chat-bg) !important;
+  }
+}
+
+/* T3 Theme Sidebar Component Overrides */
+html.theme-t3:not(.light) {
+  /* Sidebar container */
+  & aside[class*="w-full max-w-[280px]"],
+  & aside[class*="w-full max-w-[280px]"] > *,
+  & aside[class*="w-full max-w-[280px]"] div,
+  & aside[class*="w-full max-w-[280px]"] nav {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Sidebar header */
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center justify-between px-4"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="border-b border-gray-300"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Conversation list */
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex-1 overflow-auto"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="space-y-2"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Individual conversation items */
+  & aside[class*="w-full max-w-[280px]"] button[class*="flex items-center"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Sidebar footer */
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center gap-2 p-4"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="border-t border-gray-300"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Hover states for buttons and interactive elements */
+  & aside[class*="w-full max-w-[280px]"] button:hover,
+  & aside[class*="w-full max-w-[280px]"] a:hover {
+    background-color: color-mix(in oklch, var(--sidebar-bg), white 10%) !important;
+  }
+
+  /* Active states for buttons and interactive elements */
+  & aside[class*="w-full max-w-[280px]"] button[data-state="active"],
+  & aside[class*="w-full max-w-[280px]"] a[data-state="active"] {
+    background-color: color-mix(in oklch, var(--sidebar-bg), white 15%) !important;
+  }
+}
+
+/* T3 Theme Project List Overrides */
+html.theme-t3:not(.light) {
+  /* Project list container */
+  & aside[class*="w-full max-w-[280px]"] div[class*="space-y-1"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Project items */
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center justify-between px-3 py-2"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center flex-1 min-w-0"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Project buttons and chevrons */
+  & aside[class*="w-full max-w-[280px]"] button[class*="flex items-center flex-1"],
+  & aside[class*="w-full max-w-[280px]"] svg[class*="w-4 h-4"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Project name text */
+  & aside[class*="w-full max-w-[280px]"] span[class*="truncate text-sm"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Project action buttons */
+  & aside[class*="w-full max-w-[280px]"] button[class*="p-1 hover:bg-gray-200"] {
+    background-color: var(--sidebar-bg) !important;
+    &:hover {
+      background-color: color-mix(in oklch, var(--sidebar-bg), white 10%) !important;
+    }
+  }
+
+  /* Expanded project content */
+  & aside[class*="w-full max-w-[280px]"] div[class*="pl-8 space-y-1"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Project conversation items */
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center gap-2 px-3 py-1.5"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+}
+
+/* T3 Theme Conversation List and Settings Overrides */
+html.theme-t3:not(.light) {
+  /* Conversation list container */
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex-1 overflow-y-auto"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Individual conversation items */
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center gap-2 px-3 py-2"],
+  & aside[class*="w-full max-w-[280px]"] button[class*="flex items-center gap-2 w-full"] {
+    background-color: var(--sidebar-bg) !important;
+    &:hover {
+      background-color: color-mix(in oklch, var(--sidebar-bg), white 10%) !important;
+    }
+  }
+
+  /* Conversation icons and text */
+  & aside[class*="w-full max-w-[280px]"] svg[class*="w-4 h-4"],
+  & aside[class*="w-full max-w-[280px]"] span[class*="truncate"] {
+    background-color: transparent !important;
+  }
+
+  /* Settings button area */
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex items-center gap-2 p-4 border-t"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Settings button */
+  & aside[class*="w-full max-w-[280px]"] button[class*="flex-1 h-12 flex items-center justify-center"] {
+    background-color: var(--sidebar-bg) !important;
+    &:hover {
+      background-color: color-mix(in oklch, var(--sidebar-bg), white 10%) !important;
+    }
+  }
+
+  /* Settings button icon */
+  & aside[class*="w-full max-w-[280px]"] button[class*="flex-1 h-12"] svg {
+    background-color: transparent !important;
+  }
+
+  /* New conversation button */
+  & aside[class*="w-full max-w-[280px]"] button[class*="flex items-center gap-2 px-3 py-2 w-full"] {
+    background-color: var(--sidebar-bg) !important;
+    &:hover {
+      background-color: color-mix(in oklch, var(--sidebar-bg), white 10%) !important;
+    }
+  }
+}
+
+/* T3 Theme Sidebar Menu Section Overrides */
+html.theme-t3:not(.light) {
+  /* Target section headings in sidebar */
+  & aside[class*="w-full max-w-[280px]"] h2,
+  & aside[class*="w-full max-w-[280px]"] h3,
+  & aside[class*="w-full max-w-[280px]"] h4,
+  & aside[class*="w-full max-w-[280px]"] div[class*="text-lg"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="text-md"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="text-sm"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Target section labels specifically */
+  & aside[class*="w-full max-w-[280px]"] div:has(> h2),
+  & aside[class*="w-full max-w-[280px]"] div:has(> h3),
+  & aside[class*="w-full max-w-[280px]"] div:has(> h4) {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Specifically target the "Conversations" and "Projects" headers */
+  & aside[class*="w-full max-w-[280px]"] div[class*="px-4 py-2"],
+  & aside[class*="w-full max-w-[280px]"] div[class*="flex justify-between items-center"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Target any text elements in the sidebar */
+  & aside[class*="w-full max-w-[280px]"] span,
+  & aside[class*="w-full max-w-[280px]"] p,
+  & aside[class*="w-full max-w-[280px]"] strong,
+  & aside[class*="w-full max-w-[280px]"] em {
+    background-color: transparent !important;
+  }
+
+  /* Target all div elements in the sidebar with more specificity */
+  & aside[class*="w-full max-w-[280px]"] > div,
+  & aside[class*="w-full max-w-[280px]"] > div > div,
+  & aside[class*="w-full max-w-[280px]"] > div > div > div {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Target specific section headers */
+  & aside[class*="w-full max-w-[280px]"] div:has(> span:contains("Conversations")),
+  & aside[class*="w-full max-w-[280px]"] div:has(> span:contains("Projects")) {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Force background on all elements with flex class in sidebar */
+  & aside[class*="w-full max-w-[280px]"] [class*="flex"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Force background on all elements with specific padding classes in sidebar */
+  & aside[class*="w-full max-w-[280px]"] [class*="px-"],
+  & aside[class*="w-full max-w-[280px]"] [class*="py-"],
+  & aside[class*="w-full max-w-[280px]"] [class*="p-"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Override background for SVG icons */
+  & aside[class*="w-full max-w-[280px]"] svg {
+    background-color: transparent !important;
+  }
+}
+
+/* Additional direct targeting for sidebar menu headings */
+html.theme-t3:not(.light) aside[class*="w-full max-w-[280px]"] {
+  /* Target the Conversations and Projects headings directly */
+  & div:nth-child(2) > div:first-child,
+  & div:nth-child(3) > div:first-child {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Target all direct children of the sidebar */
+  & > *,
+  & > * > *,
+  & > * > * > * {
+    background-color: var(--sidebar-bg) !important;
+  }
+}
+
+/* Direct targeting of sidebar sections by class name */
+html.theme-t3:not(.light) aside[class*="w-full max-w-[280px]"] {
+  /* Target section headers directly */
+  & div[class*="px-4 py-2"],
+  & div[class*="flex justify-between"],
+  & div[class*="flex items-center justify-between"],
+  & div[class*="border-b border-gray-300"],
+  & div[class*="border-t border-gray-300"] {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Target the section headers by text content */
+  & div:has(> span:contains("Conversations")),
+  & div:has(> span:contains("Projects")),
+  & div:has(> span:contains("New Conversation")),
+  & div:has(> span:contains("New Project")) {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Additional targeting for section headers */
+  & h1, & h2, & h3, & h4, & h5, & h6,
+  & div > h1, & div > h2, & div > h3, & div > h4, & div > h5, & div > h6 {
+    background-color: var(--sidebar-bg) !important;
+  }
+  
+  /* Target all elements with dark background classes */
+  & .bg-white\/80.dark\:bg-\[\#2b2b2b\]\/80,
+  & .dark\:bg-\[\#2b2b2b\],
+  & .dark\:bg-\[\#2b2b2b\]\/80,
+  & .dark\:bg-gray-800,
+  & .dark\:bg-gray-900 {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Force all divs in the sidebar to have the correct background */
+  & div {
+    background-color: var(--sidebar-bg) !important;
+  }
+
+  /* Override for text elements to ensure they don't have backgrounds */
+  & span, & p, & a {
+    background-color: transparent !important;
+  }
+
+  /* Override for SVG elements */
+  & svg, & path, & circle, & rect {
+    background-color: transparent !important;
+  }
+}
