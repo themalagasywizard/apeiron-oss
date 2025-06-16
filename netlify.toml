@@ -5,11 +5,6 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Edge Function for code generation
-[[edge_functions]]
-  function = "generate-code"
-  path = "/api/generate-code"
-
 [functions]
   node_bundler = "esbuild"
 
@@ -19,7 +14,8 @@
 [edge_functions]
   included_files = ["netlify/edge-functions/**"]
   external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
-  
-[[edge_functions.config]]
+
+[[edge_functions]]
   function = "generate-code"
+  path = "/api/generate-code"
   timeout = 120 
