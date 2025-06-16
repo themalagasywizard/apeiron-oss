@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Image Generation API Route using Google Cloud Vertex AI SDK
-// Supports Google Imagen, RunwayML, and OpenAI DALL-E
+// Image Generation API Route
+// Supports RunwayML and OpenAI DALL-E
 export async function POST(request: NextRequest) {
   try {
     const { prompt, model } = await request.json();
