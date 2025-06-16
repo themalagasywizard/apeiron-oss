@@ -6,6 +6,7 @@ import { formatFileSize } from "@/lib/file-utils"
 import ModelLogo from "@/components/model-logos"
 import HTMLPreview from "@/components/html-preview"
 import VideoPreview from "@/components/video-preview"
+import ImagePreview from "@/components/image-preview"
 import { detectHTMLInContent } from "@/lib/html-templates"
 import {
   Menu,
@@ -89,7 +90,7 @@ type Model = {
   name: string
   icon: string
   apiKey?: string
-  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral"
+  provider: "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral" | "runway"
   isCustom?: boolean
   customModelName?: string
   enabled?: boolean
@@ -109,6 +110,7 @@ type UserSettings = {
   grokApiKey: string
   veo2ApiKey: string
   mistralApiKey: string
+  runwayApiKey: string
   enabledSubModels: { [provider: string]: string[] } // Track which sub-models are enabled per provider
   selectedTheme?: string // Currently selected theme
 }
@@ -176,6 +178,7 @@ export default function MainUI({
     grokApiKey: "",
     veo2ApiKey: "",
     mistralApiKey: "",
+    runwayApiKey: "",
     enabledSubModels: {}
   },
   isTyping = false,
@@ -250,6 +253,14 @@ export default function MainUI({
         { id: "mistral-small", name: "Mistral Small", description: "Fast and efficient for simple tasks" },
         { id: "codestral", name: "Codestral", description: "Specialized coding and development model" }
       ]
+    },
+    runway: {
+      name: "RunwayML",
+      models: [
+        { id: "gen3a-turbo", name: "Gen3 Alpha Turbo", description: "Fast image and video generation" },
+        { id: "gen3a", name: "Gen3 Alpha", description: "High-quality image and video generation" },
+        { id: "gen2", name: "Gen2", description: "Previous generation model" }
+      ]
     }
   }
 
@@ -298,6 +309,12 @@ export default function MainUI({
       name: "Basic",
       description: "Clean and modern theme with minimal design",
       preview: "linear-gradient(135deg, #000000 0%, #333333 100%)"
+    },
+    {
+      id: "notebook",
+      name: "Notebook",
+      description: "Handwritten notebook style with Architects Daughter font",
+      preview: "linear-gradient(135deg, #f8f6f4 0%, #e8e2db 100%)"
     }
   ]
 
@@ -308,6 +325,10 @@ export default function MainUI({
   // Initialize theme based on current document classes and saved preference
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Check for saved theme preference
+      const savedTheme = userSettings.selectedTheme || 'basic'
+      setCurrentTheme(savedTheme)
+      
       // Check for saved light/dark preference
       const savedThemeMode = localStorage.getItem('t3-chat-theme-mode')
       if (savedThemeMode === 'light') {
@@ -319,19 +340,26 @@ export default function MainUI({
         document.documentElement.classList.remove('light')
         document.documentElement.classList.add('dark')
       } else {
-        // Fallback to checking current classes
-        const isLightMode = document.documentElement.classList.contains('light')
-        if (isLightMode) {
-          setTheme('light')
-        } else {
-          // Default to dark mode
-          setTheme('dark')
-          document.documentElement.classList.remove('light')
-          document.documentElement.classList.add('dark')
-        }
+        // Default to light mode for better testing
+        setTheme('light')
+        document.documentElement.classList.remove('dark')
+        document.documentElement.classList.add('light')
+        localStorage.setItem('t3-chat-theme-mode', 'light')
       }
+      
+      // Apply the saved theme class
+      const themeClasses = ['theme-basic', 'theme-notebook']
+      document.documentElement.classList.remove(...themeClasses)
+      document.documentElement.classList.add(`theme-${savedTheme}`)
+      
+      // Debug logging to help troubleshoot
+      console.log('Theme initialized:', {
+        selectedTheme: savedTheme,
+        lightDarkMode: theme,
+        documentClasses: Array.from(document.documentElement.classList)
+      })
     }
-  }, [])
+  }, [userSettings.selectedTheme])
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
   const [inputValue, setInputValue] = useState("")
@@ -339,7 +367,7 @@ export default function MainUI({
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false)
 
   const [settingsTab, setSettingsTab] = useState<"general" | "models" | "themes">("general")
-  const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "mistral">("openai")
+  const [newModelProvider, setNewModelProvider] = useState<"openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "mistral" | "runway">("openai")
   const [newModelApiKey, setNewModelApiKey] = useState("")
   const [newModelCustomName, setNewModelCustomName] = useState("")
   const [showNewModelApiKey, setShowNewModelApiKey] = useState(false)
@@ -646,6 +674,9 @@ export default function MainUI({
         case "mistral":
           updatedSettings.mistralApiKey = newModelApiKey
           break
+        case "runway":
+          updatedSettings.runwayApiKey = newModelApiKey
+          break
       }
       updatedSettings.openrouterEnabled = false
       
@@ -688,6 +719,9 @@ export default function MainUI({
         break
       case "mistral":
         updatedSettings.mistralApiKey = ""
+        break
+      case "runway":
+        updatedSettings.runwayApiKey = ""
         break
     }
     
@@ -736,6 +770,13 @@ export default function MainUI({
     } else {
       document.documentElement.classList.add("dark")
     }
+    
+    // Debug logging
+    console.log('Theme toggled:', {
+      newTheme,
+      currentTheme,
+      documentClasses: Array.from(document.documentElement.classList)
+    })
   }
 
   // Handle theme selection
@@ -743,17 +784,18 @@ export default function MainUI({
     setCurrentTheme(themeId)
     
     // Apply theme-specific classes to document
-    const themeClasses = ['theme-basic']
-    const lightDarkClasses = ['light', 'dark']
-    document.documentElement.classList.remove(...themeClasses, ...lightDarkClasses)
+    const themeClasses = ['theme-basic', 'theme-notebook']
+    document.documentElement.classList.remove(...themeClasses)
     
     // Always add the theme class
     document.documentElement.classList.add(`theme-${themeId}`)
     
-    // Re-apply the current light/dark mode
+    // Re-apply the current light/dark mode (keep existing light/dark state)
     if (theme === "light") {
+      document.documentElement.classList.remove("dark")
       document.documentElement.classList.add("light")
     } else {
+      document.documentElement.classList.remove("light")
       document.documentElement.classList.add("dark")
     }
     
@@ -935,6 +977,39 @@ export default function MainUI({
       isGenerating,
       operationName: operationMatch ? operationMatch[1].trim() : null,
       videoUrl: videoUrlMatch ? videoUrlMatch[1].trim() : null
+    }
+  }
+
+  // Detect image generation content
+  const detectImageContent = (content: string) => {
+    // Patterns for image generation detection
+    const imagePattern = /🎨.*?Image Generation.*?(Started|Complete|Initiated|Processing|Generated)/i
+    const imageUrlPattern = /Image URL:\s*(https?:\/\/[^\s\n]+|data:image\/[^;\s]+;base64,[A-Za-z0-9+/=]+)/i
+    const promptPattern = /\*\*Prompt:\*\*\s*(.+?)(?=\n|$)/i
+    const providerPattern = /\*\*Provider:\*\*\s*([^\n]+)/i
+    const modelPattern = /\*\*Model:\*\*\s*([^\n]+)/i
+    const statusPattern = /\*\*Status:\*\*\s*([^\n]+)/i
+    
+    const hasImage = imagePattern.test(content) || imageUrlPattern.test(content)
+    const promptMatch = content.match(promptPattern)
+    const imageUrlMatch = content.match(imageUrlPattern)
+    const providerMatch = content.match(providerPattern)
+    const modelMatch = content.match(modelPattern)
+    const statusMatch = content.match(statusPattern)
+    
+    // Check if it's currently generating
+    const isGenerating = content.includes('Image Generation Started') || 
+                        content.includes('Generating Image') ||
+                        content.includes('Creating your image') ||
+                        (statusMatch && statusMatch[1].toLowerCase().includes('processing'))
+    
+    return {
+      hasImage,
+      prompt: promptMatch ? promptMatch[1].trim() : null,
+      isGenerating,
+      imageUrl: imageUrlMatch ? imageUrlMatch[1].trim() : null,
+      provider: providerMatch ? providerMatch[1].trim() : null,
+      model: modelMatch ? modelMatch[1].trim() : null
     }
   }
 
@@ -1709,7 +1784,7 @@ export default function MainUI({
                         provider={(() => {
                           // First try to use the message provider
                           if (message.provider) {
-                            return message.provider as "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral";
+                            return message.provider as "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral" | "runway";
                           }
                           // Fallback: determine provider from model ID
                           if (message.model) {
@@ -1720,9 +1795,11 @@ export default function MainUI({
                             if (message.model.includes('deepseek')) return 'deepseek';
                             if (message.model.includes('grok')) return 'grok';
                             if (message.model.includes('mistral') || message.model.includes('codestral')) return 'mistral';
+                            if (message.model.includes('runway')) return 'runway';
                           }
                           return 'openai'; // final fallback
                         })()} 
+                        modelId={message.model || 'unknown'}
                         size="sm"
                       />
                       <span className="text-xs text-gray-600 dark:text-gray-400">
@@ -1791,6 +1868,7 @@ export default function MainUI({
                     // Cache detection results to prevent repetitive calls
                     const htmlDetection = detectHTMLInContent(message.content)
                     const videoDetection = detectVideoContent(message.content)
+                    const imageDetection = detectImageContent(message.content)
                     
                     if (videoDetection.hasVideo) {
                       return (
@@ -1879,6 +1957,41 @@ export default function MainUI({
                               a.click()
                               document.body.removeChild(a)
                               URL.revokeObjectURL(url)
+                            }}
+                          />
+                        </div>
+                      )
+                    } else if (imageDetection.hasImage) {
+                      return (
+                        <div className="space-y-4">
+                          {/* Image Preview Component */}
+                          <ImagePreview 
+                            imageUrl={imageDetection.imageUrl || undefined}
+                            prompt={imageDetection.prompt || "Generated Image"}
+                            isGenerating={imageDetection.isGenerating || false}
+                            provider={imageDetection.provider || "AI"}
+                            model={imageDetection.model || undefined}
+                            onDownload={(imageUrl, filename) => {
+                              // Trigger download
+                              const a = document.createElement('a')
+                              a.href = imageUrl
+                              a.download = filename
+                              document.body.appendChild(a)
+                              a.click()
+                              document.body.removeChild(a)
+                            }}
+                            onError={(error) => {
+                              console.error('Image Error:', error)
+                            }}
+                          />
+                          
+                          {/* Regular message content without image markers */}
+                          <div 
+                            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+                              message.isError ? 'text-red-600 dark:text-red-400' : ''
+                            }`}
+                            dangerouslySetInnerHTML={{ 
+                              __html: formatMessageContent(message.content.replace(/🎨.*?Image.*?(?=\n|$)/gi, '').replace(/```[\s\S]*?```/gi, '').trim()) 
                             }}
                           />
                         </div>
@@ -1983,6 +2096,7 @@ export default function MainUI({
                         const model = availableModels.find(m => m.id === currentModel);
                         return model?.provider || "openai";
                       })()} 
+                      modelId={currentModel}
                       isLoading={true} 
                       size="sm" 
                     />
@@ -2360,6 +2474,8 @@ export default function MainUI({
                       )}
                     </div>
 
+
+
                     {!userSettings.openrouterEnabled && (
                       <>
                         {/* Add New Model */}
@@ -2382,11 +2498,11 @@ export default function MainUI({
                                 <option value="deepseek">DeepSeek</option>
                                 <option value="grok">Grok (xAI)</option>
                                 <option value="mistral">Mistral AI</option>
-                                <option value="openrouter">OpenRouter</option>
+                                <option value="runway">RunwayML</option>
                               </select>
                             </div>
 
-                            {newModelProvider === "openrouter" && (
+                            {newModelProvider === "runway" && (
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                   Model Name

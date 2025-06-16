@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Geist:wght@100;200;300;400;500;600;700;800;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100;200;300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Fira+Code:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -107,6 +108,105 @@
     --shadow-xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 8px 10px -1px hsl(0 0% 0% / 0.18);
     --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
   }
+
+  /* ===== NOTEBOOK THEME ===== */
+  
+  /* Notebook Theme - Light Mode (default) */
+  .theme-notebook {
+    --background: #f0f0f0 !important;
+    --foreground: #333333 !important;
+    --card: #f0f0f0 !important;
+    --card-foreground: #333333 !important;
+    --popover: #f0f0f0 !important;
+    --popover-foreground: #333333 !important;
+    --primary: #666666 !important;
+    --primary-foreground: #ffffff !important;
+    --secondary: #e5e5e5 !important;
+    --secondary-foreground: #333333 !important;
+    --muted: #e8e8e8 !important;
+    --muted-foreground: #666666 !important;
+    --accent: #dddee0 !important;
+    --accent-foreground: #333333 !important;
+    --destructive: #dc2626 !important;
+    --destructive-foreground: #ffffff !important;
+    --border: #cccccc !important;
+    --input: #f0f0f0 !important;
+    --ring: #999999 !important;
+    --chart-1: #333333 !important;
+    --chart-2: #666666 !important;
+    --chart-3: #999999 !important;
+    --chart-4: #cccccc !important;
+    --chart-5: #e5e5e5 !important;
+    --sidebar: #f0f0f0 !important;
+    --sidebar-foreground: #333333 !important;
+    --sidebar-primary: #666666 !important;
+    --sidebar-primary-foreground: #ffffff !important;
+    --sidebar-accent: #dddee0 !important;
+    --sidebar-accent-foreground: #333333 !important;
+    --sidebar-border: #cccccc !important;
+    --sidebar-ring: #999999 !important;
+    --font-sans: "Architects Daughter", sans-serif !important;
+    --font-serif: "Times New Roman", Times, serif !important;
+    --font-mono: "Courier New", Courier, monospace !important;
+    --radius: 0.625rem;
+    --shadow-2xs: 1px 4px 5px 0px rgba(0, 0, 0, 0.01);
+    --shadow-xs: 1px 4px 5px 0px rgba(0, 0, 0, 0.01);
+    --shadow-sm: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 1px 2px -1px rgba(0, 0, 0, 0.03);
+    --shadow: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 1px 2px -1px rgba(0, 0, 0, 0.03);
+    --shadow-md: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 2px 4px -1px rgba(0, 0, 0, 0.03);
+    --shadow-lg: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 4px 6px -1px rgba(0, 0, 0, 0.03);
+    --shadow-xl: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 8px 10px -1px rgba(0, 0, 0, 0.03);
+    --shadow-2xl: 1px 4px 5px 0px rgba(0, 0, 0, 0.07);
+    --tracking-normal: 0.5px;
+  }
+
+  /* Notebook Theme - Dark Mode */
+  .theme-notebook.dark {
+    --background: #333333 !important;
+    --foreground: #f0f0f0 !important;
+    --card: #333333 !important;
+    --card-foreground: #f0f0f0 !important;
+    --popover: #333333 !important;
+    --popover-foreground: #f0f0f0 !important;
+    --primary: #cccccc !important;
+    --primary-foreground: #333333 !important;
+    --secondary: #555555 !important;
+    --secondary-foreground: #f0f0f0 !important;
+    --muted: #444444 !important;
+    --muted-foreground: #cccccc !important;
+    --accent: #666666 !important;
+    --accent-foreground: #f0f0f0 !important;
+    --destructive: #ef4444 !important;
+    --destructive-foreground: #333333 !important;
+    --border: #666666 !important;
+    --input: #333333 !important;
+    --ring: #999999 !important;
+    --chart-1: #f0f0f0 !important;
+    --chart-2: #e5e5e5 !important;
+    --chart-3: #cccccc !important;
+    --chart-4: #999999 !important;
+    --chart-5: #666666 !important;
+    --sidebar: #333333 !important;
+    --sidebar-foreground: #f0f0f0 !important;
+    --sidebar-primary: #cccccc !important;
+    --sidebar-primary-foreground: #333333 !important;
+    --sidebar-accent: #666666 !important;
+    --sidebar-accent-foreground: #f0f0f0 !important;
+    --sidebar-border: #666666 !important;
+    --sidebar-ring: #999999 !important;
+    --font-sans: "Architects Daughter", sans-serif !important;
+    --font-serif: Georgia, serif !important;
+    --font-mono: "Fira Code", "Courier New", monospace !important;
+    --radius: 0.625rem;
+    --shadow-2xs: 1px 4px 5px 0px rgba(0, 0, 0, 0.01);
+    --shadow-xs: 1px 4px 5px 0px rgba(0, 0, 0, 0.01);
+    --shadow-sm: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 1px 2px -1px rgba(0, 0, 0, 0.03);
+    --shadow: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 1px 2px -1px rgba(0, 0, 0, 0.03);
+    --shadow-md: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 2px 4px -1px rgba(0, 0, 0, 0.03);
+    --shadow-lg: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 4px 6px -1px rgba(0, 0, 0, 0.03);
+    --shadow-xl: 1px 4px 5px 0px rgba(0, 0, 0, 0.03), 1px 8px 10px -1px rgba(0, 0, 0, 0.03);
+    --shadow-2xl: 1px 4px 5px 0px rgba(0, 0, 0, 0.07);
+  }
 }
 
 @theme inline {
@@ -169,5 +269,40 @@
   body {
     @apply bg-background text-foreground font-sans;
     font-family: var(--font-sans);
+  }
+  
+  /* NOTEBOOK THEME FONT OVERRIDES */
+  .theme-notebook body {
+    letter-spacing: var(--tracking-normal) !important;
+    font-family: "Architects Daughter", sans-serif !important;
+  }
+  
+  /* Force Architects Daughter font for all elements in notebook theme */
+  .theme-notebook,
+  .theme-notebook *,
+  .theme-notebook body,
+  .theme-notebook body *,
+  .theme-notebook h1, .theme-notebook h2, .theme-notebook h3, .theme-notebook h4, .theme-notebook h5, .theme-notebook h6,
+  .theme-notebook p, .theme-notebook span, .theme-notebook div, .theme-notebook li, .theme-notebook ul, .theme-notebook ol,
+  .theme-notebook button, .theme-notebook input, .theme-notebook textarea, .theme-notebook select,
+  .theme-notebook label, .theme-notebook a, .theme-notebook strong, .theme-notebook em, .theme-notebook i, .theme-notebook b,
+  .theme-notebook th, .theme-notebook td, .theme-notebook table, .theme-notebook caption,
+  .theme-notebook .text-sm, .theme-notebook .text-xs, .theme-notebook .text-lg, .theme-notebook .text-xl,
+  .theme-notebook .font-medium, .theme-notebook .font-semibold, .theme-notebook .font-bold {
+    font-family: "Architects Daughter", sans-serif !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  /* Ensure specific UI components get the font */
+  .theme-notebook .sidebar *,
+  .theme-notebook .chat-message *,
+  .theme-notebook .settings-panel *,
+  .theme-notebook .dropdown-menu *,
+  .theme-notebook .button *,
+  .theme-notebook .input *,
+  .theme-notebook [role="dialog"] *,
+  .theme-notebook [role="menu"] *,
+  .theme-notebook [role="menuitem"] * {
+    font-family: "Architects Daughter", sans-serif !important;
   }
 }
