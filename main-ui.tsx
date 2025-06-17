@@ -2350,7 +2350,7 @@ export default function MainUI({
                               onRetryMessage(message.id);
                             }}
                             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-                            title="Retry with selected model"
+                            title="Retry original message with this model"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 dark:text-gray-400">
                               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
@@ -2362,6 +2362,9 @@ export default function MainUI({
                         {/* Model Selection Dropdown */}
                         <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block">
                           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[200px]">
+                            <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                              Retry original message with:
+                            </div>
                             {availableModels.map((model) => (
                               <button
                                 key={model.id}
@@ -2538,7 +2541,7 @@ export default function MainUI({
                         <select
                           value={currentModel}
                           onChange={(e) => onSelectModel(e.target.value)}
-                          className="h-[28px] px-2 pr-7 rounded-md bg-white/10 dark:bg-[#2b2b2b]/80 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-xs appearance-none focus:outline-none focus:ring-1 focus:ring-purple-500/50"
+                          className="h-[36px] px-2 pr-7 rounded-md bg-white/10 dark:bg-[#2b2b2b]/80 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-xs appearance-none focus:outline-none focus:ring-1 focus:ring-purple-500/50 [&>option]:bg-white dark:[&>option]:bg-[#2b2b2b] dark:[&>option]:text-gray-200"
                           aria-label="Select AI model"
                         >
                           {availableModels.length === 0 ? (
@@ -2551,14 +2554,14 @@ export default function MainUI({
                             ))
                           )}
                         </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 dark:text-gray-400 pointer-events-none" />
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400 pointer-events-none" />
                       </div>
 
                       {/* Web Search Toggle Button */}
                       {isWebSearchCompatible() && (
                         <button
                           onClick={toggleWebSearch}
-                          className={`h-[28px] w-[28px] rounded-md border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center relative ${
+                          className={`h-[36px] w-[36px] rounded-md border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center relative ${
                             webSearchEnabled
                               ? enhancedWebSearch
                                 ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white" // Enhanced mode
@@ -2579,14 +2582,14 @@ export default function MainUI({
                           {webSearchEnabled ? (
                             enhancedWebSearch ? (
                               <div className="flex items-center justify-center">
-                                <Globe className="w-3 h-3" />
-                                <span className="absolute bottom-0 right-0 text-[8px] font-bold">+</span>
+                                <Globe className="w-4 h-4" />
+                                <span className="absolute bottom-0 right-0 text-[9px] font-bold">+</span>
                               </div>
                             ) : (
-                              <Globe className="w-3 h-3" />
+                              <Globe className="w-4 h-4" />
                             )
                           ) : (
-                            <Search className="w-3 h-3" />
+                            <Search className="w-4 h-4" />
                           )}
                           {webSearchEnabled && locationPermission === "granted" && (
                             <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full"></div>
@@ -2598,7 +2601,7 @@ export default function MainUI({
                       {isCodeGenerationCompatible() && (
                         <button
                           onClick={() => setCodeGenerationEnabled(!codeGenerationEnabled)}
-                          className={`h-[28px] w-[28px] rounded-md border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
+                          className={`h-[36px] w-[36px] rounded-md border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
                             codeGenerationEnabled
                               ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white"
                               : "bg-white/10 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
@@ -2606,7 +2609,7 @@ export default function MainUI({
                           title={codeGenerationEnabled ? "Code generation enabled" : "Enable code generation"}
                           aria-label={codeGenerationEnabled ? "Disable code generation" : "Enable code generation"}
                         >
-                          <Code className="w-3 h-3" />
+                          <Code className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -2614,7 +2617,7 @@ export default function MainUI({
                     {/* Right side buttons */}
                     <div className="flex items-center gap-2">
                       {/* File Upload Button */}
-                      <label className="h-[28px] w-[28px] rounded-md bg-white/10 dark:bg-[#2b2b2b]/80 hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 border border-gray-200/20 dark:border-gray-700/20 transition-colors cursor-pointer flex items-center justify-center">
+                      <label className="h-[36px] w-[36px] rounded-md bg-white/10 dark:bg-[#2b2b2b]/80 hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 border border-gray-200/20 dark:border-gray-700/20 transition-colors cursor-pointer flex items-center justify-center">
                         <input
                           type="file"
                           multiple
@@ -2624,16 +2627,16 @@ export default function MainUI({
                           aria-label="Upload files"
                         />
                         {isUploading ? (
-                          <Loader2 className="w-3 h-3 text-gray-600 dark:text-gray-400 animate-spin" />
+                          <Loader2 className="w-4 h-4 text-gray-600 dark:text-gray-400 animate-spin" />
                         ) : (
-                          <Paperclip className="w-3 h-3 text-gray-600 dark:text-gray-400" />
+                          <Paperclip className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                         )}
                       </label>
                       
                       {/* Voice Input Button */}
                       <button
                         onClick={isListening ? stopListening : startListening}
-                        className={`h-[28px] w-[28px] rounded-md flex-shrink-0 flex items-center justify-center transition-all duration-200 relative ${
+                        className={`h-[36px] w-[36px] rounded-md flex-shrink-0 flex items-center justify-center transition-all duration-200 relative ${
                           isListening
                             ? "bg-gradient-to-r from-red-500 to-red-600 text-white"
                             : "bg-white/10 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400 border border-gray-200/20 dark:border-gray-700/20"
@@ -2641,7 +2644,7 @@ export default function MainUI({
                         aria-label={isListening ? "Stop voice input" : "Start voice input"}
                         title={isListening ? "🎤 Listening... Click to stop" : "🎤 Click to start voice input"}
                       >
-                        <Mic className={`w-3 h-3 ${isListening ? 'animate-pulse' : ''}`} />
+                        <Mic className={`w-4 h-4 ${isListening ? 'animate-pulse' : ''}`} />
                         {isListening && (
                           <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-ping"></div>
                         )}
