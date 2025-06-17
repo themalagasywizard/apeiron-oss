@@ -42,6 +42,12 @@ type UIMessage = {
   retryData?: {
     originalMessage: string
     attachments?: ProcessedFile[]
+    originalSettings: {
+      webSearchEnabled: boolean
+      codeGenerationEnabled: boolean
+      enhancedWebSearch: boolean
+      userLocation: string | null
+    }
   }
 }
 
@@ -54,16 +60,12 @@ type Model = {
   isCustom?: boolean
   customModelName?: string
   enabled?: boolean
-  subModels?: string[] // Array of sub-model IDs that are enabled for this provider
+  subModels?: string[]
 }
 
 type UserSettings = {
   temperature: number
-  models: Array<{
-    id: string
-    name: string
-    enabled: boolean
-  }>
+  models: Model[]
   openrouterEnabled: boolean
   openrouterApiKey: string
   openrouterModelName: string
@@ -75,7 +77,8 @@ type UserSettings = {
   veo2ApiKey: string
   mistralApiKey: string
   runwayApiKey: string
-  enabledSubModels: { [key: string]: string[] }
+  enabledSubModels: { [provider: string]: string[] }
+  selectedTheme?: string
 }
 
 type UIConversation = DBConversation & {
@@ -663,9 +666,13 @@ export default function Home() {
     webSearchEnabled: boolean = false, 
     codeGenerationEnabled: boolean = false,
     userLocation: string | null = null,
-    enhancedWebSearch: boolean = false
+    enhancedWebSearch: boolean = false,
+    overrideModel?: string
   ) => {
     if (!message.trim() && !attachments?.length) return
+
+    // Use the override model if provided, otherwise use currentModel
+    const modelToUse = overrideModel || currentModel;
 
     // Create a conversation if none exists
     let activeConversationId = currentConversationId
@@ -681,7 +688,7 @@ export default function Home() {
       const newConversation: UIConversation = {
         id: Date.now().toString(),
         title: title,
-        model: currentModel,
+        model: modelToUse,
         messages: [],
         user_id: user?.id || "local",
         project_id: shouldAssignToProject ? selectedProjectId : null,
@@ -756,7 +763,7 @@ export default function Home() {
       role: "user",
       timestamp: new Date(),
       attachments,
-      model: currentModel
+      model: modelToUse
     }
 
     // Add user message to conversation (using cleaned conversations)
@@ -765,6 +772,7 @@ export default function Home() {
         ? {
             ...conv,
             messages: [...conv.messages, userMessage],
+            model: modelToUse,
             updated_at: new Date().toISOString()
           }
         : conv
@@ -781,15 +789,15 @@ export default function Home() {
           content: message,
           role: 'user',
           conversation_id: activeConversationId,
-          model: currentModel,
-          provider: getProviderFromModel(currentModel),
+          model: modelToUse,
+          provider: getProviderFromModel(modelToUse),
           attachments: attachments || []
         })
       }
 
       // Get provider and API key for current model
-      const provider = getProviderFromModel(currentModel)
-      const apiKey = getApiKeyForModel(currentModel, userSettings)
+      const provider = getProviderFromModel(modelToUse)
+      const apiKey = getApiKeyForModel(modelToUse, userSettings)
       
       if (!provider || !apiKey) {
         throw new Error(`Please configure an API key for ${provider || 'this model'} in Settings → Models`)
@@ -821,10 +829,10 @@ export default function Home() {
           messages: cleanMessages,
           provider: provider,
           apiKey: apiKey,
-          model: currentModel,
+          model: modelToUse,
           temperature: userSettings.temperature,
           webSearchEnabled,
-          codeGenerationEnabled,
+          codeGenerationEnabled: codeGenerationEnabled || false, // Ensure it's a boolean
           enhancedWebSearch,
           // Include all individual API keys for image generation routing
           openaiApiKey: userSettings.openaiApiKey,
@@ -846,12 +854,12 @@ export default function Home() {
 
       // Create assistant message with proper content validation
       const assistantMessage: UIMessage = {
-        id: (Date.now() + 1).toString(),
-        content: data.content || data.response || "I apologize, but I couldn't generate a response. Please try again.",
+        id: Date.now().toString(),
+        content: data.response || data.content || "No response content",
         role: "assistant",
         timestamp: new Date(),
-        model: currentModel,
-        provider: getProviderFromModel(currentModel),
+        model: modelToUse,
+        provider: provider,
         searchResults: data.searchResults
       }
 
@@ -861,6 +869,7 @@ export default function Home() {
           ? {
               ...conv,
               messages: [...conv.messages, assistantMessage],
+              model: modelToUse,
               updated_at: new Date().toISOString()
             }
           : conv
@@ -875,8 +884,8 @@ export default function Home() {
           content: messageContent,
           role: 'assistant',
           conversation_id: activeConversationId,
-          model: currentModel,
-          provider: getProviderFromModel(currentModel),
+          model: modelToUse,
+          provider: getProviderFromModel(modelToUse),
           search_results: data.searchResults || []
         })
 
@@ -892,13 +901,21 @@ export default function Home() {
       // Create error message in local state
       const errorMessage = {
         id: Date.now().toString(),
-        content: error instanceof Error ? error.message : 'An error occurred',
+        content: error instanceof Error ? error.message : 
+                error instanceof Event ? 'Network error occurred. Please check your connection and try again.' :
+                'An error occurred',
         role: 'assistant' as const,
         timestamp: new Date(),
         isError: true,
         retryData: {
           originalMessage: message,
-          attachments
+          attachments,
+          originalSettings: {
+            webSearchEnabled,
+            codeGenerationEnabled: codeGenerationEnabled || false, // Ensure it's a boolean
+            enhancedWebSearch,
+            userLocation
+          }
         }
       }
 
@@ -1049,6 +1066,63 @@ export default function Home() {
     return getAvailableModelsForSettings(userSettings)
   }
 
+  const handleRetryMessage = async (messageId: string, selectedModelId?: string) => {
+    // Find the message to retry
+    const conversation = conversations.find(conv => conv.messages.some(m => m.id === messageId));
+    if (!conversation) return;
+    
+    const messageIndex = conversation.messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return;
+    
+    // Find the last user message before this message
+    let userMessageIndex = messageIndex - 1;
+    while (userMessageIndex >= 0 && conversation.messages[userMessageIndex].role !== 'user') {
+      userMessageIndex--;
+    }
+    
+    if (userMessageIndex === -1) return;
+    
+    const userMessage = conversation.messages[userMessageIndex];
+    
+    // Use the selected model if provided, otherwise use the current model
+    const modelToUse = selectedModelId || currentModel;
+    
+    // Remove all messages after the user message we're retrying
+    const updatedConversations = conversations.map(conv =>
+      conv.id === conversation.id
+        ? {
+            ...conv,
+            messages: conv.messages.slice(0, userMessageIndex + 1),
+            model: modelToUse, // Update the conversation model
+            updated_at: new Date().toISOString()
+          }
+        : conv
+    );
+    
+    setConversations(updatedConversations);
+    saveConversationsLocally(updatedConversations);
+    
+    // Get the original message's settings from retryData if available
+    const retrySettings = conversation.messages[messageIndex]?.retryData?.originalSettings || {
+      webSearchEnabled: false,
+      codeGenerationEnabled: false,
+      enhancedWebSearch: false,
+      userLocation: null
+    };
+    
+    // Retry the message with the selected model and original settings
+    // Force codeGenerationEnabled to false for retries
+    await handleSendMessage(
+      userMessage.content,
+      userMessage.attachments,
+      retrySettings.webSearchEnabled,
+      false, // Always disable code generation for retries
+      retrySettings.userLocation,
+      retrySettings.enhancedWebSearch,
+      modelToUse // Pass the selected model
+    );
+  };
+
   // Don't show loading spinner - always show the main UI
   if (!isClient) {
     return (
@@ -1099,7 +1173,23 @@ export default function Home() {
           isTyping={isTyping}
           onSendMessage={handleSendMessage}
           onSelectConversation={handleSelectConversation}
-          onSelectModel={setCurrentModel}
+          onSelectModel={(modelId: string) => {
+            setCurrentModel(modelId);
+            // If there's a current conversation, update its model
+            if (currentConversationId) {
+              const updatedConversations = conversations.map(conv =>
+                conv.id === currentConversationId
+                  ? {
+                      ...conv,
+                      model: modelId,
+                      updated_at: new Date().toISOString()
+                    }
+                  : conv
+              );
+              setConversations(updatedConversations);
+              saveConversationsLocally(updatedConversations);
+            }
+          }}
           onCreateConversation={handleCreateConversation}
           onCreateProject={() => handleCreateProject('New Project')}
           onSelectProject={handleSelectProject}
@@ -1121,46 +1211,7 @@ export default function Home() {
           }}
           onRenameConversation={handleRenameConversation}
           onDeleteConversation={handleDeleteConversation}
-          onRetryMessage={(messageId: string) => {
-            // Find the message to retry
-            const conversation = conversations.find(conv => conv.messages.some(m => m.id === messageId));
-            if (!conversation) return;
-            
-            const messageIndex = conversation.messages.findIndex(m => m.id === messageId);
-            if (messageIndex === -1) return;
-            
-            // Find the last user message before this message
-            let userMessageIndex = messageIndex - 1;
-            while (userMessageIndex >= 0 && conversation.messages[userMessageIndex].role !== 'user') {
-              userMessageIndex--;
-            }
-            
-            if (userMessageIndex < 0) return; // No user message found
-            
-            const userMessage = conversation.messages[userMessageIndex];
-            const messageToRetry = userMessage.content;
-            const attachments = userMessage.attachments || [];
-            
-            // Remove all messages after the user message
-            const updatedMessages = conversation.messages.slice(0, userMessageIndex + 1);
-            
-            // Update the conversation
-            const updatedConversation = {
-              ...conversation,
-              messages: updatedMessages,
-              updated_at: new Date().toISOString()
-            };
-            
-            // Update conversations state
-            const newConversations = conversations.map(conv =>
-              conv.id === conversation.id ? updatedConversation : conv
-            );
-            setConversations(newConversations);
-            saveConversationsLocally(newConversations);
-            
-            // Send the message with current model
-            handleSendMessage(messageToRetry, attachments);
-          }}
+          onRetryMessage={handleRetryMessage}
           onExpandedProjectsChange={handleExpandedProjectsChange}
         />
       </div>

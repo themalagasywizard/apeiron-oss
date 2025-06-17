@@ -1,5 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// Helper function to get provider from model ID
+function getModelProvider(modelId: string): string {
+  if (modelId.includes('claude')) return 'claude';
+  if (modelId.includes('gpt') || modelId.includes('o3')) return 'openai';
+  if (modelId.includes('gemini')) return 'gemini';
+  if (modelId.includes('veo2')) return 'veo2';
+  if (modelId.includes('deepseek')) return 'deepseek';
+  if (modelId.includes('grok')) return 'grok';
+  if (modelId.includes('mistral') || modelId.includes('codestral')) return 'mistral';
+  if (modelId.includes('gen3') || modelId.includes('gen2') || modelId.includes('runway')) return 'runway';
+  return 'openai';
+}
+
 // API Route optimized for serverless environments (Netlify/Vercel)
 // Timeouts are kept under 25 seconds due to serverless function limits
 export async function POST(request: NextRequest) {
@@ -9,11 +22,36 @@ export async function POST(request: NextRequest) {
   }, 58000); // Just under Vercel's 60s limit
   
   let provider = "unknown"; // Declare outside try block for error handling
+  let model = "unknown"; // Declare outside try block for error handling
   
   try {
     const requestBody = await request.json();
-    const { messages, provider: requestProvider, apiKey, geminiApiKey, model, temperature, customModelName, webSearchEnabled, codeGenerationEnabled, enhancedWebSearch } = requestBody;
+    const { 
+      messages, 
+      provider: requestProvider, 
+      apiKey, 
+      geminiApiKey, 
+      model: requestModel, 
+      temperature, 
+      customModelName, 
+      webSearchEnabled, 
+      codeGenerationEnabled, 
+      enhancedWebSearch 
+    }: {
+      messages: any[];
+      provider: string;
+      apiKey: string;
+      geminiApiKey?: string;
+      model: string;
+      temperature?: number;
+      customModelName?: string;
+      webSearchEnabled?: boolean | string;
+      codeGenerationEnabled?: boolean | string;
+      enhancedWebSearch?: boolean | string;
+    } = requestBody;
+    
     provider = requestProvider; // Assign to outer scope variable
+    model = requestModel; // Assign to outer scope variable
 
     // Validate required inputs
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -32,6 +70,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!model || typeof model !== 'string') {
+      console.error("Invalid model:", model);
+      return NextResponse.json(
+        { error: "Valid model is required" },
+        { status: 400 }
+      );
+    }
+
     if (!apiKey || typeof apiKey !== 'string') {
       console.error("Invalid API key for provider:", provider);
       return NextResponse.json(
@@ -40,15 +86,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Convert flags to boolean - handle both string and boolean inputs
+    const toBool = (val: string | boolean | undefined): boolean => {
+      if (typeof val === 'boolean') return val;
+      if (typeof val === 'string') return val.toLowerCase() === 'true';
+      return false;
+    };
+
+    const isWebSearchEnabled = toBool(webSearchEnabled);
+    const isEnhancedWebSearch = toBool(enhancedWebSearch);
+    const isCodeGenerationEnabled = toBool(codeGenerationEnabled);
+
+    // Validate model matches provider
+    const modelProvider = getModelProvider(model);
+    if (modelProvider !== provider) {
+      console.error(`Model ${model} does not match provider ${provider}`);
+      return NextResponse.json(
+        { error: `Model ${model} cannot be used with provider ${provider}. Please select a compatible model.` },
+        { status: 400 }
+      );
+    }
+
     let response;
     let aiResponse = "";
     let searchResults = null;
+    let isRetry: boolean = false;
 
     // Helper function to add timeout to fetch requests
     const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 18000): Promise<Response> => {
       // Allow longer timeouts for edge functions (up to 90s), and increase timeout for code generation
       const isEdgeFunction = url.includes('/.netlify/edge-functions/');
-      const maxTimeout = isEdgeFunction ? 90000 : ((isCodeRequest || codeGenerationEnabled) ? 40000 : 30000);
+      const maxTimeout = isEdgeFunction ? 90000 : ((isCodeRequest && !isRetry) ? 40000 : 30000);
       const safeTimeout = Math.min(timeoutMs, maxTimeout);
       
       const controller = new AbortController();
@@ -66,7 +134,8 @@ export async function POST(request: NextRequest) {
         if (error instanceof Error && error.name === 'AbortError') {
           const errorMsg = isEdgeFunction 
             ? `Edge function timed out after ${safeTimeout / 1000} seconds. Try a shorter request.`
-            : `Request timed out after ${safeTimeout / 1000} seconds. ${isCodeRequest ? 'Code generation can take longer - try breaking complex requests into smaller parts.' : 'Serverless functions have strict time limits. Try a shorter request.'}`;
+            : `Request timed out after ${safeTimeout / 1000} seconds. ${isCodeRequest && !isRetry ? 'Code generation can take longer - try breaking complex requests into smaller parts.' : 'Serverless functions have strict time limits. Try a shorter request.'}`;
+          isRetry = true; // Mark as retry for subsequent attempts
           throw new Error(errorMsg);
         }
         throw error;
@@ -74,32 +143,47 @@ export async function POST(request: NextRequest) {
     };
 
     // Detect if this is a code generation request
-    let isCodeRequest = false;
-    let isImageRequest = false;
+    let isCodeRequest: boolean = false;
+    let isImageRequest: boolean = false;
+
     try {
       const lastMessage = messages[messages.length - 1]?.content?.toLowerCase() || "";
       
-      // Enhanced code detection patterns
-      const codePatterns = [
-        /create.*(?:website|web.*page|html.*page|landing.*page)/i,
-        /build.*(?:app|application|website|component)/i,
-        /generate.*(?:code|script|function|class|component)/i,
-        /write.*(?:code|script|function|program)/i,
-        /make.*(?:website|app|component|function)/i,
-        /develop.*(?:website|app|application)/i,
-        /code.*(?:for|to|that)/i,
-        /html.*css/i,
-        /javascript.*function/i,
-        /react.*component/i,
-        /vue.*component/i,
-        /angular.*component/i,
-        /python.*script/i,
-        /node.*js/i,
-        /create.*api/i,
-        /build.*dashboard/i,
-        /design.*interface/i
-      ];
+      // Check if this is a retry by looking at message history
+      isRetry = messages.length > 1 && messages.some(m => 
+        m.role === 'assistant' && 
+        typeof m.content === 'string' && 
+        m.content.includes('Try Again')
+      );
 
+      // Only check for code patterns if codeGenerationEnabled is true AND this is not a retry
+      if (isCodeGenerationEnabled && !isRetry) {
+        // Enhanced code detection patterns
+        const codePatterns = [
+          /create.*(?:website|web.*page|html.*page|landing.*page)/i,
+          /build.*(?:app|application|website|component)/i,
+          /generate.*(?:code|script|function|class|component)/i,
+          /write.*(?:code|script|function|program)/i,
+          /make.*(?:website|app|component|function)/i,
+          /develop.*(?:website|app|application)/i,
+          /code.*(?:for|to|that)/i,
+          /html.*css/i,
+          /javascript.*function/i,
+          /react.*component/i,
+          /vue.*component/i,
+          /angular.*component/i,
+          /python.*script/i,
+          /node.*js/i,
+          /create.*api/i,
+          /build.*dashboard/i,
+          /design.*interface/i
+        ];
+        
+        isCodeRequest = codePatterns.some(pattern => pattern.test(lastMessage));
+      } else {
+        isCodeRequest = false;
+      }
+      
       // Enhanced image detection patterns
       const imagePatterns = [
         /generate.*(?:image|picture|photo|artwork|illustration)/i,
@@ -114,8 +198,6 @@ export async function POST(request: NextRequest) {
         /show.*me.*(?:image|picture|visual)/i,
         /can.*you.*(?:draw|create|generate|make).*(?:image|picture)/i
       ];
-      
-      isCodeRequest = codePatterns.some(pattern => pattern.test(lastMessage)) || codeGenerationEnabled;
       
       // 2. Selected model is an image/video generation model (automatic routing like VEO2)
       const isImageModel = model && (model.includes('gen3') || model.includes('gen2'));
@@ -279,7 +361,7 @@ I can still help you with text-based responses. Would you like me to describe wh
     // Optimize parameters for code generation
     const getOptimizedParams = (baseTimeout: number, baseTokens: number) => {
       try {
-        if (isCodeRequest || codeGenerationEnabled) {
+        if (isCodeRequest || isCodeGenerationEnabled) {
           return {
             timeout: Math.min(baseTimeout + 15000, 35000), // Add 15 seconds for code, max 35s (increased from 30s)
             maxTokens: Math.min(baseTokens * 2, 8000), // 2x tokens for code, max 8000
@@ -326,7 +408,7 @@ I can still help you with text-based responses. Would you like me to describe wh
         }
         
         // Add code generation instructions if this is a code request
-        if ((isCodeRequest || codeGenerationEnabled) && cleanedMessages.length > 0) {
+        if ((isCodeRequest || isCodeGenerationEnabled) && cleanedMessages.length > 0) {
           const lastMessage = cleanedMessages[cleanedMessages.length - 1];
           if (lastMessage.role === "user") {
             lastMessage.content = `EXPERT CODE GENERATION MODE:
@@ -365,7 +447,7 @@ Generate the complete solution now:`;
     };
 
     // Perform web search if enabled for compatible models (Gemini and Grok)
-    if (webSearchEnabled && (provider === "gemini" || provider === "grok")) {
+    if (isWebSearchEnabled && (provider === "gemini" || provider === "grok")) {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage && lastMessage.role === "user") {
         try {
@@ -379,9 +461,9 @@ Generate the complete solution now:`;
               query: lastMessage.content,
               maxResults: 5,
               userLocation,
-              extractContent: enhancedWebSearch // Use enhanced search flag for content extraction
+              extractContent: isEnhancedWebSearch // Use enhanced search flag for content extraction
             })
-          }, enhancedWebSearch ? 25000 : 15000); // Increased timeout for enhanced search
+          }, isEnhancedWebSearch ? 25000 : 15000); // Increased timeout for enhanced search
 
           if (searchResponse.ok) {
             const searchData = await searchResponse.json();
@@ -544,7 +626,7 @@ Please provide a comprehensive response using the above search results.`;
 
       case "gemini":
         // Increase timeout for Gemini, especially for code generation
-        const geminiBaseTimeout = isCodeRequest || codeGenerationEnabled ? 25000 : 15000; // 25s for code, 15s for regular
+        const geminiBaseTimeout = isCodeRequest || isCodeGenerationEnabled ? 25000 : 15000; // 25s for code, 15s for regular
         const geminiParams = getOptimizedParams(geminiBaseTimeout, 3000);
         
         // Clean messages first, then convert to Gemini format
@@ -603,7 +685,7 @@ Please provide a comprehensive response using the above search results.`;
           console.error("Gemini error:", geminiError);
           
           // If this was a code generation request and it failed, try with reduced complexity
-          if ((isCodeRequest || codeGenerationEnabled) && geminiError instanceof Error && geminiError.message.includes('504')) {
+          if ((isCodeRequest || isCodeGenerationEnabled) && geminiError instanceof Error && geminiError.message.includes('504')) {
             console.log("Retrying Gemini with simplified request...");
             
             try {
@@ -870,47 +952,29 @@ Please provide a comprehensive response using the above search results.`;
         throw new Error(`Unsupported provider: ${provider}`);
     }
 
+    // Return the AI response with model info
     clearTimeout(emergencyTimeout);
-    return NextResponse.json({ 
-      content: aiResponse,
-      response: aiResponse, // Keep both for compatibility
+    return NextResponse.json({
+      response: aiResponse,
+      searchResults,
       model: model,
-      provider: provider,
-      searchResults: searchResults,
-      searchEnabled: webSearchEnabled && (provider === "gemini" || provider === "grok")
+      provider: provider
     });
 
   } catch (error) {
-    clearTimeout(emergencyTimeout);
     console.error("Chat API error:", error);
-    
-    // Provide more detailed error information
-    let errorMessage = "Unknown error occurred";
-    let statusCode = 500;
-    
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      console.error("Error stack:", error.stack);
-      
-      // Check for specific error types
-      if (error.message.includes("timed out")) {
-        statusCode = 504;
-      } else if (error.message.includes("API key") || error.message.includes("unauthorized")) {
-        statusCode = 401;
-      } else if (error.message.includes("required") || error.message.includes("invalid")) {
-        statusCode = 400;
-      }
-    } else {
-      console.error("Non-Error object thrown:", error);
-    }
+    clearTimeout(emergencyTimeout);
+
+    // Provide helpful error message
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
     
     return NextResponse.json(
       { 
         error: errorMessage,
-        timestamp: new Date().toISOString(),
-        provider: provider || "unknown"
+        model: model,
+        provider: provider
       },
-      { status: statusCode }
+      { status: 500 }
     );
   }
 }
