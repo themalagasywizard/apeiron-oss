@@ -37,6 +37,7 @@ import {
   Code,
   Trash2,
   Save,
+  ExternalLink,
 } from "lucide-react"
 
 // Types
@@ -131,7 +132,7 @@ type MainUIProps = {
   currentModel?: string
   userSettings?: UserSettings
   isTyping?: boolean
-  onSendMessage?: (message: string, attachments?: ProcessedFile[], webSearchEnabled?: boolean, codeGenerationEnabled?: boolean) => void
+  onSendMessage?: (message: string, attachments?: ProcessedFile[], webSearchEnabled?: boolean, codeGenerationEnabled?: boolean, userLocation?: string | null, enhancedWebSearch?: boolean) => void
   onSelectConversation?: (id: string) => void
   onSelectModel?: (id: string) => void
   onCreateConversation?: () => void
@@ -420,11 +421,12 @@ export default function MainUI({
 
   // Web search state
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  const [enhancedWebSearch, setEnhancedWebSearch] = useState(false)
+  const [codeGenerationEnabled, setCodeGenerationEnabled] = useState(false)
+  const [userLocation, setUserLocation] = useState<string | null>(null)
+  const [locationPermission, setLocationPermission] = useState<"granted" | "denied" | "prompt">("prompt")
 
   // Code generation state
-  const [codeGenerationEnabled, setCodeGenerationEnabled] = useState(false)
-
-  // Speech recognition state
   const [isListening, setIsListening] = useState(false)
 
   // Use models from props (calculated in page.tsx with proper API key logic)
@@ -603,12 +605,96 @@ export default function MainUI({
     })
   }
 
+  // Request user location for more relevant search results
+  const requestLocationPermission = async () => {
+    try {
+      if (!navigator.geolocation) {
+        console.log("Geolocation not supported");
+        setLocationPermission("denied");
+        return;
+      }
+      
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: false,
+          timeout: 5000,
+          maximumAge: 300000 // 5 minutes
+        });
+      });
+      
+      // Get approximate location name using reverse geocoding
+      try {
+        const { latitude, longitude } = position.coords;
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`);
+        const data = await response.json();
+        
+        // Extract country code or state
+        let locationString = "US"; // Default fallback
+        if (data.address) {
+          if (data.address.country_code) {
+            locationString = data.address.country_code.toUpperCase();
+          }
+          if (data.address.state) {
+            locationString = `${data.address.state}, ${locationString}`;
+          }
+        }
+        
+        setUserLocation(locationString);
+        setLocationPermission("granted");
+        console.log("Location permission granted:", locationString);
+      } catch (error) {
+        console.error("Error getting location name:", error);
+        setUserLocation(null);
+      }
+    } catch (error) {
+      console.error("Error getting location:", error);
+      setLocationPermission("denied");
+    }
+  };
+
+  // Toggle web search function with enhanced option
+  const toggleWebSearch = () => {
+    if (!webSearchEnabled) {
+      // If enabling search and location permission is still prompt, ask for it
+      if (locationPermission === "prompt") {
+        const shouldRequestLocation = window.confirm(
+          "Would you like to share your approximate location to get more relevant search results? " +
+          "This will help filter content based on your region."
+        );
+        
+        if (shouldRequestLocation) {
+          requestLocationPermission();
+        } else {
+          setLocationPermission("denied");
+        }
+      }
+      // Enable web search with enhanced mode by default
+      setWebSearchEnabled(true);
+      setEnhancedWebSearch(true);
+    } else if (webSearchEnabled && enhancedWebSearch) {
+      // Toggle to basic search mode (no content extraction)
+      setEnhancedWebSearch(false);
+    } else {
+      // Turn off web search completely
+      setWebSearchEnabled(false);
+      setEnhancedWebSearch(false);
+    }
+  };
+
   // Handle sending a message
   const handleSendMessage = () => {
     if (inputValue.trim() || attachments.length > 0) {
-      onSendMessage(inputValue, attachments.length > 0 ? attachments : undefined, webSearchEnabled, codeGenerationEnabled)
-      setInputValue("")
-      setAttachments([])
+      // Pass userLocation with the message when web search is enabled
+      onSendMessage(
+        inputValue, 
+        attachments.length > 0 ? attachments : undefined, 
+        webSearchEnabled, 
+        codeGenerationEnabled,
+        webSearchEnabled ? userLocation : null,
+        enhancedWebSearch // Pass enhanced search flag
+      );
+      setInputValue("");
+      setAttachments([]);
     }
   }
 
@@ -1130,7 +1216,7 @@ export default function MainUI({
   const detectImageContent = (content: string) => {
     // Patterns for image generation detection
     const imagePattern = /🎨.*?Image Generation.*?(Started|Complete|Initiated|Processing|Generated)/i
-    const imageUrlPattern = /Image URL:\s*(https?:\/\/[^\s\n]+|data:image\/[^;\s]+;base64,[A-Za-z0-9+/=]+)/i
+    const imageUrlPattern = /Image URL:\s*(https?:\/\/[^\s\n]+|data:image\/[^;\s]+;base64,[A-Za-z0-9+/=]+)/gi
     const promptPattern = /\*\*Prompt:\*\*\s*(.+?)(?=\n|$)/i
     const providerPattern = /\*\*Provider:\*\*\s*([^\n]+)/i
     const modelPattern = /\*\*Model:\*\*\s*([^\n]+)/i
@@ -1138,10 +1224,18 @@ export default function MainUI({
     
     const hasImage = imagePattern.test(content) || imageUrlPattern.test(content)
     const promptMatch = content.match(promptPattern)
-    const imageUrlMatch = content.match(imageUrlPattern)
     const providerMatch = content.match(providerPattern)
     const modelMatch = content.match(modelPattern)
     const statusMatch = content.match(statusPattern)
+    
+    // Extract all image URLs
+    const imageUrls: string[] = []
+    let match
+    while ((match = imageUrlPattern.exec(content)) !== null) {
+      if (match[1]) {
+        imageUrls.push(match[1].trim())
+      }
+    }
     
     // Check if it's currently generating
     const isGenerating = content.includes('Image Generation Started') || 
@@ -1153,7 +1247,8 @@ export default function MainUI({
       hasImage,
       prompt: promptMatch ? promptMatch[1].trim() : null,
       isGenerating,
-      imageUrl: imageUrlMatch ? imageUrlMatch[1].trim() : null,
+      imageUrl: imageUrls.length > 0 ? imageUrls[0] : null, // For backward compatibility
+      imageUrls: imageUrls, // New array of all image URLs
       provider: providerMatch ? providerMatch[1].trim() : null,
       model: modelMatch ? modelMatch[1].trim() : null
     }
@@ -1444,6 +1539,155 @@ export default function MainUI({
     }
     setDraggedConversationId(null)
     setDragOverProjectId(null)
+  }
+
+  // Render message content based on its type
+  const renderMessageContent = (message: Message) => {
+    // Cache detection results to prevent repetitive calls
+    const htmlDetection = detectHTMLInContent(message.content)
+    const videoDetection = detectVideoContent(message.content)
+    const imageDetection = detectImageContent(message.content)
+    
+    if (videoDetection.hasVideo) {
+      return (
+        <div className={`space-y-4 ${message.role === "assistant" ? "flex flex-col items-center text-center" : ""}`}>
+          {/* Video Preview Component */}
+          <VideoPreview 
+             key={`video-${message.id}-${videoDetection.operationName || 'no-op'}`}
+             prompt={videoDetection.prompt || message.content}
+             videoUrl={videoDetection.videoUrl || undefined}
+             isGenerating={videoDetection.isGenerating || false}
+             operationName={videoDetection.operationName || undefined}
+             apiKey={userSettings.veo2ApiKey || userSettings.geminiApiKey || undefined}
+             videoTitle={`VEO2 Generated Video`}
+             onDownload={(videoUrl, filename) => {
+               // Trigger download
+               const a = document.createElement('a')
+               a.href = videoUrl
+               a.download = filename
+               document.body.appendChild(a)
+               a.click()
+               document.body.removeChild(a)
+             }}
+             onError={(error) => {
+               console.error('VEO2 Video Error:', error)
+             }}
+           />
+          
+          {/* Regular message content without video markers */}
+          <div 
+            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+              message.isError ? 'text-red-600 dark:text-red-400' : ''
+            }`}
+            dangerouslySetInnerHTML={{ 
+              __html: formatMessageContent(message.content) 
+            }}
+          />
+        </div>
+      )
+    } else if (htmlDetection.hasHTML && htmlDetection.htmlContent) {
+      return (
+        <div className={`space-y-4 ${message.role === "assistant" ? "flex flex-col items-center text-center" : ""}`}>
+          {/* Regular message content without HTML */}
+          <div 
+            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+              message.isError ? 'text-red-600 dark:text-red-400' : ''
+            }`}
+            dangerouslySetInnerHTML={{ 
+              __html: formatMessageContent(message.content.replace(/```html[\s\S]*?```/gi, '').replace(/```[\s\S]*?```/gi, '').trim()) 
+            }}
+          />
+          
+          {/* HTML Preview Component */}
+          <HTMLPreview 
+            htmlContent={htmlDetection.htmlContent}
+            filename={htmlDetection.filename}
+            onDownload={async (content, filename) => {
+              try {
+                // Save to database
+                const response = await fetch('/api/html-code', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    title: filename.replace('.html', ''),
+                    htmlContent: content,
+                    isPublic: false,
+                    tags: ['ai-generated'],
+                    templateType: 'complete'
+                  })
+                })
+                
+                if (response.ok) {
+                  const result = await response.json()
+                  console.log('HTML code saved:', result.data.id)
+                }
+              } catch (error) {
+                console.error('Failed to save HTML code:', error)
+              }
+              
+              // Trigger download
+              const blob = new Blob([content], { type: 'text/html' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = filename
+              document.body.appendChild(a)
+              a.click()
+              document.body.removeChild(a)
+            }}
+          />
+        </div>
+      )
+    } else if (imageDetection.hasImage) {
+      return (
+        <div className={`space-y-4 ${message.role === "assistant" ? "flex flex-col items-center text-center" : ""}`}>
+          {/* Regular message content */}
+          <div 
+            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+              message.isError ? 'text-red-600 dark:text-red-400' : ''
+            }`}
+            dangerouslySetInnerHTML={{ 
+              __html: formatMessageContent(message.content) 
+            }}
+          />
+          
+          {/* Image Preview */}
+          <div className="mt-4 flex flex-wrap gap-4 justify-center">
+            {imageDetection.imageUrls && imageDetection.imageUrls.map((url: string, index: number) => (
+              <div key={`img-${index}`} className="relative group">
+                <img 
+                  src={url} 
+                  alt={`Generated image ${index + 1}`}
+                  className="rounded-lg max-h-96 object-contain border border-gray-200/30 dark:border-gray-700/30"
+                />
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <a 
+                    href={url} 
+                    download={`generated-image-${Date.now()}-${index}.jpg`}
+                    className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    } else {
+      return (
+        <div 
+          className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
+            message.isError ? 'text-red-600 dark:text-red-400' : ''
+          } ${message.role === "assistant" ? "mx-auto" : ""}`}
+          dangerouslySetInnerHTML={{ 
+            __html: formatMessageContent(message.content) 
+          }}
+        />
+      )
+    }
   }
 
   return (
@@ -1921,55 +2165,16 @@ export default function MainUI({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`${message.role === "user" ? "flex justify-end" : "flex flex-col items-center"} w-full`}
               >
                 <div
                   className={`
-                    max-w-[85%] md:max-w-[70%] rounded-2xl p-4 
-                    ${
-                      message.role === "user"
-                        ? "bg-white/20 dark:bg-gray-800/40 text-gray-800 dark:text-gray-200 border border-gray-200/20 dark:border-gray-700/20"
-                        : "bg-white/20 dark:bg-gray-800/40 text-gray-800 dark:text-gray-200 border border-gray-200/20 dark:border-gray-700/20"
+                    ${message.role === "user" 
+                      ? "max-w-[85%] md:max-w-[70%] rounded-2xl p-4 bg-white/20 dark:bg-gray-800/40 text-gray-800 dark:text-gray-200 border border-gray-200/20 dark:border-gray-700/20" 
+                      : "w-full max-w-4xl py-6 px-4"
                     }
                   `}
                 >
-                  {/* Model icon and name for assistant messages */}
-                  {message.role === "assistant" && (
-                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200/30 dark:border-gray-600/30">
-                      <ModelLogo 
-                        provider={(() => {
-                          // First try to use the message provider
-                          if (message.provider) {
-                            return message.provider as "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral" | "runway";
-                          }
-                          // Fallback: determine provider from model ID
-                          if (message.model) {
-                            if (message.model.includes('gpt') || message.model.includes('o3')) return 'openai';
-                            if (message.model.includes('claude')) return 'claude';
-                            if (message.model.includes('gemini')) return 'gemini';
-                            if (message.model.includes('veo2')) return 'veo2';
-                            if (message.model.includes('deepseek')) return 'deepseek';
-                            if (message.model.includes('grok')) return 'grok';
-                            if (message.model.includes('mistral') || message.model.includes('codestral')) return 'mistral';
-                            if (message.model.includes('runway')) return 'runway';
-                          }
-                          return 'openai'; // final fallback
-                        })()} 
-                        modelId={message.model || 'unknown'}
-                        size="sm"
-                      />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">
-                        {(() => {
-                          // First try to find in available models, then fall back to comprehensive library
-                          let model = availableModels.find(m => m.id === message.model || m.provider === message.provider);
-                          if (!model) {
-                            model = allModelsLibrary.find(m => m.id === message.model || m.provider === message.provider);
-                          }
-                          return model?.name || message.model || message.provider || 'AI';
-                        })()}
-                      </span>
-                    </div>
-                  )}
                   {/* Attachments */}
                   {message.attachments && message.attachments.length > 0 && (
                     <div className="mb-3 space-y-2">
@@ -2020,195 +2225,59 @@ export default function MainUI({
                   )}
                   
                   {/* Message content */}
-                  {message.content && (() => {
-                    // Cache detection results to prevent repetitive calls
-                    const htmlDetection = detectHTMLInContent(message.content)
-                    const videoDetection = detectVideoContent(message.content)
-                    const imageDetection = detectImageContent(message.content)
-                    
-                    if (videoDetection.hasVideo) {
-                      return (
-                        <div className="space-y-4">
-                          {/* Video Preview Component */}
-                                                     <VideoPreview 
-                             key={`video-${message.id}-${videoDetection.operationName || 'no-op'}`}
-                             prompt={videoDetection.prompt || message.content}
-                             videoUrl={videoDetection.videoUrl || undefined}
-                             isGenerating={videoDetection.isGenerating || false}
-                             operationName={videoDetection.operationName || undefined}
-                             apiKey={userSettings.veo2ApiKey || userSettings.geminiApiKey || undefined}
-                             videoTitle={`VEO2 Generated Video`}
-                             onDownload={(videoUrl, filename) => {
-                               // Trigger download
-                               const a = document.createElement('a')
-                               a.href = videoUrl
-                               a.download = filename
-                               document.body.appendChild(a)
-                               a.click()
-                               document.body.removeChild(a)
-                             }}
-                             onError={(error) => {
-                               console.error('VEO2 Video Error:', error)
-                             }}
-                           />
-                          
-                          {/* Regular message content without video markers */}
-                          <div 
-                            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
-                              message.isError ? 'text-red-600 dark:text-red-400' : ''
-                            }`}
-                            dangerouslySetInnerHTML={{ 
-                              __html: formatMessageContent(message.content) 
-                            }}
-                          />
-                        </div>
-                      )
-                    } else if (htmlDetection.hasHTML && htmlDetection.htmlContent) {
-                      return (
-                        <div className="space-y-4">
-                          {/* Regular message content without HTML */}
-                          <div 
-                            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
-                              message.isError ? 'text-red-600 dark:text-red-400' : ''
-                            }`}
-                            dangerouslySetInnerHTML={{ 
-                              __html: formatMessageContent(message.content.replace(/```html[\s\S]*?```/gi, '').replace(/```[\s\S]*?```/gi, '').trim()) 
-                            }}
-                          />
-                          
-                          {/* HTML Preview Component */}
-                          <HTMLPreview 
-                            htmlContent={htmlDetection.htmlContent}
-                            filename={htmlDetection.filename}
-                            onDownload={async (content, filename) => {
-                              try {
-                                // Save to database
-                                const response = await fetch('/api/html-code', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    title: filename.replace('.html', ''),
-                                    htmlContent: content,
-                                    isPublic: false,
-                                    tags: ['ai-generated'],
-                                    templateType: 'complete'
-                                  })
-                                })
-                                
-                                if (response.ok) {
-                                  const result = await response.json()
-                                  console.log('HTML code saved:', result.data.id)
-                                }
-                              } catch (error) {
-                                console.error('Failed to save HTML code:', error)
-                              }
-                              
-                              // Trigger download
-                              const blob = new Blob([content], { type: 'text/html' })
-                              const url = URL.createObjectURL(blob)
-                              const a = document.createElement('a')
-                              a.href = url
-                              a.download = filename
-                              document.body.appendChild(a)
-                              a.click()
-                              document.body.removeChild(a)
-                              URL.revokeObjectURL(url)
-                            }}
-                          />
-                        </div>
-                      )
-                    } else if (imageDetection.hasImage) {
-                      return (
-                        <div className="space-y-4">
-                          {/* Image Preview Component */}
-                          <ImagePreview 
-                            imageUrl={imageDetection.imageUrl || undefined}
-                            prompt={imageDetection.prompt || "Generated Image"}
-                            isGenerating={imageDetection.isGenerating || false}
-                            provider={imageDetection.provider || "AI"}
-                            model={imageDetection.model || undefined}
-                            onDownload={(imageUrl, filename) => {
-                              // Trigger download
-                              const a = document.createElement('a')
-                              a.href = imageUrl
-                              a.download = filename
-                              document.body.appendChild(a)
-                              a.click()
-                              document.body.removeChild(a)
-                            }}
-                            onError={(error) => {
-                              console.error('Image Error:', error)
-                            }}
-                          />
-                          
-                          {/* Regular message content without image markers */}
-                          <div 
-                            className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
-                              message.isError ? 'text-red-600 dark:text-red-400' : ''
-                            }`}
-                            dangerouslySetInnerHTML={{ 
-                              __html: formatMessageContent(message.content.replace(/🎨.*?Image.*?(?=\n|$)/gi, '').replace(/```[\s\S]*?```/gi, '').trim()) 
-                            }}
-                          />
-                        </div>
-                      )
-                    } else {
-                      return (
-                        <div 
-                          className={`prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 ${
-                            message.isError ? 'text-red-600 dark:text-red-400' : ''
-                          }`}
-                          dangerouslySetInnerHTML={{ __html: formatMessageContent(message.content) }}
-                        />
-                      )
-                    }
-                  })()}
+                  {message.content ? renderMessageContent(message) : null}
 
                   {/* Web Search Results Sources */}
                   {message.searchResults && message.searchResults.length > 0 && (
-                    <div className="mt-4 pt-3">
-                      <div className="flex items-center gap-2 mb-3">
+                    <div className={`mt-4 pt-4 border-t border-gray-200/30 dark:border-gray-700/30 ${message.role === "assistant" ? "w-full max-w-4xl mx-auto" : ""}`}>
+                      <div className={`flex items-center gap-2 mb-2 ${message.role === "assistant" ? "justify-center" : ""}`}>
                         <Globe className="w-4 h-4 text-blue-500" />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sources</span>
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Web Search Results</span>
                       </div>
-                      <div className="grid gap-2">
-                        {message.searchResults.map((result, index) => {
-                          // Validate URL before rendering
-                          const isValidUrl = result.url && typeof result.url === 'string' && result.url.trim().length > 0;
-                          const safeUrl = isValidUrl ? (result.url.startsWith('http') ? result.url : `https://${result.url}`) : '#';
-                          
-                          return (
-                            <a
-                              key={`${result.url}-${index}`}
-                              href={safeUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`group flex items-start gap-3 p-3 bg-white/30 dark:bg-[#2b2b2b] hover:bg-white/50 dark:hover:bg-[#2b2b2b]/90 border border-gray-200/30 dark:border-gray-600/30 rounded-lg transition-all hover:shadow-sm ${!isValidUrl ? 'cursor-not-allowed opacity-50' : ''}`}
-                              id={`source-${index + 1}`}
-                              onClick={!isValidUrl ? (e) => e.preventDefault() : undefined}
-                            >
-                              <div className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xs font-medium">
+                      <div className={`space-y-3 ${message.role === "assistant" ? "flex flex-col items-center" : ""}`}>
+                        {message.searchResults?.map((result, index) => (
+                          <div 
+                            key={`source-${index + 1}`}
+                            id={`source-${index + 1}`}
+                            className={`
+                              p-3 rounded-lg border border-gray-200/30 dark:border-gray-700/30
+                              ${message.role === "assistant" 
+                                ? "bg-white/10 dark:bg-gray-800/30 w-full max-w-3xl" 
+                                : "bg-white/10 dark:bg-gray-800/30"}
+                            `}
+                          >
+                            <div className="flex items-start justify-between">
+                              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full mr-2">
                                 {index + 1}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
-                                    {result.title}
-                                  </h4>
-                                  <svg className="w-3 h-3 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                                  </svg>
-                                </div>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-1">
-                                  {result.snippet}
-                                </p>
-                                <div className="text-xs text-gray-500 dark:text-gray-500 truncate">
-                                  {getHostnameFromUrl(result.url)}
+                              </span>
+                              <div className="flex-1">
+                                <a 
+                                  href={result.url} 
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-blue-600 dark:text-blue-400 hover:underline line-clamp-2"
+                                >
+                                  {result.title || getHostnameFromUrl(result.url)}
+                                </a>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center mt-1">
+                                  <Globe className="w-3 h-3 mr-1" />
+                                  <span>{getHostnameFromUrl(result.url)}</span>
                                 </div>
                               </div>
-                            </a>
-                          )
-                        })}
+                              <a 
+                                href={result.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                              >
+                                <ExternalLink className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                              </a>
+                            </div>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                              {result.snippet}
+                            </p>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -2236,6 +2305,44 @@ export default function MainUI({
                   >
                     {new Date(message.timestamp).toLocaleTimeString()}
                   </div>
+
+                  {/* Model icon and name for assistant messages - moved to end */}
+                  {message.role === "assistant" && (
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <ModelLogo 
+                        provider={(() => {
+                          // First try to use the message provider
+                          if (message.provider) {
+                            return message.provider as "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral" | "runway";
+                          }
+                          // Fallback: determine provider from model ID
+                          if (message.model) {
+                            if (message.model.includes('gpt') || message.model.includes('o3')) return 'openai';
+                            if (message.model.includes('claude')) return 'claude';
+                            if (message.model.includes('gemini')) return 'gemini';
+                            if (message.model.includes('veo2')) return 'veo2';
+                            if (message.model.includes('deepseek')) return 'deepseek';
+                            if (message.model.includes('grok')) return 'grok';
+                            if (message.model.includes('mistral') || message.model.includes('codestral')) return 'mistral';
+                            if (message.model.includes('runway')) return 'runway';
+                          }
+                          return 'openai'; // final fallback
+                        })()} 
+                        modelId={message.model || 'unknown'}
+                        size="sm"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {(() => {
+                          // First try to find in available models, then fall back to comprehensive library
+                          let model = availableModels.find(m => m.id === message.model || m.provider === message.provider);
+                          if (!model) {
+                            model = allModelsLibrary.find(m => m.id === message.model || m.provider === message.provider);
+                          }
+                          return model?.name || message.model || message.provider || 'AI';
+                        })()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </motion.div>
               ))
@@ -2409,19 +2516,39 @@ export default function MainUI({
                       {/* Web Search Toggle Button */}
                       {isWebSearchCompatible() && (
                         <button
-                          onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                          className={`h-[28px] w-[28px] rounded-md border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
+                          onClick={toggleWebSearch}
+                          className={`h-[28px] w-[28px] rounded-md border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center relative ${
                             webSearchEnabled
-                              ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
+                              ? enhancedWebSearch
+                                ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white" // Enhanced mode
+                                : "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"   // Basic mode
                               : "bg-white/10 dark:bg-gray-800/40 hover:bg-white/30 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400"
                           }`}
-                          title={webSearchEnabled ? "Web search enabled" : "Enable web search"}
-                          aria-label={webSearchEnabled ? "Disable web search" : "Enable web search"}
+                          title={webSearchEnabled 
+                            ? (enhancedWebSearch
+                              ? "Enhanced web search with content analysis" + (locationPermission === "granted" ? ` (Location: ${userLocation})` : "")
+                              : (locationPermission === "granted" 
+                                ? `Basic web search (Location: ${userLocation})` 
+                                : "Basic web search (no location data)"))
+                            : "Enable web search"}
+                          aria-label={webSearchEnabled 
+                            ? (enhancedWebSearch ? "Switch to basic web search" : "Disable web search") 
+                            : "Enable web search"}
                         >
                           {webSearchEnabled ? (
-                            <Globe className="w-3 h-3" />
+                            enhancedWebSearch ? (
+                              <div className="flex items-center justify-center">
+                                <Globe className="w-3 h-3" />
+                                <span className="absolute bottom-0 right-0 text-[8px] font-bold">+</span>
+                              </div>
+                            ) : (
+                              <Globe className="w-3 h-3" />
+                            )
                           ) : (
                             <Search className="w-3 h-3" />
+                          )}
+                          {webSearchEnabled && locationPermission === "granted" && (
+                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full"></div>
                           )}
                         </button>
                       )}
