@@ -49,7 +49,7 @@
     --accent-foreground: oklch(1 0 0);
     --destructive: oklch(0.65 0.15 15);
     --destructive-foreground: oklch(1 0 0);
-    --border: oklch(0.2 0 0);
+    --border: oklch(0.5 0 0);
     --input: oklch(0.25 0 0);
     --ring: oklch(0.4 0 0);
     --sidebar: oklch(0 0 0);
@@ -58,7 +58,7 @@
     --sidebar-primary-foreground: oklch(1 0 0);
     --sidebar-accent: oklch(0.15 0 0);
     --sidebar-accent-foreground: oklch(0.9 0 0);
-    --sidebar-border: oklch(0.2 0 0);
+    --sidebar-border: oklch(0.5 0 0);
     --sidebar-ring: oklch(0.4 0 0);
   }
 
@@ -700,7 +700,7 @@ html.theme-t3 {
   --chart-3: oklch(0.3790 0.0438 226.1538);
   --chart-4: oklch(0.8330 0.1185 88.3461);
   --chart-5: oklch(0.7843 0.1256 58.9964);
-  --sidebar: oklch(0.9360 0.0288 320.5788);
+  --sidebar: #f3e4f6;
   --sidebar-foreground: oklch(0.4948 0.1909 354.5435);
   --sidebar-primary: oklch(0.3963 0.0251 285.1962);
   --sidebar-primary-foreground: oklch(0.9668 0.0124 337.5228);
@@ -708,8 +708,8 @@ html.theme-t3 {
   --sidebar-accent-foreground: oklch(0.3963 0.0251 285.1962);
   --sidebar-border: oklch(0.9383 0.0026 48.7178);
   --sidebar-ring: oklch(0.5916 0.2180 0.5844);
-  --sidebar-bg: oklch(0.9360 0.0288 320.5788);
-  --chat-bg: oklch(0.9754 0.0084 325.6414);
+  --sidebar-bg: #f3e4f6;
+  --chat-bg: white;
   --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -1430,5 +1430,64 @@ html.theme-t3:not(.light) aside[class*="w-full max-w-[280px]"] {
   /* Override for SVG elements */
   & svg, & path, & circle, & rect {
     background-color: transparent !important;
+  }
+}
+
+/* T3 Theme Light Mode Sidebar Specific Styles */
+html.theme-t3.light {
+  /* Force the main sidebar container and ALL its children */
+  & aside[class*="w-full"],
+  & aside[class*="w-full"] > div,
+  & aside[class*="w-full"] > div > div,
+  & aside[class*="w-full"] > div > div > div,
+  & aside[class*="w-full"] nav,
+  & aside[class*="w-full"] .flex-1,
+  & aside[class*="w-full"] .overflow-auto,
+  & aside[class*="w-full"] .space-y-2,
+  & aside[class*="w-full"] .space-y-4,
+  & aside[class*="w-full"] [class*="bg-"],
+  & aside[class*="w-full"] [class*="dark:bg-"],
+  & aside[class*="w-full"] .flex,
+  & aside[class*="w-full"] .flex-col,
+  & aside[class*="w-full"] .h-screen,
+  & aside[class*="w-full"] .min-h-screen {
+    background-color: #f3e4f6 !important;
+  }
+
+  /* Make ALL buttons in the sidebar have the sidebar color by default */
+  & aside[class*="w-full"] button,
+  & aside[class*="w-full"] a,
+  & aside[class*="w-full"] [role="button"] {
+    background-color: #f3e4f6 !important;
+    &:hover {
+      background-color: color-mix(in oklch, #f3e4f6, black 5%) !important;
+    }
+  }
+
+  /* ONLY the settings button - completely separate rule */
+  & aside[class*="w-full"] button.settings-button,
+  & aside[class*="w-full"] button[aria-label="Settings"] {
+    background-color: white !important;
+    border: 1px solid #e5e5e5 !important;
+    border-radius: 0.5rem !important;
+    
+    &:hover {
+      background-color: #f8f8f8 !important;
+    }
+  }
+
+  /* Keep text and icons transparent */
+  & aside[class*="w-full"] span,
+  & aside[class*="w-full"] p,
+  & aside[class*="w-full"] svg,
+  & aside[class*="w-full"] path {
+    background-color: transparent !important;
+  }
+
+  /* Ensure the main chat area stays white */
+  & main,
+  & .flex-1:not(aside[class*="w-full"] .flex-1),
+  & .min-h-screen > div:last-child:not(aside[class*="w-full"]) {
+    background-color: white !important;
   }
 }

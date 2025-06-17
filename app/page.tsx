@@ -1129,12 +1129,20 @@ export default function Home() {
             const messageIndex = conversation.messages.findIndex(m => m.id === messageId);
             if (messageIndex === -1) return;
             
-            const message = conversation.messages[messageIndex];
-            const messageToRetry = message.retryData?.originalMessage || message.content;
-            const attachments = message.retryData?.attachments || [];
+            // Find the last user message before this message
+            let userMessageIndex = messageIndex - 1;
+            while (userMessageIndex >= 0 && conversation.messages[userMessageIndex].role !== 'user') {
+              userMessageIndex--;
+            }
             
-            // Remove all messages after this one and the current message
-            const updatedMessages = conversation.messages.slice(0, messageIndex);
+            if (userMessageIndex < 0) return; // No user message found
+            
+            const userMessage = conversation.messages[userMessageIndex];
+            const messageToRetry = userMessage.content;
+            const attachments = userMessage.attachments || [];
+            
+            // Remove all messages after the user message
+            const updatedMessages = conversation.messages.slice(0, userMessageIndex + 1);
             
             // Update the conversation
             const updatedConversation = {

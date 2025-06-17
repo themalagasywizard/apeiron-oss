@@ -28,19 +28,19 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
         <DialogHeader>
-          <DialogTitle className="text-center text-2xl font-bold">Welcome to T3 Chat</DialogTitle>
+          <DialogTitle className="text-center text-2xl font-bold text-gray-900 dark:text-white">Welcome to Apeiron</DialogTitle>
           <DialogDescription className="text-center text-gray-600 dark:text-gray-400">
             Sign in to save your conversations and access them across devices
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-4 py-4">
+        <div className="flex flex-col space-y-4">
           <Button
             onClick={handleGoogleSignIn}
             disabled={loading || isSigningIn}
-            className="w-full h-12 text-base font-medium"
+            className="w-full h-12 text-base font-medium bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800"
             variant="outline"
           >
             {isSigningIn ? (

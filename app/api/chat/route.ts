@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const requestBody = await request.json();
-    const { messages, provider: requestProvider, apiKey, geminiApiKey, model, temperature, customModelName, webSearchEnabled, codeGenerationEnabled } = requestBody;
+    const { messages, provider: requestProvider, apiKey, geminiApiKey, model, temperature, customModelName, webSearchEnabled, codeGenerationEnabled, enhancedWebSearch } = requestBody;
     provider = requestProvider; // Assign to outer scope variable
 
     // Validate required inputs
@@ -369,26 +369,37 @@ Generate the complete solution now:`;
       const lastMessage = messages[messages.length - 1];
       if (lastMessage && lastMessage.role === "user") {
         try {
+          // Extract user location from request if available
+          const userLocation = request.headers.get('x-user-location') || null;
           
           const searchResponse = await fetchWithTimeout(`${new URL(request.url).origin}/api/web-search`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               query: lastMessage.content,
-              maxResults: 5
+              maxResults: 5,
+              userLocation,
+              extractContent: enhancedWebSearch // Use enhanced search flag for content extraction
             })
-          }, 15000); // 15 second timeout for web search in serverless
+          }, enhancedWebSearch ? 25000 : 15000); // Increased timeout for enhanced search
 
           if (searchResponse.ok) {
             const searchData = await searchResponse.json();
             searchResults = searchData.results;
             
             // Enhance the user's message with search context
-            const searchContext = searchResults.map((result: any, index: number) => 
-              `[${index + 1}] Title: ${result.title}
+            // Use extracted content when available for better context
+            const searchContext = searchResults.map((result: any, index: number) => {
+              // Use extracted content if available, otherwise use snippet
+              const contentSection = result.extractedContent 
+                ? `Content: ${result.extractedContent.substring(0, 1000)}${result.extractedContent.length > 1000 ? '...' : ''}`
+                : `Snippet: ${result.snippet}`;
+                
+              return `[${index + 1}] Title: ${result.extractedTitle || result.title}
 URL: ${result.url}
-Content: ${result.snippet}`
-            ).join('\n\n');
+Source: ${result.source || 'Unknown'}
+${contentSection}`;
+            }).join('\n\n');
             
             const enhancedContent = `User Query: ${lastMessage.content}
 
@@ -397,11 +408,18 @@ ${searchContext}
 
 INSTRUCTIONS:
 - Base your response ONLY on the web search results provided above
-- Include specific information from the search results 
+- Analyze the content from the search results and provide a comprehensive summary
+- Extract the most relevant information from each source to answer the query
+- Include specific information, facts, and data from the search results
 - Cite sources using the format [1], [2], etc. referring to the numbered sources above
 - Provide clickable links in your response using markdown format [Link Text](URL)
 - If the search results don't contain enough information to fully answer the query, say so explicitly
 - Do NOT provide generic information not found in the search results
+- Focus on the most relevant and reliable sources
+- Ignore any search results that seem irrelevant to the query
+- Prioritize sources from established websites and publications
+- Ensure your response is coherent and directly addresses the user's query
+- If search results are in different languages, focus on the English ones
 
 Please provide a comprehensive response using the above search results.`;
 
