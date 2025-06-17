@@ -2331,16 +2331,57 @@ export default function MainUI({
                         modelId={message.model || 'unknown'}
                         size="sm"
                       />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {(() => {
-                          // First try to find in available models, then fall back to comprehensive library
-                          let model = availableModels.find(m => m.id === message.model || m.provider === message.provider);
-                          if (!model) {
-                            model = allModelsLibrary.find(m => m.id === message.model || m.provider === message.provider);
-                          }
-                          return model?.name || message.model || message.provider || 'AI';
-                        })()}
-                      </span>
+                      <div className="relative group">
+                        <div className="flex items-center gap-2 cursor-pointer">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {(() => {
+                              // First try to find in available models, then fall back to comprehensive library
+                              let model = availableModels.find(m => m.id === message.model || m.provider === message.provider);
+                              if (!model) {
+                                model = allModelsLibrary.find(m => m.id === message.model || m.provider === message.provider);
+                              }
+                              return model?.name || message.model || message.provider || 'AI';
+                            })()}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              onRetryMessage(message.id);
+                            }}
+                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                            title="Retry with selected model"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 dark:text-gray-400">
+                              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                              <path d="M21 3v5h-5" />
+                            </svg>
+                          </button>
+                        </div>
+                        
+                        {/* Model Selection Dropdown */}
+                        <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block">
+                          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[200px]">
+                            {availableModels.map((model) => (
+                              <button
+                                key={model.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  // First select the model
+                                  onSelectModel(model.id);
+                                  // Then retry the message
+                                  onRetryMessage(message.id);
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                              >
+                                <ModelLogo provider={model.provider} modelId={model.id} size="sm" />
+                                <span className="text-gray-700 dark:text-gray-300">{model.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

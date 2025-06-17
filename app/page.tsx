@@ -45,17 +45,6 @@ type UIMessage = {
   }
 }
 
-type ProcessedFile = {
-  id: string
-  name: string
-  type: string
-  size: number
-  url?: string
-  extractedText?: string
-  thumbnailUrl?: string
-  uploadedAt: string
-}
-
 type Model = {
   id: string
   name: string
@@ -101,6 +90,17 @@ type UIProject = {
   created_at: string
   updated_at: string
   color?: string | null
+}
+
+type ProcessedFile = {
+  id: string
+  name: string
+  type: string
+  size: number
+  url?: string
+  extractedText?: string
+  thumbnailUrl?: string
+  uploadedAt: string
 }
 
 export default function Home() {
@@ -659,9 +659,11 @@ export default function Home() {
 
   const handleSendMessage = async (
     message: string, 
-    attachments?: any[], 
-    webSearchEnabled?: boolean, 
-    codeGenerationEnabled?: boolean
+    attachments?: ProcessedFile[], 
+    webSearchEnabled: boolean = false, 
+    codeGenerationEnabled: boolean = false,
+    userLocation: string | null = null,
+    enhancedWebSearch: boolean = false
   ) => {
     if (!message.trim() && !attachments?.length) return
 
@@ -802,12 +804,19 @@ export default function Home() {
           content: msg.content
         }))
 
+      // Prepare headers with location data if available
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (webSearchEnabled && userLocation) {
+        headers['x-user-location'] = userLocation;
+      }
+
       // Make API call to get AI response
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           messages: cleanMessages,
           provider: provider,
@@ -816,6 +825,7 @@ export default function Home() {
           temperature: userSettings.temperature,
           webSearchEnabled,
           codeGenerationEnabled,
+          enhancedWebSearch,
           // Include all individual API keys for image generation routing
           openaiApiKey: userSettings.openaiApiKey,
           claudeApiKey: userSettings.claudeApiKey,
@@ -1112,8 +1122,36 @@ export default function Home() {
           onRenameConversation={handleRenameConversation}
           onDeleteConversation={handleDeleteConversation}
           onRetryMessage={(messageId: string) => {
-            // Implement retry logic
-            console.log('Retry message:', messageId)
+            // Find the message to retry
+            const conversation = conversations.find(conv => conv.messages.some(m => m.id === messageId));
+            if (!conversation) return;
+            
+            const messageIndex = conversation.messages.findIndex(m => m.id === messageId);
+            if (messageIndex === -1) return;
+            
+            const message = conversation.messages[messageIndex];
+            const messageToRetry = message.retryData?.originalMessage || message.content;
+            const attachments = message.retryData?.attachments || [];
+            
+            // Remove all messages after this one and the current message
+            const updatedMessages = conversation.messages.slice(0, messageIndex);
+            
+            // Update the conversation
+            const updatedConversation = {
+              ...conversation,
+              messages: updatedMessages,
+              updated_at: new Date().toISOString()
+            };
+            
+            // Update conversations state
+            const newConversations = conversations.map(conv =>
+              conv.id === conversation.id ? updatedConversation : conv
+            );
+            setConversations(newConversations);
+            saveConversationsLocally(newConversations);
+            
+            // Send the message with current model
+            handleSendMessage(messageToRetry, attachments);
           }}
           onExpandedProjectsChange={handleExpandedProjectsChange}
         />
