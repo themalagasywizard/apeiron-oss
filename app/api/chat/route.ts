@@ -1,5 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// Define attachment type
+type Attachment = {
+  id?: string;
+  type?: string;
+  url?: string;
+  name?: string;
+  size?: number;
+  uploadedAt?: string;
+};
+
+// Define request body type
+type ChatRequestBody = {
+  messages: any[];
+  model: string;
+  provider: string;
+  apiKey: string;
+  geminiApiKey?: string;
+  openaiApiKey?: string;
+  runwayApiKey?: string;
+  customModelName?: string;
+  webSearchEnabled?: boolean | string;
+  enhancedWebSearch?: boolean | string;
+  codeGenerationEnabled?: boolean | string;
+  temperature?: number;
+  userLocation?: string;
+  retryCount?: number;
+};
+
 // Helper function to get provider from model ID
 function getModelProvider(modelId: string): string {
   if (modelId.includes('claude')) return 'claude';
@@ -11,6 +39,13 @@ function getModelProvider(modelId: string): string {
   if (modelId.includes('mistral') || modelId.includes('codestral')) return 'mistral';
   if (modelId.includes('gen3') || modelId.includes('gen2') || modelId.includes('runway')) return 'runway';
   return 'openai';
+}
+
+// Helper function to convert string or boolean to boolean
+function toBooleanStrict(value: string | boolean | undefined): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return false;
 }
 
 // API Route optimized for serverless environments (Netlify/Vercel)
@@ -25,29 +60,43 @@ export async function POST(request: NextRequest) {
   let model = "unknown"; // Declare outside try block for error handling
   
   try {
-    const requestBody = await request.json();
-    const { 
-      messages, 
-      provider: requestProvider, 
-      apiKey, 
-      geminiApiKey, 
-      model: requestModel, 
-      temperature, 
-      customModelName, 
-      webSearchEnabled, 
-      codeGenerationEnabled, 
-      enhancedWebSearch 
-    }: {
-      messages: any[];
-      provider: string;
-      apiKey: string;
-      geminiApiKey?: string;
-      model: string;
-      temperature?: number;
-      customModelName?: string;
-      webSearchEnabled?: boolean | string;
-      codeGenerationEnabled?: boolean | string;
-      enhancedWebSearch?: boolean | string;
+    const requestBody: ChatRequestBody = await request.json();
+    
+    // Initialize request type flags
+    let isCodeRequest: boolean = false;
+    let isImageRequest: boolean = false;
+    
+    // Log the full request body for debugging
+    console.log('Chat API Request Body:', JSON.stringify({
+      messageCount: requestBody.messages?.length,
+      model: requestBody.model,
+      provider: requestBody.provider,
+      firstMessageContent: requestBody.messages?.[0]?.content?.substring(0, 50),
+      lastMessageContent: requestBody.messages?.[requestBody.messages.length - 1]?.content?.substring(0, 50),
+      lastMessageHasAttachments: !!requestBody.messages?.[requestBody.messages.length - 1]?.attachments,
+      lastMessageAttachmentsCount: requestBody.messages?.[requestBody.messages.length - 1]?.attachments?.length || 0,
+      firstAttachment: requestBody.messages?.[requestBody.messages.length - 1]?.attachments?.[0] ? {
+        type: requestBody.messages[requestBody.messages.length - 1].attachments[0].type,
+        hasUrl: !!requestBody.messages[requestBody.messages.length - 1].attachments[0].url,
+        urlPrefix: requestBody.messages[requestBody.messages.length - 1].attachments[0].url?.substring(0, 30)
+      } : 'no attachments'
+    }, null, 2));
+    
+    const {
+      messages,
+      model: requestModel,
+      provider: requestProvider,
+      apiKey,
+      geminiApiKey,
+      openaiApiKey,
+      runwayApiKey,
+      customModelName,
+      webSearchEnabled,
+      enhancedWebSearch,
+      codeGenerationEnabled,
+      temperature,
+      userLocation,
+      retryCount = 0
     } = requestBody;
     
     provider = requestProvider; // Assign to outer scope variable
@@ -86,16 +135,315 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert flags to boolean - handle both string and boolean inputs
-    const toBool = (val: string | boolean | undefined): boolean => {
-      if (typeof val === 'boolean') return val;
-      if (typeof val === 'string') return val.toLowerCase() === 'true';
-      return false;
-    };
+    // Convert flags to boolean using strict helper
+    const isWebSearchEnabled = toBooleanStrict(webSearchEnabled);
+    const isEnhancedWebSearch = toBooleanStrict(enhancedWebSearch);
+    const isCodeGenerationEnabled = toBooleanStrict(codeGenerationEnabled);
 
-    const isWebSearchEnabled = toBool(webSearchEnabled);
-    const isEnhancedWebSearch = toBool(enhancedWebSearch);
-    const isCodeGenerationEnabled = toBool(codeGenerationEnabled);
+    // Check if there are any image attachments in the messages
+    const hasImageAttachments = messages.some(message => {
+      if (!message.attachments || !Array.isArray(message.attachments)) {
+        return false;
+      }
+      
+      // Log the full message structure for debugging
+      console.log('Message with attachments:', JSON.stringify({
+        role: message.role,
+        content: typeof message.content === 'string' ? message.content.substring(0, 50) : 'non-string content',
+        attachmentsCount: message.attachments.length,
+        firstAttachment: message.attachments[0] ? {
+          id: message.attachments[0].id,
+          name: message.attachments[0].name,
+          type: message.attachments[0].type,
+          hasUrl: !!message.attachments[0].url,
+          urlPrefix: message.attachments[0].url ? message.attachments[0].url.substring(0, 30) : 'no-url'
+        } : 'no-attachments'
+      }, null, 2));
+      
+      return message.attachments.some((att: Attachment) => {
+        // Log attachment details for debugging
+        console.log('Checking attachment:', {
+          id: att.id,
+          name: att.name,
+          type: att.type,
+          url: att.url ? att.url.substring(0, 50) + '...' : 'no url',
+          hasType: !!att.type,
+          typeIsString: typeof att.type === 'string',
+          startsWithImage: typeof att.type === 'string' && att.type.startsWith('image/'),
+          hasUrl: !!att.url,
+          urlIsString: typeof att.url === 'string',
+          urlStartsWithData: typeof att.url === 'string' && att.url.startsWith('data:')
+        });
+        
+        // Accept any attachment with an image type and a URL
+        return !!att.type && 
+               typeof att.type === 'string' && 
+               att.type.startsWith('image/') &&
+               !!att.url;
+      });
+    });
+
+    console.log(`Request has image attachments: ${hasImageAttachments}`);
+    
+    // Process messages based on provider and attachments
+    let processedMessages = [...messages]; // Default to original messages
+
+    // If there are image attachments, format them according to each provider's requirements
+    if (hasImageAttachments) {
+      console.log(`Processing image attachments for provider: ${provider}`);
+      
+      // Find the last user message with attachments
+      const lastUserMessageIndex = messages.findLastIndex((msg): boolean => {
+        if (msg.role !== 'user' || !msg.attachments || !Array.isArray(msg.attachments)) {
+          return false;
+        }
+        // Log message details for debugging
+        console.log('Checking message for attachments:', {
+          role: msg.role,
+          hasAttachments: !!msg.attachments,
+          attachmentsLength: msg.attachments?.length,
+          content: msg.content?.substring(0, 50),
+          hasImageAttachment: msg.attachments.some((att: Attachment) => 
+            !!att.type && 
+            typeof att.type === 'string' && 
+            att.type.startsWith('image/') &&
+            !!att.url
+          )
+        });
+        return msg.attachments.some((att: Attachment) => 
+          !!att.type && 
+          typeof att.type === 'string' && 
+          att.type.startsWith('image/') &&
+          !!att.url
+        );
+      });
+      
+      if (lastUserMessageIndex !== -1) {
+        const userMessage = messages[lastUserMessageIndex];
+        const imageAttachments = userMessage.attachments.filter((att: any) => att.type?.startsWith('image/'));
+        
+        if (imageAttachments.length > 0) {
+          console.log(`Found ${imageAttachments.length} image attachments in message`);
+          
+          // Format based on provider
+          switch(provider.toLowerCase()) {
+            case 'openai':
+              // Format for OpenAI's vision models
+              processedMessages = messages.map((msg, i) => {
+                if (i === lastUserMessageIndex) {
+                  // Convert to OpenAI's vision format
+                  const contentParts = [];
+                  
+                  // Add text content if it exists
+                  if (msg.content && typeof msg.content === 'string') {
+                    contentParts.push({ 
+                      type: "text", 
+                      text: msg.content 
+                    });
+                  }
+                  
+                  // Add image attachments
+                  imageAttachments.forEach((img: any) => {
+                    if (img.url) {
+                      try {
+                        console.log('Processing image for OpenAI:', img.type, img.url.substring(0, 50));
+                        
+                        // OpenAI supports both data URLs and external URLs
+                        contentParts.push({
+                          type: "image_url",
+                          image_url: {
+                            url: img.url
+                          }
+                        });
+                        
+                        console.log('Successfully added image to OpenAI message');
+                      } catch (e) {
+                        console.error('Failed to process image for OpenAI:', e);
+                      }
+                    }
+                  });
+                  
+                  return {
+                    ...msg,
+                    content: contentParts
+                  };
+                }
+                return msg;
+              });
+              console.log('Processed messages for OpenAI vision');
+              break;
+              
+            case 'claude':
+              // Format for Claude's vision models
+              processedMessages = messages.map((msg, i) => {
+                if (i === lastUserMessageIndex) {
+                  // Convert to Claude's vision format
+                  const contentParts = [];
+                  
+                  // Add text content if it exists
+                  if (msg.content && typeof msg.content === 'string') {
+                    contentParts.push({ 
+                      type: "text", 
+                      text: msg.content 
+                    });
+                  }
+                  
+                  // Add image attachments
+                  imageAttachments.forEach((img: any) => {
+                    if (img.url) {
+                      try {
+                        console.log('Processing image for Claude:', img.type, img.url.substring(0, 50));
+                        
+                        let base64Data = '';
+                        let mimeType = img.type || 'image/jpeg';
+                        
+                        // Handle data URLs
+                        if (img.url.startsWith('data:')) {
+                          const [header, data] = img.url.split(',');
+                          if (header && data) {
+                            // Extract mime type if available in the data URL
+                            const mimeMatch = header.match(/data:(.*?);/);
+                            if (mimeMatch && mimeMatch[1]) {
+                              mimeType = mimeMatch[1];
+                            }
+                            base64Data = data;
+                          } else {
+                            throw new Error('Invalid data URL format');
+                          }
+                        } 
+                        // Handle raw base64 data
+                        else if (img.url.match(/^[A-Za-z0-9+/=]+$/)) {
+                          base64Data = img.url;
+                        }
+                        // Handle external URLs - not supported by Claude
+                        else {
+                          throw new Error('Claude only supports base64 image data, not external URLs');
+                        }
+
+                        if (!base64Data) {
+                          throw new Error('Failed to extract image data');
+                        }
+
+                        contentParts.push({
+                          type: "image",
+                          source: {
+                            type: "base64",
+                            media_type: mimeType,
+                            data: base64Data
+                          }
+                        });
+                        
+                        console.log('Successfully added image to Claude message');
+                      } catch (e) {
+                        console.error('Failed to process image for Claude:', e);
+                        throw new Error('Failed to process image for Claude. Please ensure the image is in a supported format.');
+                      }
+                    }
+                  });
+                  
+                  return {
+                    ...msg,
+                    content: contentParts
+                  };
+                }
+                return msg;
+              });
+              console.log('Processed messages for Claude vision');
+              break;
+              
+            case 'gemini':
+              // Format for Gemini's vision models
+              const geminiMessages = [];
+              
+              // Add previous messages (excluding the last user message)
+              for (let i = 0; i < lastUserMessageIndex; i++) {
+                const msg = messages[i];
+                geminiMessages.push({
+                  role: msg.role === 'assistant' ? 'model' : 'user',
+                  parts: [{ text: msg.content }]
+                });
+              }
+              
+              // Add the last user message with images
+              const lastUserMsg = messages[lastUserMessageIndex];
+              const geminiParts = [];
+              
+              // Add text content if it exists
+              if (lastUserMsg.content && typeof lastUserMsg.content === 'string') {
+                geminiParts.push({ text: lastUserMsg.content });
+              }
+              
+              // Add image attachments
+              imageAttachments.forEach((img: any) => {
+                if (img.url) {
+                  try {
+                    console.log('Processing image for Gemini:', img.type, img.url.substring(0, 50));
+                    
+                    let mimeType = img.type || 'image/jpeg';
+                    let imageData = img.url;
+                    
+                    // Handle data URLs by extracting the base64 part
+                    if (img.url.startsWith('data:')) {
+                      const [header, data] = img.url.split(',');
+                      if (header && data) {
+                        // Extract mime type if available in the data URL
+                        const mimeMatch = header.match(/data:(.*?);/);
+                        if (mimeMatch && mimeMatch[1]) {
+                          mimeType = mimeMatch[1];
+                        }
+                        imageData = data; // Just the base64 part for inline_data
+                      }
+                    }
+                    
+                    geminiParts.push({
+                      inline_data: {
+                        mime_type: mimeType,
+                        data: imageData
+                      }
+                    });
+                    
+                    console.log('Successfully added image to Gemini message');
+                  } catch (e) {
+                    console.error('Failed to process image for Gemini:', e);
+                  }
+                }
+              });
+              
+              geminiMessages.push({
+                role: 'user',
+                parts: geminiParts
+              });
+              
+              // Set the processed messages for Gemini
+              processedMessages = geminiMessages;
+              console.log('Processed messages for Gemini vision');
+              break;
+              
+            default:
+              // For other providers, enhance the text prompt
+              processedMessages = messages.map((msg, i) => {
+                if (i === lastUserMessageIndex) {
+                  let enhancedContent = msg.content || '';
+                  
+                  // Add image context to the prompt
+                  if (imageAttachments.length === 1) {
+                    enhancedContent = `[Image attached] ${enhancedContent}`;
+                  } else {
+                    enhancedContent = `[${imageAttachments.length} images attached] ${enhancedContent}`;
+                  }
+                  
+                  return {
+                    ...msg,
+                    content: enhancedContent
+                  };
+                }
+                return msg;
+              });
+              console.log(`Enhanced text prompt for provider: ${provider}`);
+          }
+        }
+      }
+    }
 
     // Validate model matches provider
     const modelProvider = getModelProvider(model);
@@ -143,21 +491,25 @@ export async function POST(request: NextRequest) {
     };
 
     // Detect if this is a code generation request
-    let isCodeRequest: boolean = false;
-    let isImageRequest: boolean = false;
-
     try {
-      const lastMessage = messages[messages.length - 1]?.content?.toLowerCase() || "";
+      const lastMessageContent = typeof processedMessages[processedMessages.length - 1]?.content === 'string' 
+        ? processedMessages[processedMessages.length - 1]?.content?.toLowerCase() || ""
+        : "";
       
       // Check if this is a retry by looking at message history
-      isRetry = messages.length > 1 && messages.some(m => 
+      isRetry = processedMessages.length > 1 && processedMessages.some(m => 
         m.role === 'assistant' && 
         typeof m.content === 'string' && 
         m.content.includes('Try Again')
       );
 
-      // Only check for code patterns if codeGenerationEnabled is true AND this is not a retry
-      if (isCodeGenerationEnabled && !isRetry) {
+      // If there are image attachments, disable code generation detection
+      if (hasImageAttachments) {
+        isCodeRequest = false;
+        console.log("Image attachments detected - disabling code generation detection");
+      }
+      // Only check for code patterns if codeGenerationEnabled is EXPLICITLY true and no image attachments
+      else if (toBooleanStrict(codeGenerationEnabled) === true && !isRetry) {
         // Enhanced code detection patterns
         const codePatterns = [
           /create.*(?:website|web.*page|html.*page|landing.*page)/i,
@@ -179,9 +531,11 @@ export async function POST(request: NextRequest) {
           /design.*interface/i
         ];
         
-        isCodeRequest = codePatterns.some(pattern => pattern.test(lastMessage));
+        isCodeRequest = Boolean(codePatterns.some(pattern => pattern.test(lastMessageContent)));
+        console.log("Code generation enabled and patterns matched:", isCodeRequest);
       } else {
         isCodeRequest = false;
+        console.log("Code generation disabled or retry request");
       }
       
       // Enhanced image detection patterns
@@ -199,13 +553,26 @@ export async function POST(request: NextRequest) {
         /can.*you.*(?:draw|create|generate|make).*(?:image|picture)/i
       ];
       
-      // 2. Selected model is an image/video generation model (automatic routing like VEO2)
-      const isImageModel = model && (model.includes('gen3') || model.includes('gen2'));
+      // Check if model is an image/video generation model
+      const isImageModel = Boolean(model && (model.includes('gen3') || model.includes('gen2')));
       
-      // 3. Message content suggests image generation
-      isImageRequest = imagePatterns.some(pattern => pattern.test(lastMessage)) || isImageModel;
+      // Check for image generation request
+      isImageRequest = Boolean(imagePatterns.some(pattern => pattern.test(lastMessageContent)) || isImageModel);
       
-      console.log("Request analysis:", { isCodeRequest, isImageRequest, isImageModel, model, lastMessage: lastMessage.substring(0, 100) });
+      // If image attachments are present, prioritize vision model handling for all providers
+      if (hasImageAttachments) {
+        console.log("Image attachments detected - prioritizing vision model handling for all providers");
+      }
+      
+      console.log("Request analysis:", { 
+        isCodeRequest: toBooleanStrict(isCodeRequest), 
+        isImageRequest: toBooleanStrict(isImageRequest), 
+        isImageModel: toBooleanStrict(isImageModel), 
+        model, 
+        codeGenerationEnabled: toBooleanStrict(isCodeGenerationEnabled),
+        hasImageAttachments,
+        lastMessage: lastMessageContent?.substring(0, 100) 
+      });
     } catch (error) {
       console.error("Error in request detection:", error);
       isCodeRequest = false;
@@ -213,7 +580,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Route code generation requests to Edge Function for better performance (both dev and production)
-    if (isCodeRequest) {
+    if (isCodeRequest === true) {
       try {
         console.log('Routing code generation request to edge function for optimal performance');
         const edgeFunctionUrl = `${new URL(request.url).origin}/api/generate-code`;
@@ -224,7 +591,7 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            messages,
+            messages: processedMessages,
             provider,
             apiKey,
             model,
@@ -271,7 +638,7 @@ export async function POST(request: NextRequest) {
         console.log('Routing image generation request to image API');
         const imageApiUrl = `${new URL(request.url).origin}/api/generate-image`;
         
-        const prompt = messages[messages.length - 1]?.content || "";
+        const prompt = processedMessages[processedMessages.length - 1]?.content || "";
         
         // Prepare headers with API keys for the image generation API
         const headers: Record<string, string> = {
@@ -282,11 +649,11 @@ export async function POST(request: NextRequest) {
         if (geminiApiKey) {
           headers['x-gemini-api-key'] = geminiApiKey;
         }
-        if (requestBody.runwayApiKey) {
-          headers['x-runway-api-key'] = requestBody.runwayApiKey;
+        if (runwayApiKey) {
+          headers['x-runway-api-key'] = runwayApiKey;
         }
-        if (requestBody.openaiApiKey) {
-          headers['x-openai-api-key'] = requestBody.openaiApiKey;
+        if (openaiApiKey) {
+          headers['x-openai-api-key'] = openaiApiKey;
         }
         
         const imageResponse = await fetchWithTimeout(imageApiUrl, {
@@ -448,7 +815,7 @@ Generate the complete solution now:`;
 
     // Perform web search if enabled for compatible models (Gemini and Grok)
     if (isWebSearchEnabled && (provider === "gemini" || provider === "grok")) {
-      const lastMessage = messages[messages.length - 1];
+      const lastMessage = processedMessages[processedMessages.length - 1];
       if (lastMessage && lastMessage.role === "user") {
         try {
           // Extract user location from request if available
@@ -506,7 +873,7 @@ INSTRUCTIONS:
 Please provide a comprehensive response using the above search results.`;
 
             // Update the last message with search context
-            messages[messages.length - 1] = {
+            processedMessages[processedMessages.length - 1] = {
               ...lastMessage,
               content: enhancedContent
             };
@@ -564,7 +931,7 @@ Please provide a comprehensive response using the above search results.`;
     switch (provider) {
       case "openai":
         const openaiParams = getOptimizedParams(15000, 2500);
-        const openaiMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        const openaiMessages = optimizeMessagesForCode(processedMessages.map((m: any) => ({ role: m.role, content: m.content })));
         
         response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
           method: "POST",
@@ -595,7 +962,7 @@ Please provide a comprehensive response using the above search results.`;
 
       case "claude":
         const claudeParams = getOptimizedParams(15000, 3000);
-        const claudeMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        const claudeMessages = optimizeMessagesForCode(processedMessages.map((m: any) => ({ role: m.role, content: m.content })));
         
         response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
           method: "POST",
@@ -625,16 +992,47 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "gemini":
-        // Increase timeout for Gemini, especially for code generation
-        const geminiBaseTimeout = isCodeRequest || isCodeGenerationEnabled ? 25000 : 15000; // 25s for code, 15s for regular
+        // Increase timeout for Gemini, especially for code generation or image processing
+        let geminiBaseTimeout = isCodeRequest || isCodeGenerationEnabled ? 25000 : 15000; // 25s for code, 15s for regular
+        
+        // Increase timeout for image processing, especially for Gemini 2.5 Pro
+        if (hasImageAttachments) {
+          geminiBaseTimeout = model.includes("2.5-pro") ? 30000 : 20000; // 30s for 2.5 Pro with images, 20s for others
+          console.log(`Increased timeout for Gemini image processing: ${geminiBaseTimeout}ms`);
+        }
         const geminiParams = getOptimizedParams(geminiBaseTimeout, 3000);
         
-        // Clean messages first, then convert to Gemini format
-        const cleanedGeminiMessages = optimizeMessagesForCode(messages);
-        const geminiMessages = cleanedGeminiMessages.map((m: any) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }]
-        }));
+        // Check if we have pre-formatted Gemini messages with images
+        let geminiMessages;
+        
+        // If the processedMessages are already in Gemini format with parts array
+        if (hasImageAttachments && 
+            Array.isArray(processedMessages) && 
+            processedMessages.length > 0 && 
+            processedMessages[0].parts) {
+          console.log('Using pre-formatted Gemini messages with images');
+          
+          // Debug log to check the structure of image messages
+          if (model.includes("2.5-pro")) {
+            console.log('Gemini 2.5 Pro image message format:', 
+              JSON.stringify({
+                messageCount: processedMessages.length,
+                firstMessageFormat: processedMessages[0].parts ? 'parts array' : 'unknown',
+                partsCount: processedMessages[0].parts?.length || 0,
+                hasImagePart: processedMessages[0].parts?.some((p: any) => p.inline_data) || false
+              })
+            );
+          }
+          
+          geminiMessages = processedMessages;
+        } else {
+          // Clean messages first, then convert to Gemini format
+          const cleanedGeminiMessages = optimizeMessagesForCode(processedMessages);
+          geminiMessages = cleanedGeminiMessages.map((m: any) => ({
+            role: m.role === "assistant" ? "model" : "user",
+            parts: [{ text: m.content }]
+          }));
+        }
         
 
         
@@ -644,6 +1042,7 @@ Please provide a comprehensive response using the above search results.`;
           geminiModel = "gemini-2.5-flash-preview-05-20"; // Correct 2.5 Flash model name
         } else if (model.includes("2.5-pro")) {
           geminiModel = "gemini-2.5-pro-preview-06-05"; // Correct 2.5 Pro model name
+          console.log("Using Gemini 2.5 Pro model:", geminiModel);
         }
         
         try {
@@ -685,12 +1084,12 @@ Please provide a comprehensive response using the above search results.`;
           console.error("Gemini error:", geminiError);
           
           // If this was a code generation request and it failed, try with reduced complexity
-          if ((isCodeRequest || isCodeGenerationEnabled) && geminiError instanceof Error && geminiError.message.includes('504')) {
+          if ((isCodeRequest === true || isCodeGenerationEnabled === true) && geminiError instanceof Error && geminiError.message.includes('504')) {
             console.log("Retrying Gemini with simplified request...");
             
             try {
               // Simplify the request for retry
-              const simplifiedMessages = cleanedGeminiMessages.slice(-2).map((m: any) => ({
+              const simplifiedMessages = geminiMessages.slice(-2).map((m: any) => ({
                 role: m.role === "assistant" ? "model" : "user",
                 parts: [{ text: m.content.length > 1000 ? m.content.substring(0, 1000) + "..." : m.content }]
               }));
@@ -729,7 +1128,7 @@ Please provide a comprehensive response using the above search results.`;
 
       case "deepseek":
         const deepseekParams = getOptimizedParams(25000, 1500); // Increased timeout to 25 seconds, further reduced max tokens
-        const deepseekMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        const deepseekMessages = optimizeMessagesForCode(processedMessages.map((m: any) => ({ role: m.role, content: m.content })));
         
         // Use the specific model passed in (should be deepseek-v3), fallback to deepseek-chat
         const deepseekModel = model === "deepseek-v3" ? "deepseek-v3" : "deepseek-chat";
@@ -809,7 +1208,7 @@ Please provide a comprehensive response using the above search results.`;
 
       case "grok":
         const grokParams = getOptimizedParams(15000, 2500);
-        const grokMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        const grokMessages = optimizeMessagesForCode(processedMessages.map((m: any) => ({ role: m.role, content: m.content })));
         
         response = await fetchWithTimeout("https://api.x.ai/v1/chat/completions", {
           method: "POST",
@@ -840,7 +1239,7 @@ Please provide a comprehensive response using the above search results.`;
 
       case "openrouter":
         const openrouterParams = getOptimizedParams(15000, 2500);
-        const openrouterMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        const openrouterMessages = optimizeMessagesForCode(processedMessages.map((m: any) => ({ role: m.role, content: m.content })));
         
         response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
@@ -873,7 +1272,7 @@ Please provide a comprehensive response using the above search results.`;
 
       case "mistral":
         const mistralParams = getOptimizedParams(15000, 2500);
-        const mistralMessages = optimizeMessagesForCode(messages.map((m: any) => ({ role: m.role, content: m.content })));
+        const mistralMessages = optimizeMessagesForCode(processedMessages.map((m: any) => ({ role: m.role, content: m.content })));
         
 
         
@@ -916,7 +1315,7 @@ Please provide a comprehensive response using the above search results.`;
 
       case "veo2":
         // VEO2 video generation using dedicated endpoint
-        const prompt = messages[messages.length - 1]?.content || "";
+        const prompt = processedMessages[processedMessages.length - 1]?.content || "";
         
         // Construct the VEO2 endpoint URL properly
         const baseUrl = new URL(request.url).origin;
