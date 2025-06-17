@@ -71,6 +71,7 @@ type ProcessedFile = {
   extractedText?: string
   thumbnailUrl?: string
   uploadedAt: string
+  previewUrl?: string
 }
 
 type Conversation = {
@@ -151,7 +152,7 @@ type MainUIProps = {
   onSaveSettings?: (settings: any) => void
   onRenameConversation?: (id: string, newTitle: string) => void
   onDeleteConversation?: (id: string) => void
-  onRetryMessage?: (messageId: string) => void
+  onRetryMessage?: (messageId: string, selectedModelId?: string) => void
   onExpandedProjectsChange?: (expandedProjects: Record<string, boolean>) => void
 }
 
@@ -535,10 +536,42 @@ export default function MainUI({
   const handleFileUpload = async (file: File) => {
     if (!file) return
 
+    // Create a temporary attachment object for loading state
+    const tempAttachment = {
+      id: 'temp-' + Date.now(),
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      uploadedAt: new Date().toISOString()
+    }
+
+    // Add the temporary attachment to show loading state
+    setAttachments(prev => [...prev, tempAttachment])
     setIsUploading(true)
     setError(null)
 
     try {
+      // Validate file type
+      const isImage = file.type.startsWith('image/')
+      const isPDF = file.type === 'application/pdf'
+      
+      if (!isImage && !isPDF) {
+        throw new Error('Only images and PDFs are supported')
+      }
+
+      // Validate image format if it's an image
+      if (isImage) {
+        const allowedFormats = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        if (!allowedFormats.includes(file.type)) {
+          throw new Error('Only JPG, PNG, GIF, and WebP images are supported')
+        }
+        
+        // Validate image size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          throw new Error('Image size must be less than 10MB')
+        }
+      }
+
       const formData = new FormData()
       formData.append('file', file)
 
@@ -553,10 +586,19 @@ export default function MainUI({
         throw new Error(result.error || 'Upload failed')
       }
 
-      // Add the processed file to attachments
-      setAttachments(prev => [...prev, result.file])
+      // Create a preview URL for images
+      if (isImage) {
+        result.file.previewUrl = URL.createObjectURL(file)
+      }
+
+      // Replace the temporary attachment with the processed one
+      setAttachments(prev => prev.map(att => 
+        att.id === tempAttachment.id ? result.file : att
+      ))
     } catch (error) {
       console.error('Upload error:', error)
+      // Remove the temporary attachment on error
+      setAttachments(prev => prev.filter(att => att.id !== tempAttachment.id))
       setError(error instanceof Error ? error.message : 'Failed to upload file')
       setTimeout(() => setError(null), 5000)
     } finally {
@@ -615,17 +657,28 @@ export default function MainUI({
       }
       
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: false,
-          timeout: 5000,
-          maximumAge: 300000 // 5 minutes
-        });
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          (error) => {
+            console.log("Geolocation permission denied or error:", error);
+            setLocationPermission("denied");
+            reject(error);
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 5000,
+            maximumAge: 300000 // 5 minutes
+          }
+        );
       });
       
       // Get approximate location name using reverse geocoding
       try {
         const { latitude, longitude } = position.coords;
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const data = await response.json();
         
         // Extract country code or state
@@ -644,11 +697,15 @@ export default function MainUI({
         console.log("Location permission granted:", locationString);
       } catch (error) {
         console.error("Error getting location name:", error);
+        // Still set permission to granted since we got coordinates
+        setLocationPermission("granted");
         setUserLocation(null);
       }
     } catch (error) {
+      // This catches both geolocation errors and promise rejections
       console.error("Error getting location:", error);
       setLocationPermission("denied");
+      setUserLocation(null);
     }
   };
 
@@ -668,6 +725,10 @@ export default function MainUI({
           setLocationPermission("denied");
         }
       }
+      // Disable code generation if it's enabled
+      if (codeGenerationEnabled) {
+        setCodeGenerationEnabled(false);
+      }
       // Enable web search with enhanced mode by default
       setWebSearchEnabled(true);
       setEnhancedWebSearch(true);
@@ -678,6 +739,20 @@ export default function MainUI({
       // Turn off web search completely
       setWebSearchEnabled(false);
       setEnhancedWebSearch(false);
+    }
+  };
+
+  // Handle code generation toggle
+  const handleCodeGenerationToggle = () => {
+    if (!codeGenerationEnabled) {
+      // Disable web search if it's enabled
+      if (webSearchEnabled) {
+        setWebSearchEnabled(false);
+        setEnhancedWebSearch(false);
+      }
+      setCodeGenerationEnabled(true);
+    } else {
+      setCodeGenerationEnabled(false);
     }
   };
 
@@ -695,6 +770,13 @@ export default function MainUI({
       );
       setInputValue("");
       setAttachments([]);
+      
+      // Scroll to bottom after sending
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
     }
   }
 
@@ -2286,7 +2368,7 @@ export default function MainUI({
                   {message.isError && message.retryData && (
                     <div className="mt-3 pt-3">
                       <button
-                        onClick={() => onRetryMessage(message.id)}
+                        onClick={() => onRetryMessage(message.id, currentModel)}
                         className="flex items-center gap-2 px-3 py-2 text-sm bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2335,19 +2417,50 @@ export default function MainUI({
                         <div className="flex items-center gap-2 cursor-pointer">
                           <span className="text-sm text-gray-600 dark:text-gray-400">
                             {(() => {
-                              // First try to find in available models, then fall back to comprehensive library
-                              let model = availableModels.find(m => m.id === message.model || m.provider === message.provider);
-                              if (!model) {
-                                model = allModelsLibrary.find(m => m.id === message.model || m.provider === message.provider);
+                              // First try to use the exact model name from the message
+                              if (message.model) {
+                                // Try to find in available models first
+                                const model = availableModels.find(m => m.id === message.model);
+                                if (model) return model.name;
+                                
+                                // If not found in available models, try the comprehensive library
+                                const libraryModel = allModelsLibrary.find(m => m.id === message.model);
+                                if (libraryModel) return libraryModel.name;
+                                
+                                // If still not found, return the model ID as is
+                                return message.model;
                               }
-                              return model?.name || message.model || message.provider || 'AI';
+                              
+                              // Fallback to provider name if no model specified
+                              if (message.provider) {
+                                const providerNames: Record<Model['provider'], string> = {
+                                  openai: "OpenAI",
+                                  claude: "Claude",
+                                  gemini: "Gemini",
+                                  deepseek: "DeepSeek",
+                                  grok: "Grok",
+                                  openrouter: "OpenRouter",
+                                  veo2: "VEO 2",
+                                  mistral: "Mistral",
+                                  runway: "RunwayML"
+                                };
+                                return providerNames[message.provider as Model['provider']] || message.provider;
+                              }
+                              
+                              return 'AI';
                             })()}
                           </span>
                           <button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
                               e.preventDefault();
-                              onRetryMessage(message.id);
+                              // First update the model selection if needed
+                              if (message.model !== currentModel) {
+                                await onSelectModel(currentModel);
+                                // Wait for model selection to complete
+                                await new Promise(resolve => setTimeout(resolve, 50));
+                              }
+                              onRetryMessage(message.id, currentModel);
                             }}
                             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
                             title="Retry original message with this model"
@@ -2368,13 +2481,16 @@ export default function MainUI({
                             {availableModels.map((model) => (
                               <button
                                 key={model.id}
-                                onClick={(e) => {
+                                onClick={async (e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
-                                  // First select the model
+                                  
+                                  // First update the model selection
                                   onSelectModel(model.id);
-                                  // Then retry the message
-                                  onRetryMessage(message.id);
+                                  
+                                  // Then retry the message with the explicitly selected model
+                                  // Pass the model.id directly instead of relying on currentModel state
+                                  onRetryMessage(message.id, model.id);
                                 }}
                                 className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
                               >
@@ -2460,30 +2576,55 @@ export default function MainUI({
             
             {/* Attachments Preview */}
             {attachments.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-2 justify-center">
+              <div className="flex flex-wrap gap-2 px-4 py-2 border-t border-gray-200/20 dark:border-gray-700/20">
                 {attachments.map((attachment) => (
                   <div
                     key={attachment.id}
-                    className="flex items-center gap-2 bg-white/20 dark:bg-[#2b2b2b] rounded-lg p-2 text-sm text-gray-800 dark:text-gray-200"
+                    className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/10 dark:bg-gray-800/40 border border-gray-200/20 dark:border-gray-700/20"
                   >
                     {attachment.type.startsWith('image/') ? (
-                      <>
-                        <FileImage className="w-4 h-4 flex-shrink-0" />
-                        {attachment.url && (
-                          <img
-                            src={attachment.url}
-                            alt={attachment.name}
-                            className="w-8 h-8 object-cover rounded"
-                          />
+                      <div className="relative group">
+                        {attachment.id.startsWith('temp-') ? (
+                          <div className="w-8 h-8 flex items-center justify-center rounded bg-gray-100 dark:bg-gray-800">
+                            <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                          </div>
+                        ) : (
+                          <>
+                            <img
+                              src={attachment.previewUrl || attachment.url}
+                              alt={attachment.name}
+                              className="w-8 h-8 object-cover rounded"
+                              onError={(e) => {
+                                console.error('Image preview failed to load:', e);
+                                e.currentTarget.src = '/placeholder.jpg';
+                              }}
+                            />
+                            {/* Image preview tooltip */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 bg-gray-800/90 dark:bg-gray-900/90 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-xl">
+                              <img
+                                src={attachment.previewUrl || attachment.url}
+                                alt={attachment.name}
+                                className="max-w-[200px] max-h-[200px] rounded object-contain"
+                                onError={(e) => {
+                                  console.error('Large preview failed to load:', e);
+                                  e.currentTarget.src = '/placeholder.jpg';
+                                }}
+                              />
+                              <div className="text-xs text-gray-300 mt-2 text-center">
+                                {attachment.name}
+                              </div>
+                            </div>
+                          </>
                         )}
-                      </>
+                      </div>
                     ) : (
-                      <FileText className="w-4 h-4 flex-shrink-0" />
+                      <FileText className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                     )}
-                    <span className="truncate max-w-[100px]">{attachment.name}</span>
+                    <span className="truncate max-w-[100px] text-sm">{attachment.name}</span>
                     <button
                       onClick={() => removeAttachment(attachment.id)}
                       className="text-gray-500 hover:text-red-500 transition-colors"
+                      title="Remove attachment"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -2600,7 +2741,7 @@ export default function MainUI({
                       {/* Code Generation Toggle Button */}
                       {isCodeGenerationCompatible() && (
                         <button
-                          onClick={() => setCodeGenerationEnabled(!codeGenerationEnabled)}
+                          onClick={handleCodeGenerationToggle}
                           className={`h-[36px] w-[36px] rounded-md border border-gray-200/20 dark:border-gray-700/20 transition-all duration-200 flex items-center justify-center ${
                             codeGenerationEnabled
                               ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white"
@@ -2617,11 +2758,12 @@ export default function MainUI({
                     {/* Right side buttons */}
                     <div className="flex items-center gap-2">
                       {/* File Upload Button */}
-                      <label className="h-[36px] w-[36px] rounded-md bg-white/10 dark:bg-[#2b2b2b]/80 hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 border border-gray-200/20 dark:border-gray-700/20 transition-colors cursor-pointer flex items-center justify-center">
+                      <label className="h-[36px] w-[36px] rounded-md bg-white/10 dark:bg-[#2b2b2b]/80 hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 border border-gray-200/20 dark:border-gray-700/20 transition-colors cursor-pointer flex items-center justify-center relative group"
+                        title="Upload files (Images & PDFs)">
                         <input
                           type="file"
                           multiple
-                          accept="image/*,application/pdf,.txt,.doc,.docx"
+                          accept=".jpg,.jpeg,.png,.gif,.webp,application/pdf"
                           onChange={handleFileInputChange}
                           className="hidden"
                           aria-label="Upload files"
@@ -2629,7 +2771,12 @@ export default function MainUI({
                         {isUploading ? (
                           <Loader2 className="w-4 h-4 text-gray-600 dark:text-gray-400 animate-spin" />
                         ) : (
-                          <Paperclip className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                          <>
+                            <Paperclip className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              Upload Images & PDFs
+                            </div>
+                          </>
                         )}
                       </label>
                       

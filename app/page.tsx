@@ -809,7 +809,8 @@ export default function Home() {
         .filter(msg => !msg.isError) // Remove error messages
         .map(msg => ({
           role: msg.role,
-          content: msg.content
+          content: msg.content,
+          attachments: msg.attachments // Include attachments
         }))
 
       // Prepare headers with location data if available

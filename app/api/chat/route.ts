@@ -58,12 +58,13 @@ export async function POST(request: NextRequest) {
   
   let provider = "unknown"; // Declare outside try block for error handling
   let model = "unknown"; // Declare outside try block for error handling
+  let isCodeRequest = false; // Declare outside try block for error handling
   
   try {
     const requestBody: ChatRequestBody = await request.json();
     
     // Initialize request type flags
-    let isCodeRequest: boolean = false;
+    isCodeRequest = false;
     let isImageRequest: boolean = false;
     
     // Log the full request body for debugging
@@ -140,50 +141,37 @@ export async function POST(request: NextRequest) {
     const isEnhancedWebSearch = toBooleanStrict(enhancedWebSearch);
     const isCodeGenerationEnabled = toBooleanStrict(codeGenerationEnabled);
 
-    // Check if there are any image attachments in the messages
-    const hasImageAttachments = messages.some(message => {
-      if (!message.attachments || !Array.isArray(message.attachments)) {
-        return false;
-      }
-      
-      // Log the full message structure for debugging
-      console.log('Message with attachments:', JSON.stringify({
-        role: message.role,
-        content: typeof message.content === 'string' ? message.content.substring(0, 50) : 'non-string content',
-        attachmentsCount: message.attachments.length,
-        firstAttachment: message.attachments[0] ? {
-          id: message.attachments[0].id,
-          name: message.attachments[0].name,
-          type: message.attachments[0].type,
-          hasUrl: !!message.attachments[0].url,
-          urlPrefix: message.attachments[0].url ? message.attachments[0].url.substring(0, 30) : 'no-url'
-        } : 'no-attachments'
-      }, null, 2));
-      
-      return message.attachments.some((att: Attachment) => {
-        // Log attachment details for debugging
-        console.log('Checking attachment:', {
-          id: att.id,
-          name: att.name,
-          type: att.type,
-          url: att.url ? att.url.substring(0, 50) + '...' : 'no url',
-          hasType: !!att.type,
-          typeIsString: typeof att.type === 'string',
-          startsWithImage: typeof att.type === 'string' && att.type.startsWith('image/'),
-          hasUrl: !!att.url,
-          urlIsString: typeof att.url === 'string',
-          urlStartsWithData: typeof att.url === 'string' && att.url.startsWith('data:')
-        });
-        
-        // Accept any attachment with an image type and a URL
+    // Check if the last user message has image attachments
+    const lastUserMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+    const hasImageAttachments = Boolean(lastUserMessage && 
+      lastUserMessage.role === 'user' && 
+      lastUserMessage.attachments && 
+      Array.isArray(lastUserMessage.attachments) && 
+      lastUserMessage.attachments.some((att: Attachment) => {
         return !!att.type && 
                typeof att.type === 'string' && 
                att.type.startsWith('image/') &&
                !!att.url;
-      });
-    });
-
-    console.log(`Request has image attachments: ${hasImageAttachments}`);
+      }));
+    
+    // Log details about the last message and its attachments
+    if (lastUserMessage && lastUserMessage.attachments && Array.isArray(lastUserMessage.attachments)) {
+      console.log('Last message with attachments:', JSON.stringify({
+        role: lastUserMessage.role,
+        content: typeof lastUserMessage.content === 'string' ? lastUserMessage.content.substring(0, 50) : 'non-string content',
+        attachmentsCount: lastUserMessage.attachments.length,
+        hasImageAttachments: hasImageAttachments,
+        firstAttachment: lastUserMessage.attachments[0] ? {
+          id: lastUserMessage.attachments[0].id,
+          name: lastUserMessage.attachments[0].name,
+          type: lastUserMessage.attachments[0].type,
+          hasUrl: !!lastUserMessage.attachments[0].url,
+          urlPrefix: lastUserMessage.attachments[0].url ? lastUserMessage.attachments[0].url.substring(0, 30) : 'no-url'
+        } : 'no-attachments'
+      }, null, 2));
+    }
+    
+    console.log(`Last message has image attachments: ${hasImageAttachments}`);
     
     // Process messages based on provider and attachments
     let processedMessages = [...messages]; // Default to original messages
@@ -192,255 +180,238 @@ export async function POST(request: NextRequest) {
     if (hasImageAttachments) {
       console.log(`Processing image attachments for provider: ${provider}`);
       
-      // Find the last user message with attachments
-      const lastUserMessageIndex = messages.findLastIndex((msg): boolean => {
-        if (msg.role !== 'user' || !msg.attachments || !Array.isArray(msg.attachments)) {
-          return false;
-        }
-        // Log message details for debugging
-        console.log('Checking message for attachments:', {
-          role: msg.role,
-          hasAttachments: !!msg.attachments,
-          attachmentsLength: msg.attachments?.length,
-          content: msg.content?.substring(0, 50),
-          hasImageAttachment: msg.attachments.some((att: Attachment) => 
-            !!att.type && 
-            typeof att.type === 'string' && 
-            att.type.startsWith('image/') &&
-            !!att.url
-          )
-        });
-        return msg.attachments.some((att: Attachment) => 
-          !!att.type && 
-          typeof att.type === 'string' && 
-          att.type.startsWith('image/') &&
-          !!att.url
-        );
+      // We already know the last message has image attachments
+      const lastUserMessageIndex = messages.length - 1;
+      const userMessage = messages[lastUserMessageIndex];
+      
+      console.log('Processing last message with attachments:', {
+        role: userMessage.role,
+        hasAttachments: !!userMessage.attachments,
+        attachmentsLength: userMessage.attachments?.length,
+        content: userMessage.content?.substring(0, 50)
       });
       
-      if (lastUserMessageIndex !== -1) {
-        const userMessage = messages[lastUserMessageIndex];
-        const imageAttachments = userMessage.attachments.filter((att: any) => att.type?.startsWith('image/'));
+      // Filter to only include image attachments
+      const imageAttachments = userMessage.attachments.filter((att: any) => att.type?.startsWith('image/'));
+      
+      if (imageAttachments.length > 0) {
+        console.log(`Found ${imageAttachments.length} image attachments in message`);
         
-        if (imageAttachments.length > 0) {
-          console.log(`Found ${imageAttachments.length} image attachments in message`);
-          
-          // Format based on provider
-          switch(provider.toLowerCase()) {
-            case 'openai':
-              // Format for OpenAI's vision models
-              processedMessages = messages.map((msg, i) => {
-                if (i === lastUserMessageIndex) {
-                  // Convert to OpenAI's vision format
-                  const contentParts = [];
-                  
-                  // Add text content if it exists
-                  if (msg.content && typeof msg.content === 'string') {
-                    contentParts.push({ 
-                      type: "text", 
-                      text: msg.content 
-                    });
-                  }
-                  
-                  // Add image attachments
-                  imageAttachments.forEach((img: any) => {
-                    if (img.url) {
-                      try {
-                        console.log('Processing image for OpenAI:', img.type, img.url.substring(0, 50));
-                        
-                        // OpenAI supports both data URLs and external URLs
-                        contentParts.push({
-                          type: "image_url",
-                          image_url: {
-                            url: img.url
-                          }
-                        });
-                        
-                        console.log('Successfully added image to OpenAI message');
-                      } catch (e) {
-                        console.error('Failed to process image for OpenAI:', e);
-                      }
-                    }
+        // Format based on provider
+        switch(provider.toLowerCase()) {
+          case 'openai':
+            // Format for OpenAI's vision models
+            processedMessages = messages.map((msg, i) => {
+              if (i === lastUserMessageIndex) {
+                // Convert to OpenAI's vision format
+                const contentParts = [];
+                
+                // Add text content if it exists
+                if (msg.content && typeof msg.content === 'string') {
+                  contentParts.push({ 
+                    type: "text", 
+                    text: msg.content 
                   });
-                  
-                  return {
-                    ...msg,
-                    content: contentParts
-                  };
                 }
-                return msg;
-              });
-              console.log('Processed messages for OpenAI vision');
-              break;
-              
-            case 'claude':
-              // Format for Claude's vision models
-              processedMessages = messages.map((msg, i) => {
-                if (i === lastUserMessageIndex) {
-                  // Convert to Claude's vision format
-                  const contentParts = [];
-                  
-                  // Add text content if it exists
-                  if (msg.content && typeof msg.content === 'string') {
-                    contentParts.push({ 
-                      type: "text", 
-                      text: msg.content 
-                    });
-                  }
-                  
-                  // Add image attachments
-                  imageAttachments.forEach((img: any) => {
-                    if (img.url) {
-                      try {
-                        console.log('Processing image for Claude:', img.type, img.url.substring(0, 50));
-                        
-                        let base64Data = '';
-                        let mimeType = img.type || 'image/jpeg';
-                        
-                        // Handle data URLs
-                        if (img.url.startsWith('data:')) {
-                          const [header, data] = img.url.split(',');
-                          if (header && data) {
-                            // Extract mime type if available in the data URL
-                            const mimeMatch = header.match(/data:(.*?);/);
-                            if (mimeMatch && mimeMatch[1]) {
-                              mimeType = mimeMatch[1];
-                            }
-                            base64Data = data;
-                          } else {
-                            throw new Error('Invalid data URL format');
-                          }
-                        } 
-                        // Handle raw base64 data
-                        else if (img.url.match(/^[A-Za-z0-9+/=]+$/)) {
-                          base64Data = img.url;
+                
+                // Add image attachments
+                imageAttachments.forEach((img: any) => {
+                  if (img.url) {
+                    try {
+                      console.log('Processing image for OpenAI:', img.type, img.url.substring(0, 50));
+                      
+                      // OpenAI supports both data URLs and external URLs
+                      contentParts.push({
+                        type: "image_url",
+                        image_url: {
+                          url: img.url
                         }
-                        // Handle external URLs - not supported by Claude
-                        else {
-                          throw new Error('Claude only supports base64 image data, not external URLs');
-                        }
-
-                        if (!base64Data) {
-                          throw new Error('Failed to extract image data');
-                        }
-
-                        contentParts.push({
-                          type: "image",
-                          source: {
-                            type: "base64",
-                            media_type: mimeType,
-                            data: base64Data
-                          }
-                        });
-                        
-                        console.log('Successfully added image to Claude message');
-                      } catch (e) {
-                        console.error('Failed to process image for Claude:', e);
-                        throw new Error('Failed to process image for Claude. Please ensure the image is in a supported format.');
-                      }
+                      });
+                      
+                      console.log('Successfully added image to OpenAI message');
+                    } catch (e) {
+                      console.error('Failed to process image for OpenAI:', e);
                     }
-                  });
-                  
-                  return {
-                    ...msg,
-                    content: contentParts
-                  };
-                }
-                return msg;
-              });
-              console.log('Processed messages for Claude vision');
-              break;
-              
-            case 'gemini':
-              // Format for Gemini's vision models
-              const geminiMessages = [];
-              
-              // Add previous messages (excluding the last user message)
-              for (let i = 0; i < lastUserMessageIndex; i++) {
-                const msg = messages[i];
-                geminiMessages.push({
-                  role: msg.role === 'assistant' ? 'model' : 'user',
-                  parts: [{ text: msg.content }]
+                  }
                 });
+                
+                return {
+                  ...msg,
+                  content: contentParts
+                };
               }
-              
-              // Add the last user message with images
-              const lastUserMsg = messages[lastUserMessageIndex];
-              const geminiParts = [];
-              
-              // Add text content if it exists
-              if (lastUserMsg.content && typeof lastUserMsg.content === 'string') {
-                geminiParts.push({ text: lastUserMsg.content });
-              }
-              
-              // Add image attachments
-              imageAttachments.forEach((img: any) => {
-                if (img.url) {
-                  try {
-                    console.log('Processing image for Gemini:', img.type, img.url.substring(0, 50));
-                    
-                    let mimeType = img.type || 'image/jpeg';
-                    let imageData = img.url;
-                    
-                    // Handle data URLs by extracting the base64 part
-                    if (img.url.startsWith('data:')) {
-                      const [header, data] = img.url.split(',');
-                      if (header && data) {
-                        // Extract mime type if available in the data URL
-                        const mimeMatch = header.match(/data:(.*?);/);
-                        if (mimeMatch && mimeMatch[1]) {
-                          mimeType = mimeMatch[1];
+              return msg;
+            });
+            console.log('Processed messages for OpenAI vision');
+            break;
+            
+          case 'claude':
+            // Format for Claude's vision models
+            processedMessages = messages.map((msg, i) => {
+              if (i === lastUserMessageIndex) {
+                // Convert to Claude's vision format
+                const contentParts = [];
+                
+                // Add text content if it exists
+                if (msg.content && typeof msg.content === 'string') {
+                  contentParts.push({ 
+                    type: "text", 
+                    text: msg.content 
+                  });
+                }
+                
+                // Add image attachments
+                imageAttachments.forEach((img: any) => {
+                  if (img.url) {
+                    try {
+                      console.log('Processing image for Claude:', img.type, img.url.substring(0, 50));
+                      
+                      let base64Data = '';
+                      let mimeType = img.type || 'image/jpeg';
+                      
+                      // Handle data URLs
+                      if (img.url.startsWith('data:')) {
+                        const [header, data] = img.url.split(',');
+                        if (header && data) {
+                          // Extract mime type if available in the data URL
+                          const mimeMatch = header.match(/data:(.*?);/);
+                          if (mimeMatch && mimeMatch[1]) {
+                            mimeType = mimeMatch[1];
+                          }
+                          base64Data = data;
+                        } else {
+                          throw new Error('Invalid data URL format');
                         }
-                        imageData = data; // Just the base64 part for inline_data
+                      } 
+                      // Handle raw base64 data
+                      else if (img.url.match(/^[A-Za-z0-9+/=]+$/)) {
+                        base64Data = img.url;
                       }
+                      // Handle external URLs - not supported by Claude
+                      else {
+                        throw new Error('Claude only supports base64 image data, not external URLs');
+                      }
+
+                      if (!base64Data) {
+                        throw new Error('Failed to extract image data');
+                      }
+
+                      contentParts.push({
+                        type: "image",
+                        source: {
+                          type: "base64",
+                          media_type: mimeType,
+                          data: base64Data
+                        }
+                      });
+                      
+                      console.log('Successfully added image to Claude message');
+                    } catch (e) {
+                      console.error('Failed to process image for Claude:', e);
+                      throw new Error('Failed to process image for Claude. Please ensure the image is in a supported format.');
                     }
-                    
-                    geminiParts.push({
-                      inline_data: {
-                        mime_type: mimeType,
-                        data: imageData
-                      }
-                    });
-                    
-                    console.log('Successfully added image to Gemini message');
-                  } catch (e) {
-                    console.error('Failed to process image for Gemini:', e);
                   }
-                }
-              });
-              
+                });
+                
+                return {
+                  ...msg,
+                  content: contentParts
+                };
+              }
+              return msg;
+            });
+            console.log('Processed messages for Claude vision');
+            break;
+            
+          case 'gemini':
+            // Format for Gemini's vision models
+            const geminiMessages = [];
+            
+            // Add previous messages (excluding the last user message)
+            for (let i = 0; i < lastUserMessageIndex; i++) {
+              const msg = messages[i];
               geminiMessages.push({
-                role: 'user',
-                parts: geminiParts
+                role: msg.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: msg.content }]
               });
-              
-              // Set the processed messages for Gemini
-              processedMessages = geminiMessages;
-              console.log('Processed messages for Gemini vision');
-              break;
-              
-            default:
-              // For other providers, enhance the text prompt
-              processedMessages = messages.map((msg, i) => {
-                if (i === lastUserMessageIndex) {
-                  let enhancedContent = msg.content || '';
+            }
+            
+            // Add the last user message with images
+            const lastUserMsg = messages[lastUserMessageIndex];
+            const geminiParts = [];
+            
+            // Add text content if it exists
+            if (lastUserMsg.content && typeof lastUserMsg.content === 'string') {
+              geminiParts.push({ text: lastUserMsg.content });
+            }
+            
+            // Add image attachments
+            imageAttachments.forEach((img: any) => {
+              if (img.url) {
+                try {
+                  console.log('Processing image for Gemini:', img.type, img.url.substring(0, 50));
                   
-                  // Add image context to the prompt
-                  if (imageAttachments.length === 1) {
-                    enhancedContent = `[Image attached] ${enhancedContent}`;
-                  } else {
-                    enhancedContent = `[${imageAttachments.length} images attached] ${enhancedContent}`;
+                  let mimeType = img.type || 'image/jpeg';
+                  let imageData = img.url;
+                  
+                  // Handle data URLs by extracting the base64 part
+                  if (img.url.startsWith('data:')) {
+                    const [header, data] = img.url.split(',');
+                    if (header && data) {
+                      // Extract mime type if available in the data URL
+                      const mimeMatch = header.match(/data:(.*?);/);
+                      if (mimeMatch && mimeMatch[1]) {
+                        mimeType = mimeMatch[1];
+                      }
+                      imageData = data; // Just the base64 part for inline_data
+                    }
                   }
                   
-                  return {
-                    ...msg,
-                    content: enhancedContent
-                  };
+                  geminiParts.push({
+                    inline_data: {
+                      mime_type: mimeType,
+                      data: imageData
+                    }
+                  });
+                  
+                  console.log('Successfully added image to Gemini message');
+                } catch (e) {
+                  console.error('Failed to process image for Gemini:', e);
                 }
-                return msg;
-              });
-              console.log(`Enhanced text prompt for provider: ${provider}`);
-          }
+              }
+            });
+            
+            geminiMessages.push({
+              role: 'user',
+              parts: geminiParts
+            });
+            
+            // Set the processed messages for Gemini
+            processedMessages = geminiMessages;
+            console.log('Processed messages for Gemini vision');
+            break;
+            
+          default:
+            // For other providers, enhance the text prompt
+            processedMessages = messages.map((msg, i) => {
+              if (i === lastUserMessageIndex) {
+                let enhancedContent = msg.content || '';
+                
+                // Add image context to the prompt
+                if (imageAttachments.length === 1) {
+                  enhancedContent = `[Image attached] ${enhancedContent}`;
+                } else {
+                  enhancedContent = `[${imageAttachments.length} images attached] ${enhancedContent}`;
+                }
+                
+                return {
+                  ...msg,
+                  content: enhancedContent
+                };
+              }
+              return msg;
+            });
+            console.log(`Enhanced text prompt for provider: ${provider}`);
         }
       }
     }
@@ -464,8 +435,13 @@ export async function POST(request: NextRequest) {
     const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 18000): Promise<Response> => {
       // Allow longer timeouts for edge functions (up to 90s), and increase timeout for code generation
       const isEdgeFunction = url.includes('/.netlify/edge-functions/');
-      const maxTimeout = isEdgeFunction ? 90000 : ((isCodeRequest && !isRetry) ? 40000 : 30000);
+      const isGemini25Pro = model.includes('2.5-pro') && provider === 'gemini';
+      const maxTimeout = isEdgeFunction ? 90000 : 
+                         isGemini25Pro ? 50000 :
+                         (isCodeRequest && !isRetry) ? 40000 : 30000;
       const safeTimeout = Math.min(timeoutMs, maxTimeout);
+      
+      console.log(`Setting timeout for request: ${safeTimeout}ms (${isGemini25Pro ? 'Gemini 2.5 Pro' : isEdgeFunction ? 'Edge Function' : 'Standard'})`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), safeTimeout);
@@ -504,7 +480,7 @@ export async function POST(request: NextRequest) {
       );
 
       // If there are image attachments, disable code generation detection
-      if (hasImageAttachments) {
+      if (hasImageAttachments === true) {
         isCodeRequest = false;
         console.log("Image attachments detected - disabling code generation detection");
       }
@@ -560,7 +536,7 @@ export async function POST(request: NextRequest) {
       isImageRequest = Boolean(imagePatterns.some(pattern => pattern.test(lastMessageContent)) || isImageModel);
       
       // If image attachments are present, prioritize vision model handling for all providers
-      if (hasImageAttachments) {
+      if (hasImageAttachments === true) {
         console.log("Image attachments detected - prioritizing vision model handling for all providers");
       }
       
@@ -995,9 +971,14 @@ Please provide a comprehensive response using the above search results.`;
         // Increase timeout for Gemini, especially for code generation or image processing
         let geminiBaseTimeout = isCodeRequest || isCodeGenerationEnabled ? 25000 : 15000; // 25s for code, 15s for regular
         
-        // Increase timeout for image processing, especially for Gemini 2.5 Pro
-        if (hasImageAttachments) {
-          geminiBaseTimeout = model.includes("2.5-pro") ? 30000 : 20000; // 30s for 2.5 Pro with images, 20s for others
+        // Increase timeout for Gemini 2.5 Pro regardless of request type
+        if (model.includes("2.5-pro")) {
+          geminiBaseTimeout = 45000; // 45s for 2.5 Pro
+          console.log(`Increased timeout for Gemini 2.5 Pro: ${geminiBaseTimeout}ms`);
+        }
+        // Increase timeout for image processing for other models
+        else if (hasImageAttachments === true) {
+          geminiBaseTimeout = 20000; // 20s for other models with images
           console.log(`Increased timeout for Gemini image processing: ${geminiBaseTimeout}ms`);
         }
         const geminiParams = getOptimizedParams(geminiBaseTimeout, 3000);
@@ -1006,7 +987,7 @@ Please provide a comprehensive response using the above search results.`;
         let geminiMessages;
         
         // If the processedMessages are already in Gemini format with parts array
-        if (hasImageAttachments && 
+        if (hasImageAttachments === true && 
             Array.isArray(processedMessages) && 
             processedMessages.length > 0 && 
             processedMessages[0].parts) {
@@ -1017,7 +998,7 @@ Please provide a comprehensive response using the above search results.`;
             console.log('Gemini 2.5 Pro image message format:', 
               JSON.stringify({
                 messageCount: processedMessages.length,
-                firstMessageFormat: processedMessages[0].parts ? 'parts array' : 'unknown',
+                firstMessageFormat: processedMessages[0].parts ? typeof processedMessages[0].parts[0] : 'unknown',
                 partsCount: processedMessages[0].parts?.length || 0,
                 hasImagePart: processedMessages[0].parts?.some((p: any) => p.inline_data) || false
               })
@@ -1034,8 +1015,6 @@ Please provide a comprehensive response using the above search results.`;
           }));
         }
         
-
-        
         // Use correct Gemini 2.5 model names
         let geminiModel = "gemini-1.5-pro"; // Default fallback
         if (model.includes("2.5-flash")) {
@@ -1043,48 +1022,98 @@ Please provide a comprehensive response using the above search results.`;
         } else if (model.includes("2.5-pro")) {
           geminiModel = "gemini-2.5-pro-preview-06-05"; // Correct 2.5 Pro model name
           console.log("Using Gemini 2.5 Pro model:", geminiModel);
+          console.log("Gemini 2.5 Pro request details:", {
+            hasImageAttachments,
+            messageCount: geminiMessages.length,
+            firstMessageType: geminiMessages[0]?.parts ? typeof geminiMessages[0].parts[0] : 'unknown'
+          });
         }
         
         try {
-          response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              contents: geminiMessages,
-              generationConfig: {
-                temperature: geminiParams.temperature,
-                maxOutputTokens: geminiParams.maxTokens,
-                topP: 0.95,
-                topK: 40
-              }
-            })
-          }, geminiParams.timeout);
-
-          if (!response.ok) {
-            const errorData = await response.text();
-            console.error("Gemini API error:", response.status, errorData);
-            
-            if (response.status === 504 || response.status === 524) {
-              throw new Error(`Gemini is taking longer than expected to generate your ${isCodeRequest ? 'code' : 'response'}. This often happens with complex requests. Try breaking your request into smaller parts or try again in a moment.`);
-            } else if (response.status === 429) {
-              throw new Error(`Gemini rate limit exceeded. Please wait a moment before trying again.`);
-            } else if (response.status === 503) {
-              throw new Error(`Gemini service is temporarily unavailable. Please try again in a few minutes.`);
-            } else {
-              throw new Error(`Gemini API error (${response.status}): ${errorData}`);
-            }
-          }
-
-          const geminiData = await safeJsonParse(response, "Gemini");
-          aiResponse = cleanAIResponse(geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini didn't provide a response. Please try again.", "Gemini");
+          console.log(`Calling Gemini API with model: ${geminiModel}, timeout: ${geminiBaseTimeout}ms`);
           
-        } catch (geminiError) {
-          console.error("Gemini error:", geminiError);
+          // Special handling for Gemini 2.5 Pro
+          if (model.includes("2.5-pro")) {
+            console.log("Using enhanced error handling for Gemini 2.5 Pro");
+            try {
+              response = await fetchWithTimeout(
+                `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    contents: geminiMessages,
+                    generationConfig: {
+                      temperature: geminiParams.temperature,
+                      maxOutputTokens: geminiParams.maxTokens,
+                      topP: 0.95,
+                      topK: 40
+                    }
+                  })
+                },
+                geminiBaseTimeout
+              );
+              
+              if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`Gemini 2.5 Pro API error (${response.status}): ${errorText}`);
+                
+                if (response.status === 504 || response.status === 524) {
+                  throw new Error(`Gemini 2.5 Pro is taking longer than expected. Please try again with a simpler request.`);
+                } else {
+                  throw new Error(`Gemini 2.5 Pro API error: ${response.status} - ${errorText.substring(0, 100)}`);
+                }
+              }
+              
+              const geminiData = await safeJsonParse(response, "Gemini");
+              aiResponse = cleanAIResponse(geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini didn't provide a response. Please try again.", "Gemini");
+            } catch (error) {
+              console.error("Gemini 2.5 Pro specific error:", error);
+              throw error;
+            }
+          } else {
+            // Regular Gemini handling
+            response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                contents: geminiMessages,
+                generationConfig: {
+                  temperature: geminiParams.temperature,
+                  maxOutputTokens: geminiParams.maxTokens,
+                  topP: 0.95,
+                  topK: 40
+                }
+              })
+            }, geminiParams.timeout);
+            
+            if (!response.ok) {
+              const errorData = await response.text();
+              console.error("Gemini API error:", response.status, errorData);
+              
+              if (response.status === 504 || response.status === 524) {
+                throw new Error(`Gemini is taking longer than expected to generate your ${isCodeRequest ? 'code' : 'response'}. This often happens with complex requests. Try breaking your request into smaller parts or try again in a moment.`);
+              } else if (response.status === 429) {
+                throw new Error(`Gemini rate limit exceeded. Please wait a moment before trying again.`);
+              } else if (response.status === 503) {
+                throw new Error(`Gemini service is temporarily unavailable. Please try again in a few minutes.`);
+              } else {
+                throw new Error(`Gemini API error (${response.status}): ${errorData}`);
+              }
+            }
+            
+            const geminiData = await safeJsonParse(response, "Gemini");
+            aiResponse = cleanAIResponse(geminiData.candidates[0]?.content?.parts[0]?.text || "Gemini didn't provide a response. Please try again.", "Gemini");
+          }
+        } catch (error) {
+          console.error("Gemini error:", error);
           
           // If this was a code generation request and it failed, try with reduced complexity
-          if ((isCodeRequest === true || isCodeGenerationEnabled === true) && geminiError instanceof Error && geminiError.message.includes('504')) {
+          if ((isCodeRequest === true || isCodeGenerationEnabled === true) && error instanceof Error && error.message.includes('504')) {
             console.log("Retrying Gemini with simplified request...");
             
             try {
@@ -1111,17 +1140,17 @@ Please provide a comprehensive response using the above search results.`;
               }, 20000); // 20 second timeout for retry
 
               if (!response.ok) {
-                throw geminiError; // Throw original error if retry also fails
+                throw error; // Throw original error if retry also fails
               }
 
               const retryData = await safeJsonParse(response, "Gemini");
               aiResponse = cleanAIResponse(retryData.candidates[0]?.content?.parts[0]?.text || "Gemini didn't provide a response. Please try again.", "Gemini");
               
             } catch (retryError) {
-              throw geminiError; // Throw original error
+              throw error; // Throw original error
             }
           } else {
-            throw geminiError;
+            throw error;
           }
         }
         break;

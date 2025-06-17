@@ -7,6 +7,7 @@
 
 [functions]
   node_bundler = "esbuild"
+  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
 
 [build.environment]
   NEXT_USE_NETLIFY_EDGE = "true"
@@ -16,7 +17,21 @@
   path = "/api/generate-code"
   function = "generate-code"
 
+[[edge_functions]]
+  path = "/api/generate-code/*"
+  function = "generate-code"
+
 # Global edge functions configuration
 [edge_handlers_config]
   included_files = ["netlify/edge-functions/**"]
-  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"] 
+  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
+
+# Increase timeouts for edge functions
+[build.processing]
+  skip_processing = false
+[build.processing.html]
+  pretty_urls = true
+[functions.generate-code]
+  included_files = ["netlify/edge-functions/**"]
+  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
+  timeout = 30 

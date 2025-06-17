@@ -7,7 +7,7 @@ export default async (request, context) => {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
   };
 
   // Handle preflight requests
@@ -35,10 +35,23 @@ export default async (request, context) => {
       });
     }
     
-    requestBody = JSON.parse(bodyText);
+    try {
+      requestBody = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      return new Response(JSON.stringify({ 
+        error: 'Invalid JSON in request body',
+        details: parseError.message,
+        receivedBody: bodyText.substring(0, 100) + '...' // Log first 100 chars for debugging
+      }), {
+        status: 400,
+        headers: corsHeaders
+      });
+    }
   } catch (error) {
+    console.error('Request body read error:', error);
     return new Response(JSON.stringify({ 
-      error: 'Invalid JSON in request body',
+      error: 'Failed to read request body',
       details: error.message 
     }), {
       status: 400,
@@ -47,18 +60,38 @@ export default async (request, context) => {
   }
 
   try {
-    const { messages, provider, apiKey, model, temperature, customModelName } = requestBody;
+    const { messages, provider, apiKey, model, temperature = 0.1, customModelName } = requestBody;
 
-    // Validate required inputs
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return new Response(JSON.stringify({ error: 'Messages array is required and must not be empty' }), {
+    // Validate required inputs with detailed error messages
+    if (!messages) {
+      return new Response(JSON.stringify({ error: 'Messages array is required' }), {
+        status: 400,
+        headers: corsHeaders
+      });
+    }
+
+    if (!Array.isArray(messages)) {
+      return new Response(JSON.stringify({ 
+        error: 'Messages must be an array',
+        received: typeof messages
+      }), {
+        status: 400,
+        headers: corsHeaders
+      });
+    }
+
+    if (messages.length === 0) {
+      return new Response(JSON.stringify({ error: 'Messages array must not be empty' }), {
         status: 400,
         headers: corsHeaders
       });
     }
 
     if (!provider || typeof provider !== 'string') {
-      return new Response(JSON.stringify({ error: 'Valid provider is required' }), {
+      return new Response(JSON.stringify({ 
+        error: 'Valid provider is required',
+        received: provider
+      }), {
         status: 400,
         headers: corsHeaders
       });
@@ -71,14 +104,20 @@ export default async (request, context) => {
       });
     }
 
-    // Log for debugging (Deno compatible)
+    // Log request info for debugging
     console.log(`Edge Function: Code generation request for provider: ${provider}`);
+    console.log('Request details:', {
+      provider,
+      model,
+      messagesCount: messages.length,
+      hasApiKey: !!apiKey
+    });
 
-    // Enhanced parameters for code generation - increased for better quality
+    // Optimized parameters for edge function environment
     const codeParams = {
-      maxTokens: 4000, // Reduced from 8000 to prevent timeouts
-      temperature: 0.1, // Lower temperature for consistent code
-      timeout: 120000  // 120 second timeout for quality generation
+      maxTokens: 2000, // Reduced to prevent timeouts
+      temperature: temperature || 0.1,
+      timeout: 25000  // 25 second timeout (Netlify limit is 30s)
     };
 
     // Optimize messages for code generation
@@ -88,14 +127,12 @@ export default async (request, context) => {
         const lastMessage = optimizedMessages[optimizedMessages.length - 1];
         
         if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
-          // Simplified instructions to reduce token count
-          const codeInstructions = `Generate production-ready code for: "${lastMessage.content}"
-Requirements:
-- Complete, working code
-- Modern best practices
-- Necessary imports/dependencies
+          const codeInstructions = `Generate concise, production-ready code for: "${lastMessage.content}"
+Key requirements:
+- Working code with imports
+- Modern practices
 - Clear comments
-- Security best practices`;
+- Security focused`;
 
           optimizedMessages[optimizedMessages.length - 1] = {
             ...lastMessage,
@@ -105,110 +142,106 @@ Requirements:
         
         return optimizedMessages;
       } catch (error) {
-        console.error('Error optimizing messages:', error);
-        return messages; // Return original messages on error
+        console.error('Message optimization error:', error);
+        return messages;
       }
     };
 
-    // Optimize messages for code generation
     const codeOptimizedMessages = optimizeMessagesForCode(messages);
 
-    // Fetch with timeout and retry for Deno
-    const fetchWithTimeout = async (url, options, timeoutMs = 120000) => {
-      const maxRetries = 2;
-      let lastError;
+    // Fetch with timeout and automatic retry
+    const fetchWithTimeout = async (url, options, timeoutMs = 25000) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-        try {
-          const response = await fetch(url, {
-            ...options,
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-          return response;
-        } catch (error) {
-          clearTimeout(timeoutId);
-          lastError = error;
-          
-          if (error.name === 'AbortError') {
-            console.error(`Attempt ${attempt + 1} timed out after ${timeoutMs / 1000} seconds`);
-          } else {
-            console.error(`Attempt ${attempt + 1} failed:`, error);
-          }
-
-          // Wait before retrying
-          if (attempt < maxRetries - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('Fetch error:', error);
+        
+        if (error.name === 'AbortError') {
+          throw new Error(`Request timed out after ${timeoutMs / 1000} seconds`);
         }
+        throw error;
       }
-
-      throw new Error(`Failed after ${maxRetries} attempts. Last error: ${lastError.message}`);
     };
 
     let response;
     let aiResponse = "";
 
-    switch (provider) {
+    // Provider-specific handling with better error messages
+    switch (provider.toLowerCase()) {
       case "openai":
-        response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: model?.includes("gpt-3.5") ? "gpt-3.5-turbo" : "gpt-4o",
-            messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
-            temperature: codeParams.temperature,
-            max_tokens: codeParams.maxTokens,
-            stream: false
-          })
-        }, codeParams.timeout);
+        try {
+          response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: model || "gpt-3.5-turbo",
+              messages: codeOptimizedMessages,
+              temperature: codeParams.temperature,
+              max_tokens: codeParams.maxTokens,
+              stream: false
+            })
+          }, codeParams.timeout);
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+          }
+
+          const openaiData = await response.json();
+          aiResponse = openaiData.choices?.[0]?.message?.content || "No response generated";
+        } catch (error) {
+          console.error('OpenAI API error:', error);
+          throw new Error(`OpenAI API error: ${error.message}`);
         }
-
-        const openaiData = await response.json();
-        aiResponse = openaiData.choices?.[0]?.message?.content || "No response generated";
         break;
 
       case "claude":
-        // Use the latest Claude model for best code generation
-        let claudeModel = "claude-3-5-sonnet-20241022"; // Default to latest Sonnet
-        if (model && model.includes("haiku")) {
-          claudeModel = "claude-3-5-haiku-20241022";
-        } else if (model && model.includes("opus")) {
-          claudeModel = "claude-3-opus-20240229";
+        try {
+          let claudeModel = "claude-3-sonnet-20240229";
+          if (model?.includes("haiku")) {
+            claudeModel = "claude-3-haiku-20240229";
+          } else if (model?.includes("opus")) {
+            claudeModel = "claude-3-opus-20240229";
+          }
+
+          response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": apiKey,
+              "anthropic-version": "2023-06-01"
+            },
+            body: JSON.stringify({
+              model: claudeModel,
+              max_tokens: codeParams.maxTokens,
+              temperature: codeParams.temperature,
+              messages: codeOptimizedMessages
+            })
+          }, codeParams.timeout);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Claude API error (${response.status}): ${errorText}`);
+          }
+
+          const claudeData = await response.json();
+          aiResponse = claudeData.content || "No response generated";
+        } catch (error) {
+          console.error('Claude API error:', error);
+          throw new Error(`Claude API error: ${error.message}`);
         }
-
-        response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01"
-          },
-          body: JSON.stringify({
-            model: claudeModel,
-            max_tokens: codeParams.maxTokens,
-            temperature: codeParams.temperature,
-            messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content }))
-          })
-        }, codeParams.timeout);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Claude API error (${response.status}): ${errorText}`);
-        }
-
-        const claudeData = await response.json();
-        aiResponse = claudeData.content?.[0]?.text || "No response generated";
         break;
 
       case "gemini":
@@ -431,7 +464,7 @@ Requirements:
         break;
 
       default:
-        throw new Error(`Unsupported provider for code generation: ${provider}`);
+        throw new Error(`Unsupported provider: ${provider}`);
     }
 
     // Ensure we have a valid response with proper validation
@@ -460,28 +493,25 @@ Requirements:
     });
 
   } catch (error) {
-    console.error("Edge Function error:", error);
+    console.error('Edge function error:', error);
     
-    // Handle timeout errors specifically
-    let status = 500;
-    let errorMessage = error.message || "Code generation failed";
-    
-    if (errorMessage.includes('timed out') || errorMessage.includes('timeout')) {
-      status = 504; // Gateway Timeout
-      errorMessage = "Code generation timed out. Please try a shorter or simpler request.";
+    // Determine appropriate status code
+    let statusCode = 500;
+    if (error.message.includes('timed out')) {
+      statusCode = 504;
+    } else if (error.message.includes('API key')) {
+      statusCode = 401;
+    } else if (error.message.includes('Invalid') || error.message.includes('required')) {
+      statusCode = 400;
     }
-    
-    // Return error response with proper structure
-    const errorResponse = {
-      error: errorMessage,
-      timeout: status === 504,
-      timestamp: new Date().toISOString(),
-      edgeFunction: true,
-      provider: requestBody?.provider || 'unknown'
-    };
 
-    return new Response(JSON.stringify(errorResponse), {
-      status: status,
+    return new Response(JSON.stringify({
+      error: 'Code generation failed',
+      message: error.message,
+      details: error.stack,
+      timestamp: new Date().toISOString()
+    }), {
+      status: statusCode,
       headers: corsHeaders
     });
   }
