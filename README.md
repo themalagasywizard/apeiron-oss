@@ -1,4 +1,4 @@
-# T3-OSS: Advanced AI Chat Platform
+# Apeiron: Advanced AI Chat Platform
 
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/themalagasywizards-projects/v0-build-a-website)
 [![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-black?style=for-the-badge&logo=next.js)](https://nextjs.org)
@@ -6,7 +6,7 @@
 
 ## 🌟 Overview
 
-T3-OSS is a powerful, feature-rich AI chat platform that combines advanced language models with robust project management capabilities. Built with Next.js and powered by Supabase, it offers a seamless, enterprise-grade experience for managing AI conversations across multiple projects.
+Apeiron is a powerful, feature-rich AI chat platform that combines advanced language models with robust project management capabilities. Built with Next.js and powered by Supabase, it offers a seamless, enterprise-grade experience for managing AI conversations across multiple projects.
 
 ## ✨ Key Features
 
@@ -58,7 +58,7 @@ T3-OSS is a powerful, feature-rich AI chat platform that combines advanced langu
 
 1. **Clone the Repository**
    ```bash
-   git clone https://github.com/your-username/T3-oss.git
+   git clone https://github.com/your-username/apeiron-oss.git
    cd T3-oss
    ```
 
@@ -116,4 +116,4 @@ The platform is optimized for deployment on Vercel and includes:
 
 ---
 
-Built with ❤️ by the T3-OSS team
+Built with ❤️ by the Apeiron team
