@@ -6,9 +6,8 @@
   package = "@netlify/plugin-nextjs"
 
 [[edge_functions]]
-  function = "generate-code"
   path = "/api/generate-code"
-  excluded_patterns = ["/_next/*", "/static/*"]
+  function = "generate-code"
 
 [functions]
   external_node_modules = ["@supabase/supabase-js"]
@@ -19,12 +18,6 @@
   NEXT_PRIVATE_TARGET = "server"
   NODE_VERSION = "18"
   NEXT_PUBLIC_SITE_URL = "https://apeiron.app"
-
-[[redirects]]
-  from = "/api/generate-code"
-  to = "/.netlify/functions/generate-code"
-  status = 200
-  force = true
 
 [[headers]]
   for = "/*"
