@@ -144,6 +144,67 @@ export default function Home() {
   const [dataLoading, setDataLoading] = useState(false)
   const [migrationCompleted, setMigrationCompleted] = useState(false)
   const loadingRef = useRef(false)
+  
+  // Add global error handlers for unhandled errors and rejections
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      event.preventDefault(); // Prevent the default browser behavior
+      
+      // Handle different types of rejection reasons
+      const reason = event.reason;
+      let errorMessage = "Unknown error occurred";
+      let errorDetails = null;
+      
+      if (reason instanceof Error) {
+        errorMessage = reason.message;
+        errorDetails = reason.stack;
+      } else if (reason instanceof Event) {
+        errorMessage = `Event error: ${reason.type}`;
+        try {
+          errorDetails = JSON.stringify(reason);
+        } catch {
+          errorDetails = "Event details not serializable";
+        }
+      } else if (typeof reason === 'string') {
+        errorMessage = reason;
+      } else if (typeof reason === 'object' && reason !== null) {
+        try {
+          errorMessage = JSON.stringify(reason);
+        } catch {
+          errorMessage = "Object error not serializable";
+        }
+      }
+      
+      console.error("[ERROR] Unhandled promise rejection:", {
+        message: errorMessage,
+        details: errorDetails,
+        type: reason?.constructor?.name || typeof reason
+      });
+    };
+    
+    const handleError = (event: ErrorEvent) => {
+      event.preventDefault(); // Prevent the default browser behavior
+      
+      console.error("[ERROR] Unhandled error:", {
+        message: event.message,
+        filename: event.filename,
+        lineNumber: event.lineno,
+        columnNumber: event.colno,
+        error: event.error,
+        type: event.type
+      });
+    };
+    
+    // Add the event listeners
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+    window.addEventListener("error", handleError);
+    
+    // Clean up the event listeners when component unmounts
+    return () => {
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+      window.removeEventListener("error", handleError);
+    };
+  }, []);
 
   // Client-side initialization
   useEffect(() => {
@@ -669,287 +730,327 @@ export default function Home() {
     enhancedWebSearch: boolean = false,
     overrideModel?: string
   ) => {
-    if (!message.trim() && !attachments?.length) return
+    try {
+      if (!message.trim() && !attachments?.length) return
 
-    // Use the override model if provided, otherwise use currentModel
-    const modelToUse = overrideModel || currentModel;
-    
-    // Special handling for OpenRouter - ensure we're using the correct model ID
-    let finalModelToUse = modelToUse;
-    if (userSettings.openrouterEnabled) {
-      // Use the OpenRouter model name if available, otherwise use a default
-      finalModelToUse = userSettings.openrouterModelName || "anthropic/claude-3.7-sonnet";
-      console.log("[DEBUG] Using OpenRouter model:", finalModelToUse);
-    }
-
-    // Create a conversation if none exists
-    let activeConversationId = currentConversationId
-    let workingConversations = conversations
-
-    if (conversations.length === 0 || !currentConversationId) {
-      // Create a new conversation immediately with the message as title
-      const title = message.slice(0, 50) + (message.length > 50 ? '...' : '')
+      // Use the override model if provided, otherwise use currentModel
+      const modelToUse = overrideModel || currentModel;
       
-      // Only assign to project if it's both selected AND expanded
-      const shouldAssignToProject = selectedProjectId && expandedProjects[selectedProjectId]
+      // Special handling for OpenRouter - ensure we're using the correct model ID
+      let finalModelToUse = modelToUse;
+      let providerToUse = getProviderFromModel(finalModelToUse);
       
-      const newConversation: UIConversation = {
-        id: Date.now().toString(),
-        title: title,
-        model: finalModelToUse,
-        messages: [],
-        user_id: user?.id || "local",
-        project_id: shouldAssignToProject ? selectedProjectId : null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-
-      if (isAuthenticated && user) {
-        try {
-          const dbConversation = await createConversation({
-            title: newConversation.title,
-            model: newConversation.model,
-            user_id: user.id,
-            project_id: shouldAssignToProject ? selectedProjectId : null
-          })
-          newConversation.id = dbConversation.id
-          newConversation.created_at = dbConversation.created_at
-          newConversation.updated_at = dbConversation.updated_at
-        } catch (error) {
-          console.error('Error creating conversation in database:', error)
+      if (userSettings.openrouterEnabled) {
+        // Use the OpenRouter model name if available, otherwise use a default
+        finalModelToUse = userSettings.openrouterModelName || "anthropic/claude-3-sonnet";
+        
+        // If the model doesn't have a provider prefix, add it
+        if (!finalModelToUse.includes('/')) {
+          if (finalModelToUse.includes('gpt')) {
+            finalModelToUse = `openai/${finalModelToUse}`;
+          } else if (finalModelToUse.includes('claude')) {
+            finalModelToUse = `anthropic/${finalModelToUse}`;
+          } else if (finalModelToUse.includes('gemini')) {
+            finalModelToUse = `google/${finalModelToUse}`;
+          } else if (finalModelToUse.includes('mistral')) {
+            finalModelToUse = `mistral/${finalModelToUse}`;
+          } else if (finalModelToUse.includes('llama')) {
+            finalModelToUse = `meta-llama/${finalModelToUse}`;
+          }
         }
+        console.log("[DEBUG] Using OpenRouter model:", finalModelToUse);
+        
+        // Force provider to be openrouter when in OpenRouter mode
+        providerToUse = "openrouter";
       }
 
-      workingConversations = [...conversations, newConversation]
-      activeConversationId = newConversation.id
-      setConversations(workingConversations)
-      setCurrentConversationId(activeConversationId)
-      saveConversationsLocally(workingConversations)
-    }
+      // Create a conversation if none exists
+      let activeConversationId = currentConversationId
+      let workingConversations = conversations
 
-    // Check if any models are available
-    const availableModels = getAvailableModels()
-    if (availableModels.length === 0) {
-      // Create info message to guide user
-      const infoMessage = {
-        id: Date.now().toString(),
-        content: "👋 Welcome to T3 Chat! To start chatting, please configure an API key:\n\n1. Click the ⚙️ Settings button in the top-right\n2. Go to the 'Models' tab\n3. Add your API key for any provider (OpenAI, Claude, Gemini, etc.)\n4. Select which models you want to use\n\nOnce configured, you'll be able to chat with AI models!",
-        role: 'assistant' as const,
-        timestamp: new Date(),
-        isError: false
+      if (conversations.length === 0 || !currentConversationId) {
+        // Create a new conversation immediately with the message as title
+        const title = message.slice(0, 50) + (message.length > 50 ? '...' : '')
+        
+        // Only assign to project if it's both selected AND expanded
+        const shouldAssignToProject = selectedProjectId && expandedProjects[selectedProjectId]
+        
+        const newConversation: UIConversation = {
+          id: Date.now().toString(),
+          title: title,
+          model: finalModelToUse,
+          messages: [],
+          user_id: user?.id || "local",
+          project_id: shouldAssignToProject ? selectedProjectId : null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+
+        if (isAuthenticated && user) {
+          try {
+            const dbConversation = await createConversation({
+              title: newConversation.title,
+              model: newConversation.model,
+              user_id: user.id,
+              project_id: shouldAssignToProject ? selectedProjectId : null
+            })
+            newConversation.id = dbConversation.id
+            newConversation.created_at = dbConversation.created_at
+            newConversation.updated_at = dbConversation.updated_at
+          } catch (error) {
+            console.error('[ERROR] Failed to create conversation in database:', error)
+          }
+        }
+
+        workingConversations = [...conversations, newConversation]
+        activeConversationId = newConversation.id
+        setConversations(workingConversations)
+        setCurrentConversationId(activeConversationId)
+        saveConversationsLocally(workingConversations)
       }
 
-      const infoConversations = workingConversations.map(conv =>
+      // Check if any models are available
+      const availableModels = getAvailableModels()
+      if (availableModels.length === 0) {
+        // Create info message to guide user
+        const infoMessage = {
+          id: Date.now().toString(),
+          content: "👋 Welcome to Apeiron! To start chatting, please configure an API key:\n\n1. Click the ⚙️ Settings button in the bottom-left\n2. Go to the 'Models' tab\n3. Add your API key for any provider (OpenAI, Claude, Gemini, etc.) or OpenRouter\n4. Select which models you want to use\n\nOnce configured, you'll be able to chat with AI models!",
+          role: 'assistant' as const,
+          timestamp: new Date(),
+          isError: false
+        }
+
+        const infoConversations = workingConversations.map(conv =>
+          conv.id === activeConversationId
+            ? {
+                ...conv,
+                messages: [...conv.messages, infoMessage],
+                updated_at: new Date().toISOString()
+              }
+            : conv
+        )
+        setConversations(infoConversations)
+        saveConversationsLocally(infoConversations)
+        return
+      }
+
+      // Clean up any existing error messages from the current conversation
+      const cleanedConversations = workingConversations.map(conv =>
         conv.id === activeConversationId
           ? {
               ...conv,
-              messages: [...conv.messages, infoMessage],
-              updated_at: new Date().toISOString()
+              messages: conv.messages.filter(msg => !msg.isError)
             }
           : conv
       )
-      setConversations(infoConversations)
-      saveConversationsLocally(infoConversations)
-      return
-    }
+      setConversations(cleanedConversations)
 
-    // Clean up any existing error messages from the current conversation
-    const cleanedConversations = workingConversations.map(conv =>
-      conv.id === activeConversationId
-        ? {
-            ...conv,
-            messages: conv.messages.filter(msg => !msg.isError)
-          }
-        : conv
-    )
-    setConversations(cleanedConversations)
-
-    // Create user message
-    const userMessage: UIMessage = {
-      id: Date.now().toString(),
-      content: message,
-      role: "user",
-      timestamp: new Date(),
-      attachments,
-      model: finalModelToUse
-    }
-
-    // Add user message to conversation (using cleaned conversations)
-    const updatedConversations = cleanedConversations.map(conv =>
-      conv.id === activeConversationId
-        ? {
-            ...conv,
-            messages: [...conv.messages, userMessage],
-            model: finalModelToUse,
-            updated_at: new Date().toISOString()
-          }
-        : conv
-    )
-    setConversations(updatedConversations)
-    saveConversationsLocally(updatedConversations)
-
-    setIsTyping(true)
-
-    try {
-      // Save user message to database if authenticated
-      if (isAuthenticated && user) {
-        await createMessage({
-          content: message,
-          role: 'user',
-          conversation_id: activeConversationId,
-          model: finalModelToUse,
-          provider: getProviderFromModel(finalModelToUse),
-          attachments: attachments || []
-        })
-      }
-
-      // Get provider and API key for current model
-      const provider = getProviderFromModel(finalModelToUse)
-      let apiKey = getApiKeyForModel(finalModelToUse, userSettings)
-
-      // Special handling for OpenRouter
-      if (userSettings.openrouterEnabled) {
-        console.log("[DEBUG] OpenRouter mode is enabled")
-        console.log("[DEBUG] Selected model:", finalModelToUse)
-        apiKey = userSettings.openrouterApiKey
-        console.log("[DEBUG] Using OpenRouter API key:", apiKey ? "Key exists" : "No key")
-      }
-
-      if (!provider || !apiKey) {
-        console.error("[ERROR] Missing provider or API key:", { provider, hasApiKey: !!apiKey })
-        throw new Error(`Please configure an API key for ${provider || 'this model'} in Settings → Models`)
-      }
-
-      // Filter out error messages before sending to API
-      const currentConv = updatedConversations.find(conv => conv.id === activeConversationId)
-      const cleanMessages = (currentConv?.messages || [])
-        .filter(msg => !msg.isError) // Remove error messages
-        .map(msg => ({
-          role: msg.role,
-          content: msg.content,
-          attachments: msg.attachments // Include attachments
-        }))
-
-      // Prepare headers with location data if available
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (webSearchEnabled && userLocation) {
-        headers['x-user-location'] = userLocation;
-      }
-
-      // Make API call to get AI response
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          messages: cleanMessages,
-          provider: provider,
-          apiKey: apiKey,
-          model: finalModelToUse,
-          temperature: userSettings.temperature,
-          webSearchEnabled,
-          codeGenerationEnabled: codeGenerationEnabled || false, // Ensure it's a boolean
-          enhancedWebSearch,
-          // Include all individual API keys for image generation routing
-          openaiApiKey: userSettings.openaiApiKey,
-          claudeApiKey: userSettings.claudeApiKey,
-          geminiApiKey: userSettings.geminiApiKey,
-          deepseekApiKey: userSettings.deepseekApiKey,
-          grokApiKey: userSettings.grokApiKey,
-          veo2ApiKey: userSettings.veo2ApiKey,
-          mistralApiKey: userSettings.mistralApiKey,
-          runwayApiKey: userSettings.runwayApiKey
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      // Create assistant message with proper content validation
-      const assistantMessage: UIMessage = {
+      // Create user message
+      const userMessage: UIMessage = {
         id: Date.now().toString(),
-        content: data.response || data.content || "No response content",
-        role: "assistant",
+        content: message,
+        role: "user",
         timestamp: new Date(),
-        model: finalModelToUse,
-        provider: provider,
-        searchResults: data.searchResults
+        attachments,
+        model: finalModelToUse
       }
 
-      // Add assistant message to conversation
-      const finalConversations = updatedConversations.map(conv =>
+      // Add user message to conversation (using cleaned conversations)
+      const updatedConversations = cleanedConversations.map(conv =>
         conv.id === activeConversationId
           ? {
               ...conv,
-              messages: [...conv.messages, assistantMessage],
+              messages: [...conv.messages, userMessage],
               model: finalModelToUse,
               updated_at: new Date().toISOString()
             }
           : conv
       )
-      setConversations(finalConversations)
-      saveConversationsLocally(finalConversations)
+      setConversations(updatedConversations)
+      saveConversationsLocally(updatedConversations)
 
-      // Save assistant message to database if authenticated (with content validation)
-      if (isAuthenticated && user) {
-        const messageContent = data.content || data.response || "I apologize, but I couldn't generate a response. Please try again."
-        await createMessage({
-          content: messageContent,
-          role: 'assistant',
-          conversation_id: activeConversationId,
-          model: finalModelToUse,
-          provider: getProviderFromModel(finalModelToUse),
-          search_results: data.searchResults || []
-        })
+      setIsTyping(true)
 
-        // Update conversation timestamp
-        await updateConversation(activeConversationId, { 
-          updated_at: new Date().toISOString() 
-        })
-      }
+      try {
+        // Save user message to database if authenticated
+        if (isAuthenticated && user) {
+          await createMessage({
+            content: message,
+            role: 'user',
+            conversation_id: activeConversationId,
+            model: finalModelToUse,
+            provider: getProviderFromModel(finalModelToUse),
+            attachments: attachments || []
+          })
+        }
 
-    } catch (error) {
-      console.error('Error sending message:', error)
-      
-      // Create error message in local state
-      const errorMessage = {
-        id: Date.now().toString(),
-        content: error instanceof Error ? error.message : 
-                error instanceof Event ? 'Network error occurred. Please check your connection and try again.' :
-                'An error occurred',
-        role: 'assistant' as const,
-        timestamp: new Date(),
-        isError: true,
-        retryData: {
-          originalMessage: message,
-          attachments,
-          originalSettings: {
+        // Get provider and API key for current model
+        const provider = providerToUse || getProviderFromModel(finalModelToUse)
+        let apiKey = getApiKeyForModel(finalModelToUse, userSettings)
+
+        // Special handling for OpenRouter
+        if (userSettings.openrouterEnabled) {
+          console.log("[DEBUG] OpenRouter mode is enabled")
+          console.log("[DEBUG] Selected model:", finalModelToUse)
+          apiKey = userSettings.openrouterApiKey
+          console.log("[DEBUG] Using OpenRouter API key:", apiKey ? "Key exists" : "No key")
+          console.log("[DEBUG] Using provider:", provider)
+        }
+
+        if (!provider || !apiKey) {
+          console.error("[ERROR] Missing provider or API key:", { provider, hasApiKey: !!apiKey })
+          throw new Error(`Please configure an API key for ${provider || 'this model'} in Settings → Models`)
+        }
+
+        // Filter out error messages before sending to API
+        const currentConv = updatedConversations.find(conv => conv.id === activeConversationId)
+        const cleanMessages = (currentConv?.messages || [])
+          .filter(msg => !msg.isError) // Remove error messages
+          .map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            attachments: msg.attachments // Include attachments
+          }))
+
+        // Prepare headers with location data if available
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+        };
+        
+        if (webSearchEnabled && userLocation) {
+          headers['x-user-location'] = userLocation;
+        }
+
+        // Make API call to get AI response
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            messages: cleanMessages,
+            provider: provider,
+            apiKey: apiKey,
+            model: finalModelToUse,
+            temperature: userSettings.temperature,
             webSearchEnabled,
             codeGenerationEnabled: codeGenerationEnabled || false, // Ensure it's a boolean
             enhancedWebSearch,
-            userLocation
+            // Include all individual API keys for image generation routing
+            openaiApiKey: userSettings.openaiApiKey,
+            claudeApiKey: userSettings.claudeApiKey,
+            geminiApiKey: userSettings.geminiApiKey,
+            deepseekApiKey: userSettings.deepseekApiKey,
+            grokApiKey: userSettings.grokApiKey,
+            veo2ApiKey: userSettings.veo2ApiKey,
+            mistralApiKey: userSettings.mistralApiKey,
+            runwayApiKey: userSettings.runwayApiKey
+          }),
+        }).catch(error => {
+          console.error("[ERROR] Fetch error:", error);
+          throw new Error(`Network error: ${error.message || "Failed to connect to API"}`);
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(e => "Could not read error response");
+          console.error(`[ERROR] HTTP error ${response.status}:`, errorText);
+          throw new Error(`HTTP error! status: ${response.status}. ${errorText}`);
+        }
+
+        const data = await response.json().catch(error => {
+          console.error("[ERROR] JSON parse error:", error);
+          throw new Error("Failed to parse API response");
+        });
+
+        // Create assistant message with proper content validation
+        const assistantMessage: UIMessage = {
+          id: Date.now().toString(),
+          content: data.response || data.content || "No response content",
+          role: "assistant",
+          timestamp: new Date(),
+          model: finalModelToUse,
+          provider: provider,
+          searchResults: data.searchResults
+        }
+
+        // Add assistant message to conversation
+        const finalConversations = updatedConversations.map(conv =>
+          conv.id === activeConversationId
+            ? {
+                ...conv,
+                messages: [...conv.messages, assistantMessage],
+                model: finalModelToUse,
+                updated_at: new Date().toISOString()
+              }
+            : conv
+        )
+        setConversations(finalConversations)
+        saveConversationsLocally(finalConversations)
+
+        // Save assistant message to database if authenticated (with content validation)
+        if (isAuthenticated && user) {
+          try {
+            const messageContent = data.content || data.response || "I apologize, but I couldn't generate a response. Please try again."
+            await createMessage({
+              content: messageContent,
+              role: 'assistant',
+              conversation_id: activeConversationId,
+              model: finalModelToUse,
+              provider: getProviderFromModel(finalModelToUse),
+              search_results: data.searchResults || []
+            })
+
+            // Update conversation timestamp
+            await updateConversation(activeConversationId, { 
+              updated_at: new Date().toISOString() 
+            })
+          } catch (dbError) {
+            console.error("[ERROR] Failed to save assistant message to database:", dbError);
+            // Continue execution - this is not critical for the user experience
           }
         }
-      }
 
-      const errorConversations = updatedConversations.map(conv =>
-        conv.id === activeConversationId
-          ? {
-              ...conv,
-              messages: [...conv.messages, errorMessage],
-              updated_at: new Date().toISOString()
+      } catch (error) {
+        console.error('[ERROR] Error sending message:', error)
+        
+        // Create error message in local state
+        const errorMessage = {
+          id: Date.now().toString(),
+          content: error instanceof Error ? error.message : 
+                  error instanceof Event ? 'Network error occurred. Please check your connection and try again.' :
+                  'An error occurred',
+          role: 'assistant' as const,
+          timestamp: new Date(),
+          isError: true,
+          retryData: {
+            originalMessage: message,
+            attachments,
+            originalSettings: {
+              webSearchEnabled,
+              codeGenerationEnabled: codeGenerationEnabled || false, // Ensure it's a boolean
+              enhancedWebSearch,
+              userLocation
             }
-          : conv
-      )
-      setConversations(errorConversations)
-      saveConversationsLocally(errorConversations)
-    } finally {
-      setIsTyping(false)
+          }
+        }
+
+        const errorConversations = updatedConversations.map(conv =>
+          conv.id === activeConversationId
+            ? {
+                ...conv,
+                messages: [...conv.messages, errorMessage],
+                updated_at: new Date().toISOString()
+              }
+            : conv
+        )
+        setConversations(errorConversations)
+        saveConversationsLocally(errorConversations)
+      } finally {
+        setIsTyping(false)
+      }
+    } catch (outerError) {
+      // Catch any unhandled errors in the outer scope
+      console.error("[ERROR] Unhandled error in handleSendMessage:", outerError);
+      setIsTyping(false);
     }
   }
 
@@ -987,19 +1088,24 @@ export default function Home() {
     console.log("[DEBUG] Getting provider for model:", modelId)
     console.log("[DEBUG] OpenRouter enabled:", userSettings.openrouterEnabled)
     
-    // Check if OpenRouter is enabled and we're using an OpenRouter model
+    // Check if OpenRouter is enabled
     if (userSettings.openrouterEnabled) {
       console.log("[DEBUG] Using OpenRouter provider due to enabled flag")
       return 'openrouter'
     }
     
     // Special handling for OpenRouter format models (e.g. openai/gpt-4, anthropic/claude-3)
-    if (modelId.includes('/')) {
+    if (modelId && modelId.includes('/')) {
       console.log("[DEBUG] Using OpenRouter provider due to model ID format")
       return 'openrouter'
     }
     
     // Standard provider detection
+    if (!modelId) {
+      console.log("[DEBUG] No model ID provided, defaulting to openai")
+      return 'openai'
+    }
+    
     if (modelId.includes('claude')) return 'claude'
     if (modelId.includes('gpt') || modelId.includes('o3')) return 'openai'
     if (modelId.includes('gemini')) return 'gemini'
@@ -1099,64 +1205,148 @@ export default function Home() {
 
   // Generate available models based on API keys
   const getAvailableModels = () => {
-    return getAvailableModelsForSettings(userSettings)
+    // If OpenRouter is enabled and API key exists, consider it as an available model
+    if (userSettings.openrouterEnabled && userSettings.openrouterApiKey) {
+      return [{
+        id: userSettings.openrouterModelName || "anthropic/claude-3-sonnet",
+        name: userSettings.openrouterModelName || "Claude 3 Sonnet",
+        icon: "🌐",
+        provider: "openrouter" as const,
+        enabled: true
+      }];
+    }
+    return getAvailableModelsForSettings(userSettings);
   }
 
   const handleRetryMessage = async (messageId: string, selectedModelId?: string) => {
-    // Find the message to retry
-    const conversation = conversations.find(conv => conv.messages.some(m => m.id === messageId));
-    if (!conversation) return;
-    
-    const messageIndex = conversation.messages.findIndex(m => m.id === messageId);
-    if (messageIndex === -1) return;
-    
-    // Find the last user message before this message
-    let userMessageIndex = messageIndex - 1;
-    while (userMessageIndex >= 0 && conversation.messages[userMessageIndex].role !== 'user') {
-      userMessageIndex--;
-    }
-    
-    if (userMessageIndex === -1) return;
-    
-    const userMessage = conversation.messages[userMessageIndex];
-    
-    // Use the selected model if provided, otherwise use the current model
-    const modelToUse = selectedModelId || currentModel;
-    
-    // Remove all messages after the user message we're retrying
-    const updatedConversations = conversations.map(conv =>
-      conv.id === conversation.id
-        ? {
-            ...conv,
-            messages: conv.messages.slice(0, userMessageIndex + 1),
-            model: modelToUse, // Update the conversation model
-            updated_at: new Date().toISOString()
+    try {
+      console.log("[DEBUG PAGE] Retrying message:", messageId);
+      console.log("[DEBUG PAGE] Selected model:", selectedModelId);
+      
+      // Find the message to retry
+      const conversation = conversations.find(conv => conv.messages.some(m => m.id === messageId));
+      if (!conversation) {
+        console.warn("[WARN PAGE] Could not find conversation for message:", messageId);
+        return;
+      }
+      
+      const messageIndex = conversation.messages.findIndex(m => m.id === messageId);
+      if (messageIndex === -1) {
+        console.warn("[WARN PAGE] Could not find message in conversation:", messageId);
+        return;
+      }
+      
+      // Find the last user message before this message
+      let userMessageIndex = messageIndex - 1;
+      while (userMessageIndex >= 0 && conversation.messages[userMessageIndex].role !== 'user') {
+        userMessageIndex--;
+      }
+      
+      if (userMessageIndex === -1) {
+        console.warn("[WARN PAGE] Could not find user message to retry");
+        return;
+      }
+      
+      const userMessage = conversation.messages[userMessageIndex];
+      console.log("[DEBUG PAGE] Found user message to retry:", {
+        content: userMessage.content.slice(0, 100) + "...",
+        hasAttachments: !!userMessage.attachments?.length
+      });
+      
+      // Use the selected model if provided, otherwise use the current model
+      const modelToUse = selectedModelId || currentModel;
+      console.log("[DEBUG PAGE] Using model for retry:", modelToUse);
+      
+      try {
+        // Remove all messages after the user message we're retrying
+        const updatedConversations = conversations.map(conv =>
+          conv.id === conversation.id
+            ? {
+                ...conv,
+                messages: conv.messages.slice(0, userMessageIndex + 1),
+                model: modelToUse, // Update the conversation model
+                updated_at: new Date().toISOString()
+              }
+            : conv
+        );
+        
+        setConversations(updatedConversations);
+        
+        try {
+          saveConversationsLocally(updatedConversations);
+        } catch (saveError) {
+          console.error("[ERROR PAGE] Failed to save conversations after retry cleanup:", saveError);
+        }
+      } catch (updateError) {
+        console.error("[ERROR PAGE] Failed to update conversations for retry:", updateError);
+        // Continue with retry even if update fails
+      }
+      
+      // Get the original message's settings from retryData if available
+      const retrySettings = conversation.messages[messageIndex]?.retryData?.originalSettings || {
+        webSearchEnabled: false,
+        codeGenerationEnabled: false,
+        enhancedWebSearch: false,
+        userLocation: null
+      };
+      
+      console.log("[DEBUG PAGE] Retrying with settings:", {
+        webSearch: retrySettings.webSearchEnabled,
+        enhancedSearch: retrySettings.enhancedWebSearch,
+        location: retrySettings.userLocation
+      });
+      
+      try {
+        // Retry the message with the selected model and original settings
+        // Force codeGenerationEnabled to false for retries
+        await handleSendMessage(
+          userMessage.content,
+          userMessage.attachments,
+          retrySettings.webSearchEnabled,
+          false, // Always disable code generation for retries
+          retrySettings.userLocation,
+          retrySettings.enhancedWebSearch,
+          modelToUse // Pass the selected model
+        );
+      } catch (sendError) {
+        console.error("[ERROR PAGE] Failed to send retry message:", sendError);
+        // Create error message in conversation
+        const errorMessage = {
+          id: Date.now().toString(),
+          content: sendError instanceof Error ? sendError.message : 
+                  sendError instanceof Event ? `Network error: ${sendError.type}` :
+                  'Failed to retry message',
+          role: "assistant" as const,
+          timestamp: new Date(),
+          isError: true,
+          retryData: {
+            originalMessage: userMessage.content,
+            attachments: userMessage.attachments,
+            originalSettings: retrySettings
           }
-        : conv
-    );
-    
-    setConversations(updatedConversations);
-    saveConversationsLocally(updatedConversations);
-    
-    // Get the original message's settings from retryData if available
-    const retrySettings = conversation.messages[messageIndex]?.retryData?.originalSettings || {
-      webSearchEnabled: false,
-      codeGenerationEnabled: false,
-      enhancedWebSearch: false,
-      userLocation: null
-    };
-    
-    // Retry the message with the selected model and original settings
-    // Force codeGenerationEnabled to false for retries
-    await handleSendMessage(
-      userMessage.content,
-      userMessage.attachments,
-      retrySettings.webSearchEnabled,
-      false, // Always disable code generation for retries
-      retrySettings.userLocation,
-      retrySettings.enhancedWebSearch,
-      modelToUse // Pass the selected model
-    );
+        };
+        
+        const errorConversations = conversations.map(conv =>
+          conv.id === conversation.id
+            ? {
+                ...conv,
+                messages: [...conv.messages, errorMessage],
+                updated_at: new Date().toISOString()
+              }
+            : conv
+        );
+        
+        setConversations(errorConversations);
+        try {
+          saveConversationsLocally(errorConversations);
+        } catch (saveError) {
+          console.error("[ERROR PAGE] Failed to save error message:", saveError);
+        }
+      }
+    } catch (error) {
+      console.error("[ERROR PAGE] Error in retry handler:", error);
+      // Don't throw - this is a top-level error handler
+    }
   };
 
   // Don't show loading spinner - always show the main UI
@@ -1210,20 +1400,35 @@ export default function Home() {
           onSendMessage={handleSendMessage}
           onSelectConversation={handleSelectConversation}
           onSelectModel={(modelId: string) => {
-            setCurrentModel(modelId);
-            // If there's a current conversation, update its model
-            if (currentConversationId) {
-              const updatedConversations = conversations.map(conv =>
-                conv.id === currentConversationId
-                  ? {
-                      ...conv,
-                      model: modelId,
-                      updated_at: new Date().toISOString()
-                    }
-                  : conv
-              );
-              setConversations(updatedConversations);
-              saveConversationsLocally(updatedConversations);
+            try {
+              console.log("[DEBUG PAGE] Selecting model:", modelId);
+              setCurrentModel(modelId);
+              
+              // If there's a current conversation, update its model
+              if (currentConversationId) {
+                try {
+                  const updatedConversations = conversations.map(conv =>
+                    conv.id === currentConversationId
+                      ? {
+                          ...conv,
+                          model: modelId,
+                          updated_at: new Date().toISOString()
+                        }
+                      : conv
+                  );
+                  setConversations(updatedConversations);
+                  
+                  try {
+                    saveConversationsLocally(updatedConversations);
+                  } catch (saveError) {
+                    console.error("[ERROR PAGE] Failed to save conversations after model selection:", saveError);
+                  }
+                } catch (updateError) {
+                  console.error("[ERROR PAGE] Failed to update conversations with new model:", updateError);
+                }
+              }
+            } catch (error) {
+              console.error("[ERROR PAGE] Error in model selection handler:", error);
             }
           }}
           onCreateConversation={handleCreateConversation}
