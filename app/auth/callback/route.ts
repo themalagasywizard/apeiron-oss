@@ -8,15 +8,15 @@ export async function GET(request: NextRequest) {
   // If there's an error, redirect to error page
   if (error) {
     console.error('OAuth error:', error)
-    return NextResponse.redirect(`https://t3-oss.netlify.app/auth/error?message=${encodeURIComponent(error)}`)
+    return NextResponse.redirect(`https://apeiron.app/auth/error?message=${encodeURIComponent(error)}`)
   }
   
   // For PKCE flow, let the client-side handle the code exchange
   // Just redirect to production with the code parameter intact
   if (code) {
-    return NextResponse.redirect(`https://t3-oss.netlify.app/?code=${code}`)
+    return NextResponse.redirect(`https://apeiron.app/?code=${code}`)
   }
 
   // Fallback redirect to production
-  return NextResponse.redirect('https://t3-oss.netlify.app/')
+  return NextResponse.redirect('https://apeiron.app/')
 } 

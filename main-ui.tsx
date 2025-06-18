@@ -421,7 +421,7 @@ export default function MainUI({
         }
         
         // Check for saved light/dark preference
-        const savedThemeMode = localStorage.getItem('t3-chat-theme-mode')
+        const savedThemeMode = localStorage.getItem('apeiron-theme-mode')
         let actualThemeMode = savedThemeMode
         
         if (savedThemeMode === 'light') {
@@ -432,7 +432,7 @@ export default function MainUI({
           // Default to dark mode
           setTheme('dark')
           actualThemeMode = 'dark'
-          localStorage.setItem('t3-chat-theme-mode', 'dark')
+          localStorage.setItem('apeiron-theme-mode', 'dark')
         }
         
         // Apply the saved theme class
@@ -1041,28 +1041,56 @@ export default function MainUI({
 
   // Update handleToggleOpenRouter function
   const handleToggleOpenRouter = (enabled: boolean) => {
-    console.log("[DEBUG UI] Toggling OpenRouter mode:", enabled);
-    
-    const updatedSettings = {
-      ...userSettings,
-      openrouterEnabled: enabled
-    }
-    
-    if (enabled) {
-      // When enabling OpenRouter, set a default model if none is selected
-      const defaultModel = "anthropic/claude-3.7-sonnet";
-      console.log("[DEBUG UI] Setting default OpenRouter model:", defaultModel);
-      updatedSettings.openrouterModelName = defaultModel;
+    try {
+      console.log("[DEBUG UI] Toggling OpenRouter mode:", enabled);
       
-      // Also select this model in the UI
-      setTimeout(() => {
-        console.log("[DEBUG UI] Auto-selecting default model after toggle");
+      const updatedSettings = {
+        ...userSettings,
+        openrouterEnabled: enabled
+      }
+      
+      if (enabled) {
+        // When enabling OpenRouter, set a default model if none is selected
+        let defaultModel = userSettings.openrouterModelName;
+        if (!defaultModel || defaultModel.trim() === "") {
+          defaultModel = "anthropic/claude-3-sonnet";
+          console.log("[DEBUG UI] No model selected, setting default OpenRouter model:", defaultModel);
+        } else {
+          console.log("[DEBUG UI] Using existing OpenRouter model:", defaultModel);
+        }
+        
+        // Ensure model has provider prefix
+        if (!defaultModel.includes('/')) {
+          if (defaultModel.includes('gpt')) {
+            defaultModel = `openai/${defaultModel}`;
+          } else if (defaultModel.includes('claude')) {
+            defaultModel = `anthropic/${defaultModel}`;
+          } else if (defaultModel.includes('gemini')) {
+            defaultModel = `google/${defaultModel}`;
+          } else if (defaultModel.includes('mistral')) {
+            defaultModel = `mistral/${defaultModel}`;
+          } else if (defaultModel.includes('llama')) {
+            defaultModel = `meta-llama/${defaultModel}`;
+          }
+          console.log("[DEBUG UI] Added provider prefix to model:", defaultModel);
+        }
+        
+        updatedSettings.openrouterModelName = defaultModel;
+        
+        // Also select this model in the UI immediately
+        console.log("[DEBUG UI] Auto-selecting model after toggle:", defaultModel);
         onSelectModel(defaultModel);
-      }, 100);
+      }
+      
+      console.log("[DEBUG UI] Saving updated settings with OpenRouter", enabled ? "enabled" : "disabled");
+      try {
+        onSaveSettings(updatedSettings);
+      } catch (saveError) {
+        console.error("[ERROR UI] Failed to save settings after toggle:", saveError);
+      }
+    } catch (error) {
+      console.error("[ERROR UI] Error in OpenRouter toggle:", error);
     }
-    
-    console.log("[DEBUG UI] Saving updated settings with OpenRouter", enabled ? "enabled" : "disabled");
-    onSaveSettings(updatedSettings)
   }
 
   // Save general settings
@@ -1084,7 +1112,7 @@ export default function MainUI({
       onToggleTheme()
       
       // Save preference to localStorage
-      localStorage.setItem('t3-chat-theme-mode', newTheme)
+      localStorage.setItem('apeiron-theme-mode', newTheme)
       
       // Remove both light and dark classes, then add the appropriate one
       document.documentElement.classList.remove("light", "dark")
@@ -1893,45 +1921,44 @@ export default function MainUI({
 
   // Add new function to handle OpenRouter model selection
   const handleOpenrouterModelToggle = (modelId: string) => {
-    console.log("[DEBUG UI] Toggling OpenRouter model:", modelId);
-    
-    setOpenrouterSelectedModels(prev => {
-      if (prev.includes(modelId)) {
-        // If we're removing the currently selected model, we need to select another one
-        if (currentModel === modelId || userSettings.openrouterModelName === modelId) {
-          console.log("[DEBUG UI] Removing currently selected model");
-          // Find another model to select
-          const remainingModels = prev.filter(id => id !== modelId);
-          if (remainingModels.length > 0) {
-            const newModel = remainingModels[0];
-            console.log("[DEBUG UI] Auto-selecting new model:", newModel);
-            setTimeout(() => {
-              onSelectModel(newModel);
-              onSaveSettings({
-                ...userSettings,
-                openrouterModelName: newModel
-              });
-            }, 100);
-          }
+    try {
+      console.log("[DEBUG UI] Toggling OpenRouter model:", modelId);
+      
+      // Ensure we have a valid model ID with provider prefix
+      let fullModelId = modelId;
+      if (!fullModelId.includes('/')) {
+        if (fullModelId.includes('gpt')) {
+          fullModelId = `openai/${fullModelId}`;
+        } else if (fullModelId.includes('claude')) {
+          fullModelId = `anthropic/${fullModelId}`;
+        } else if (fullModelId.includes('gemini')) {
+          fullModelId = `google/${fullModelId}`;
+        } else if (fullModelId.includes('mistral')) {
+          fullModelId = `mistral/${fullModelId}`;
+        } else if (fullModelId.includes('llama')) {
+          fullModelId = `meta-llama/${fullModelId}`;
         }
-        return prev.filter(id => id !== modelId);
-      } else {
-        // If this is the first model being added or no model is currently selected, select this one
-        const newModels = [...prev, modelId];
-        if (!currentModel || !userSettings.openrouterModelName || prev.length === 0) {
-          console.log("[DEBUG UI] Auto-selecting newly added model:", modelId);
-          setTimeout(() => {
-            onSelectModel(modelId);
-            onSaveSettings({
-              ...userSettings,
-              openrouterModelName: modelId
-            });
-          }, 100);
-        }
-        return newModels;
       }
-    });
-  }
+      
+      // Update settings with the new model
+      const updatedSettings = {
+        ...userSettings,
+        openrouterModelName: fullModelId
+      };
+      
+      // Save settings
+      onSaveSettings(updatedSettings);
+      
+      // Update current model if OpenRouter is enabled
+      if (updatedSettings.openrouterEnabled) {
+        onSelectModel(fullModelId);
+      }
+      
+      console.log("[DEBUG UI] Updated OpenRouter model to:", fullModelId);
+    } catch (error) {
+      console.error("[ERROR UI] Error in handleOpenrouterModelToggle:", error);
+    }
+  };
 
   // Add new function to handle custom model addition
   const handleAddCustomModel = () => {
@@ -1942,67 +1969,87 @@ export default function MainUI({
     }
   }
 
-  // Update useEffect to initialize selected models from settings
+  // Update useEffect to initialize selected models from settings with better error handling
   useEffect(() => {
-    console.log("[DEBUG UI] OpenRouter enabled:", userSettings.openrouterEnabled);
-    console.log("[DEBUG UI] OpenRouter API key exists:", !!userSettings.openrouterApiKey);
-    console.log("[DEBUG UI] Current model:", currentModel);
-    
-    if (userSettings.openrouterEnabled) {
-      // If there's a saved model name, include it in the selected models
-      const defaultModels = [
-        "google/gemini-2.0-flash-001",
-        "anthropic/claude-4-sonnet-20250522",
-        "google/gemini-2.5-flash-preview-05-20",
-        "anthropic/claude-3.7-sonnet",
-        "openai/gpt-4.1-2025-04-14",
-        "openai/gpt-4o-mini",
-        "deepseek/deepseek-r1:free",
-        "x-ai/grok-3-beta",
-        "meta-llama/llama-3.3-70b-instruct"
-      ]
+    try {
+      console.log("[DEBUG UI] OpenRouter enabled:", userSettings.openrouterEnabled);
+      console.log("[DEBUG UI] OpenRouter API key exists:", !!userSettings.openrouterApiKey);
+      console.log("[DEBUG UI] Current model:", currentModel);
       
-      console.log("[DEBUG UI] Default OpenRouter models:", defaultModels);
-      
-      // Start with the default models, and add the current model if it's not already included
-      const initialModels = new Set(defaultModels)
-      if (userSettings.openrouterModelName && !initialModels.has(userSettings.openrouterModelName)) {
-        initialModels.add(userSettings.openrouterModelName)
-        console.log("[DEBUG UI] Added saved model to selection:", userSettings.openrouterModelName);
-      }
-      
-      console.log("[DEBUG UI] Setting OpenRouter selected models:", Array.from(initialModels));
-      setOpenrouterSelectedModels(Array.from(initialModels))
-      
-      // If no model is currently selected, select the first one
-      if (!currentModel || !initialModels.has(currentModel)) {
-        const firstModel = Array.from(initialModels)[0]
-        if (firstModel) {
-          console.log("[DEBUG UI] Auto-selecting first model:", firstModel);
-          onSelectModel(firstModel)
+      if (userSettings.openrouterEnabled) {
+        // If there's a saved model name, include it in the selected models
+        const defaultModels = [
+          "google/gemini-2.0-flash-001",
+          "anthropic/claude-4-sonnet-20250522",
+          "google/gemini-2.5-flash-preview-05-20",
+          "anthropic/claude-3.7-sonnet",
+          "openai/gpt-4.1-2025-04-14",
+          "openai/gpt-4o-mini",
+          "deepseek/deepseek-r1:free",
+          "x-ai/grok-3-beta",
+          "meta-llama/llama-3.3-70b-instruct"
+        ]
+        
+        console.log("[DEBUG UI] Default OpenRouter models:", defaultModels);
+        
+        // Start with the default models, and add the current model if it's not already included
+        const initialModels = new Set(defaultModels)
+        if (userSettings.openrouterModelName && !initialModels.has(userSettings.openrouterModelName)) {
+          initialModels.add(userSettings.openrouterModelName)
+          console.log("[DEBUG UI] Added saved model to selection:", userSettings.openrouterModelName);
+        }
+        
+        console.log("[DEBUG UI] Setting OpenRouter selected models:", Array.from(initialModels));
+        setOpenrouterSelectedModels(Array.from(initialModels))
+        
+        // If no model is currently selected, select the first one
+        if (!currentModel || !initialModels.has(currentModel)) {
+          const firstModel = Array.from(initialModels)[0]
+          if (firstModel) {
+            console.log("[DEBUG UI] Auto-selecting first model:", firstModel);
+            try {
+              onSelectModel(firstModel)
+            } catch (error) {
+              console.error("[ERROR UI] Failed to select model:", error);
+            }
+          }
         }
       }
+    } catch (error) {
+      console.error("[ERROR UI] Error in OpenRouter initialization:", error);
     }
-  }, [userSettings.openrouterEnabled, userSettings.openrouterModelName, userSettings.openrouterApiKey, currentModel, onSelectModel])
+  }, [userSettings.openrouterEnabled, userSettings.openrouterModelName, userSettings.openrouterApiKey, currentModel, onSelectModel]);
 
   // Update model selection handler
   const handleModelSelect = (modelId: string) => {
-    console.log("[DEBUG UI] Model selected:", modelId);
-    console.log("[DEBUG UI] OpenRouter enabled:", userSettings.openrouterEnabled);
-    
-    if (userSettings.openrouterEnabled) {
-      // When using OpenRouter, update both the model selection and the OpenRouter model name
-      console.log("[DEBUG UI] Updating OpenRouter model name in settings");
-      const updatedSettings = {
-        ...userSettings,
-        openrouterModelName: modelId
+    try {
+      console.log("[DEBUG UI] Model selected:", modelId);
+      console.log("[DEBUG UI] OpenRouter enabled:", userSettings.openrouterEnabled);
+      
+      if (userSettings.openrouterEnabled) {
+        // When using OpenRouter, update both the model selection and the OpenRouter model name
+        console.log("[DEBUG UI] Updating OpenRouter model name in settings");
+        const updatedSettings = {
+          ...userSettings,
+          openrouterModelName: modelId
+        }
+        try {
+          onSaveSettings(updatedSettings);
+        } catch (saveError) {
+          console.error("[ERROR UI] Failed to save OpenRouter model name in settings:", saveError);
+        }
       }
-      onSaveSettings(updatedSettings)
+      
+      // Call the parent component's onSelectModel function
+      console.log("[DEBUG UI] Calling onSelectModel");
+      try {
+        onSelectModel(modelId);
+      } catch (selectError) {
+        console.error("[ERROR UI] Failed to select model:", selectError);
+      }
+    } catch (error) {
+      console.error("[ERROR UI] Error in model selection handler:", error);
     }
-    
-    // Call the parent component's onSelectModel function
-    console.log("[DEBUG UI] Calling onSelectModel");
-    onSelectModel(modelId)
   }
 
   // Update the OpenRouter API key handling
@@ -3182,27 +3229,44 @@ export default function MainUI({
                             <input
                               type="password"
                               value={userSettings.openrouterApiKey}
-                              onChange={(e) => {
-                                console.log("[DEBUG UI] Setting OpenRouter API key:", e.target.value ? "Key provided" : "No key");
-                                const updatedSettings = { 
-                                  ...userSettings, 
-                                  openrouterApiKey: e.target.value 
-                                };
-                                onSaveSettings(updatedSettings);
-                                
-                                // If OpenRouter is enabled and we have a key, make sure a model is selected
-                                if (userSettings.openrouterEnabled && e.target.value && !userSettings.openrouterModelName) {
-                                  const defaultModel = "anthropic/claude-3.7-sonnet";
-                                  console.log("[DEBUG UI] Auto-selecting default model after API key change:", defaultModel);
-                                  setTimeout(() => {
-                                    onSelectModel(defaultModel);
-                                    onSaveSettings({
-                                      ...updatedSettings,
-                                      openrouterModelName: defaultModel
-                                    });
-                                  }, 100);
-                                }
-                              }}
+                                                              onChange={(e) => {
+                                  try {
+                                    console.log("[DEBUG UI] Setting OpenRouter API key:", e.target.value ? "Key provided" : "No key");
+                                    const updatedSettings = { 
+                                      ...userSettings, 
+                                      openrouterApiKey: e.target.value 
+                                    };
+                                    
+                                    try {
+                                      onSaveSettings(updatedSettings);
+                                    } catch (saveError) {
+                                      console.error("[ERROR UI] Failed to save API key:", saveError);
+                                    }
+                                    
+                                    // If OpenRouter is enabled and we have a key, make sure a model is selected
+                                    if (userSettings.openrouterEnabled && e.target.value && !userSettings.openrouterModelName) {
+                                      const defaultModel = "anthropic/claude-3.7-sonnet";
+                                      console.log("[DEBUG UI] Auto-selecting default model after API key change:", defaultModel);
+                                      setTimeout(() => {
+                                        try {
+                                          onSelectModel(defaultModel);
+                                          try {
+                                            onSaveSettings({
+                                              ...updatedSettings,
+                                              openrouterModelName: defaultModel
+                                            });
+                                          } catch (innerSaveError) {
+                                            console.error("[ERROR UI] Failed to save model name after API key change:", innerSaveError);
+                                          }
+                                        } catch (selectError) {
+                                          console.error("[ERROR UI] Failed to select model after API key change:", selectError);
+                                        }
+                                      }, 100);
+                                    }
+                                  } catch (error) {
+                                    console.error("[ERROR UI] Error handling API key change:", error);
+                                  }
+                                }}
                               className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                               placeholder="sk-or-..."
                             />

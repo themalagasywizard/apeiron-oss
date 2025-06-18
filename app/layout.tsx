@@ -6,7 +6,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'T3 Chat',
+  title: 'Apeiron',
   description: 'AI Chat Application',
 }
 

@@ -218,7 +218,7 @@ export async function deleteMessage(id: string): Promise<void> {
 export async function migrateLocalDataToSupabase(userId: string) {
   try {
     // Get existing local data
-    const localConversations = JSON.parse(localStorage.getItem('t3-chat-conversations') || '[]')
+    const localConversations = JSON.parse(localStorage.getItem('apeiron-conversations') || '[]')
     
     if (localConversations.length === 0) return
 
@@ -264,7 +264,7 @@ export async function migrateLocalDataToSupabase(userId: string) {
     }
 
     // Clear local storage after successful migration
-    localStorage.removeItem('t3-chat-conversations')
+    localStorage.removeItem('apeiron-conversations')
     
     console.log('Migration completed successfully')
   } catch (error) {

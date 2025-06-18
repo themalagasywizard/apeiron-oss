@@ -220,7 +220,7 @@ export default function Home() {
     const loadSettings = (): UserSettings => {
       // No need to check for window here, useEffect only runs on client
       try {
-        const saved = localStorage.getItem("t3-chat-user-settings")
+        const saved = localStorage.getItem("apeiron-user-settings")
         if (saved) {
           const parsed = JSON.parse(saved)
           return {
@@ -264,7 +264,7 @@ export default function Home() {
 
     const loadLocalConversations = () => {
       try {
-        const saved = localStorage.getItem("t3-chat-conversations")
+        const saved = localStorage.getItem("apeiron-conversations")
         if (saved) {
           const parsed = JSON.parse(saved)
           const mappedConversations = parsed.map((conv: any) => ({
@@ -298,7 +298,7 @@ export default function Home() {
 
     const loadLocalProjects = () => {
       try {
-        const saved = localStorage.getItem("t3-chat-projects")
+        const saved = localStorage.getItem("apeiron-projects")
         if (saved) {
           const parsed = JSON.parse(saved)
           const mappedProjects = parsed.map((proj: any) => ({
@@ -365,14 +365,14 @@ export default function Home() {
 
     try {
       // Check if migration is needed BEFORE loading data
-      const migrated = localStorage.getItem('t3-chat-migrated')
+      const migrated = localStorage.getItem('apeiron-migrated')
       const needsMigration = !migrated && !migrationCompleted
       
       if (needsMigration) {
         console.log('Starting local data migration...')
         await migrateLocalDataToSupabase(user.id)
         setMigrationCompleted(true)
-        localStorage.setItem('t3-chat-migrated', 'true')
+        localStorage.setItem('apeiron-migrated', 'true')
         console.log('Migration completed')
         // Continue with normal data loading after migration
       }
@@ -448,7 +448,7 @@ export default function Home() {
           messages: conv.messages,
           project_id: conv.project_id
         }))
-        localStorage.setItem("t3-chat-conversations", JSON.stringify(localConversations))
+        localStorage.setItem("apeiron-conversations", JSON.stringify(localConversations))
       } catch (error) {
         console.error("Failed to save conversations locally:", error)
       }
@@ -467,7 +467,7 @@ export default function Home() {
           updated_at: proj.updated_at,
           color: proj.color
         }))
-        localStorage.setItem("t3-chat-projects", JSON.stringify(localProjects))
+        localStorage.setItem("apeiron-projects", JSON.stringify(localProjects))
       } catch (error) {
         console.error("Failed to save projects locally:", error)
       }
@@ -1447,7 +1447,7 @@ export default function Home() {
           onSaveSettings={(settings) => {
             setUserSettings(settings)
             if (typeof window !== 'undefined') {
-              localStorage.setItem('t3-chat-user-settings', JSON.stringify(settings))
+              localStorage.setItem('apeiron-user-settings', JSON.stringify(settings))
             }
           }}
           onRenameConversation={handleRenameConversation}
