@@ -312,7 +312,7 @@ export async function POST(request: NextRequest) {
           ? 'http://localhost:3000'
           : 'https://apeiron.app';
 
-        const edgeFunctionUrl = `${baseUrl}/api/generate-code`;
+        const edgeFunctionUrl = `${baseUrl}/.netlify/functions/generate-code`;
         
         console.log("[DEBUG API] Using edge function URL:", edgeFunctionUrl);
 
@@ -333,13 +333,49 @@ export async function POST(request: NextRequest) {
         });
 
         if (!codeResponse.ok) {
-          const errorData = await codeResponse.text();
-          console.error("[ERROR] Code generation failed:", codeResponse.status, errorData);
-          throw new Error(`Code generation failed: ${errorData}`);
+          const errorText = await codeResponse.text();
+          console.error("[ERROR] Code generation failed:", codeResponse.status, errorText);
+          throw new Error(`Code generation failed: ${errorText}`);
         }
 
-        const codeResult = await codeResponse.json();
-        return NextResponse.json(codeResult);
+        // Handle streaming response
+        const reader = codeResponse.body?.getReader();
+        if (!reader) {
+          throw new Error('No response body from code generation');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let aiResponse = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.trim() === '') continue;
+            if (line.trim() === 'data: [DONE]') continue;
+
+            try {
+              const data = JSON.parse(line.replace(/^data: /, ''));
+              if (data.choices?.[0]?.delta?.content) {
+                aiResponse += data.choices[0].delta.content;
+              }
+            } catch (e) {
+              console.warn('Error parsing SSE line:', e);
+            }
+          }
+        }
+
+        return NextResponse.json({ 
+          success: true,
+          response: aiResponse,
+          model: model
+        });
       } catch (error) {
         console.error("[ERROR] Code generation error:", error);
         throw error;

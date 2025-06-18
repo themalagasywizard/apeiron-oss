@@ -1,11 +1,14 @@
 // Netlify Edge Function for AI Code Generation
-// Runs on Deno runtime at the network edge with higher execution time limits
+// Runs on Deno runtime at the network edge with higher execution limits
 
 export default async (request, context) => {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, openai-api-key, claude-api-key, gemini-api-key, openrouter-api-key',
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
   };
 
   // Handle OPTIONS request for CORS
@@ -39,65 +42,42 @@ export default async (request, context) => {
     });
   }
 
+  const transformStream = new TransformStream();
+  const writer = transformStream.writable.getWriter();
+  const encoder = new TextEncoder();
+
   try {
     const { messages, provider, apiKey, model, temperature = 0.1, customModelName } = requestBody;
 
     // Validate required inputs with detailed error messages
     if (!messages) {
-      return new Response(JSON.stringify({ error: 'Messages array is required' }), {
-        status: 400,
-        headers: corsHeaders
-      });
+      throw new Error('Messages array is required');
     }
 
     if (!Array.isArray(messages)) {
-      return new Response(JSON.stringify({ 
-        error: 'Messages must be an array',
-        received: typeof messages
-      }), {
-        status: 400,
-        headers: corsHeaders
-      });
+      throw new Error(`Messages must be an array, received ${typeof messages}`);
     }
 
     if (messages.length === 0) {
-      return new Response(JSON.stringify({ error: 'Messages array must not be empty' }), {
-        status: 400,
-        headers: corsHeaders
-      });
+      throw new Error('Messages array must not be empty');
     }
 
     if (!provider || typeof provider !== 'string') {
-      return new Response(JSON.stringify({ 
-        error: 'Valid provider is required',
-        received: provider
-      }), {
-        status: 400,
-        headers: corsHeaders
-      });
+      throw new Error(`Valid provider is required, received ${provider}`);
     }
 
     if (!apiKey || typeof apiKey !== 'string') {
-      return new Response(JSON.stringify({ error: 'Valid API key is required' }), {
-        status: 400,
-        headers: corsHeaders
-      });
+      throw new Error('Valid API key is required');
     }
 
     // Log request info for debugging
     console.log(`Edge Function: Code generation request for provider: ${provider}`);
-    console.log('Request details:', {
-      provider,
-      model,
-      messagesCount: messages.length,
-      hasApiKey: !!apiKey
-    });
 
     // Optimized parameters for edge function environment
     const codeParams = {
-      maxTokens: 4000, // Increased for code generation
+      maxTokens: 4000,
       temperature: temperature || 0.1,
-      timeout: 25000  // 25 second timeout (Netlify limit is 30s)
+      timeout: 25000
     };
 
     // Optimize messages for code generation
@@ -122,7 +102,6 @@ Key requirements:
           };
         }
         
-        // Add system message for code generation
         optimizedMessages.unshift({
           role: "system",
           content: "You are an expert programmer. Focus on generating clean, efficient, and well-documented code. Include all necessary imports and dependencies. Follow modern best practices and security guidelines."
@@ -137,39 +116,10 @@ Key requirements:
 
     const codeOptimizedMessages = optimizeMessagesForCode(messages);
 
-    // Fetch with timeout and automatic retry
-    const fetchWithTimeout = async (url, options, timeoutMs = 25000) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-      try {
-        const response = await fetch(url, {
-          ...options,
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        return response;
-      } catch (error) {
-        clearTimeout(timeoutId);
-        console.error('Fetch error:', error);
-        
-        if (error.name === 'AbortError') {
-          throw new Error(`Request timed out after ${timeoutMs / 1000} seconds`);
-        }
-        throw error;
-      }
-    };
-
-    let response;
-    let aiResponse = "";
-
-    // Provider-specific handling with better error messages
+    // Provider-specific handling
     switch (provider.toLowerCase()) {
-      case "openrouter":
-        // For OpenRouter, use the model ID directly as it already includes the provider prefix
-        const openrouterModelId = model;
-        
-        response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
+      case "openrouter": {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -178,85 +128,51 @@ Key requirements:
             "X-Title": "Apeiron"
           },
           body: JSON.stringify({
-            model: openrouterModelId,
-            messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
+            model: model,
+            messages: codeOptimizedMessages,
             temperature: codeParams.temperature,
             max_tokens: codeParams.maxTokens,
-            stream: true // Enable streaming for faster initial response
+            stream: true
           })
-        }, codeParams.timeout);
+        });
 
         if (!response.ok) {
           const errorText = await response.text();
-          if (response.status === 504) {
-            throw new Error(`OpenRouter request timed out. Try a shorter request.`);
-          } else if (response.status === 401) {
-            throw new Error(`OpenRouter API key is invalid or expired. Please check your API key.`);
-          } else if (response.status === 404) {
-            throw new Error(`The selected OpenRouter model is not available. Please choose a different model.`);
-          } else if (response.status === 402) {
-            throw new Error(`OpenRouter credits exhausted. Please check your account balance.`);
-          }
           throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
         }
 
-        // Handle streaming response
+        // Stream the response
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = "";
 
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
 
-            for (const line of lines) {
-              if (line.trim() === '') continue;
-              if (line.trim() === 'data: [DONE]') continue;
-
-              try {
-                const data = JSON.parse(line.replace(/^data: /, ''));
-                if (data.choices?.[0]?.delta?.content) {
-                  aiResponse += data.choices[0].delta.content;
-                }
-              } catch (e) {
-                console.warn('Error parsing SSE line:', e);
-              }
-            }
+            const chunk = decoder.decode(value);
+            await writer.write(encoder.encode(chunk));
           }
-        } catch (error) {
-          console.error('Error reading stream:', error);
-          throw new Error('Error reading response stream');
         } finally {
-          reader.releaseLock();
+          await writer.close();
         }
-        break;
+
+        return new Response(transformStream.readable, {
+          headers: corsHeaders
+        });
+      }
 
       default:
         throw new Error(`Unsupported provider: ${provider}`);
     }
-
-    // Return the generated code
-    return new Response(JSON.stringify({ 
-      success: true,
-      response: aiResponse,
-      model: model
-    }), {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json'
-      }
-    });
-
   } catch (error) {
-    console.error('Code generation error:', error);
+    console.error('Edge function error:', error);
+    
+    // Ensure we close the writer if there was an error
+    await writer.close();
+    
     return new Response(JSON.stringify({ 
-      error: error.message || 'Code generation failed',
-      details: error.toString()
+      error: error.message || 'An unexpected error occurred'
     }), {
       status: error.status || 500,
       headers: {
