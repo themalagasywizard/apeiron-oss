@@ -6,9 +6,7 @@ export default async (request, context) => {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, openai-api-key, claude-api-key, gemini-api-key, openrouter-api-key',
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
+    'Content-Type': 'application/json',
   };
 
   // Handle OPTIONS request for CORS
@@ -22,10 +20,7 @@ export default async (request, context) => {
   if (request.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-      },
+      headers: corsHeaders,
     });
   }
 
@@ -35,16 +30,9 @@ export default async (request, context) => {
   } catch (error) {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
       status: 400,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-      },
+      headers: corsHeaders,
     });
   }
-
-  const transformStream = new TransformStream();
-  const writer = transformStream.writable.getWriter();
-  const encoder = new TextEncoder();
 
   try {
     const { messages, provider, apiKey, model, temperature = 0.1, customModelName } = requestBody;
@@ -71,7 +59,7 @@ export default async (request, context) => {
     }
 
     // Log request info for debugging
-    console.log(`Edge Function: Code generation request for provider: ${provider}`);
+    console.log(`Edge Function: Code generation request for provider: ${provider}, model: ${model}`);
 
     // Optimized parameters for edge function environment
     const codeParams = {
@@ -115,10 +103,13 @@ Key requirements:
     };
 
     const codeOptimizedMessages = optimizeMessagesForCode(messages);
+    let aiResponse = "";
 
     // Provider-specific handling
     switch (provider.toLowerCase()) {
       case "openrouter": {
+        console.log(`Sending request to OpenRouter with model: ${model}`);
+        
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -132,53 +123,50 @@ Key requirements:
             messages: codeOptimizedMessages,
             temperature: codeParams.temperature,
             max_tokens: codeParams.maxTokens,
-            stream: true
+            stream: false // Disable streaming for simpler handling
           })
         });
 
         if (!response.ok) {
           const errorText = await response.text();
+          console.error(`OpenRouter API error (${response.status}): ${errorText}`);
           throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
         }
 
-        // Stream the response
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value);
-            await writer.write(encoder.encode(chunk));
-          }
-        } finally {
-          await writer.close();
+        const data = await response.json();
+        console.log("OpenRouter response received:", JSON.stringify(data).substring(0, 100) + "...");
+        
+        if (data.choices && data.choices.length > 0 && data.choices[0].message && data.choices[0].message.content) {
+          aiResponse = data.choices[0].message.content;
+        } else {
+          console.error("Unexpected OpenRouter response format:", JSON.stringify(data).substring(0, 200));
+          throw new Error("Unexpected response format from OpenRouter");
         }
-
-        return new Response(transformStream.readable, {
-          headers: corsHeaders
-        });
+        
+        break;
       }
 
       default:
         throw new Error(`Unsupported provider: ${provider}`);
     }
+
+    console.log(`Generated code length: ${aiResponse.length} characters`);
+    
+    return new Response(JSON.stringify({ 
+      success: true,
+      response: aiResponse,
+      model: model
+    }), {
+      headers: corsHeaders
+    });
   } catch (error) {
     console.error('Edge function error:', error);
-    
-    // Ensure we close the writer if there was an error
-    await writer.close();
     
     return new Response(JSON.stringify({ 
       error: error.message || 'An unexpected error occurred'
     }), {
       status: error.status || 500,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json'
-      }
+      headers: corsHeaders
     });
   }
 }; 

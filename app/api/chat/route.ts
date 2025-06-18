@@ -338,47 +338,26 @@ export async function POST(request: NextRequest) {
           throw new Error(`Code generation failed: ${errorText}`);
         }
 
-        // Handle streaming response
-        const reader = codeResponse.body?.getReader();
-        if (!reader) {
-          throw new Error('No response body from code generation');
+        // Parse the JSON response
+        const codeResult = await codeResponse.json();
+        console.log("[DEBUG API] Code generation result:", JSON.stringify(codeResult).substring(0, 100) + "...");
+        
+        if (!codeResult.success || !codeResult.response) {
+          console.error("[ERROR] Invalid code generation result:", codeResult);
+          throw new Error("Invalid response from code generation service");
         }
 
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let aiResponse = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line.trim() === '') continue;
-            if (line.trim() === 'data: [DONE]') continue;
-
-            try {
-              const data = JSON.parse(line.replace(/^data: /, ''));
-              if (data.choices?.[0]?.delta?.content) {
-                aiResponse += data.choices[0].delta.content;
-              }
-            } catch (e) {
-              console.warn('Error parsing SSE line:', e);
-            }
-          }
-        }
-
-        return NextResponse.json({ 
+        return NextResponse.json({
           success: true,
-          response: aiResponse,
+          response: codeResult.response,
           model: model
         });
       } catch (error) {
         console.error("[ERROR] Code generation error:", error);
-        throw error;
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : "Unknown error during code generation" },
+          { status: 500 }
+        );
       }
     }
 
