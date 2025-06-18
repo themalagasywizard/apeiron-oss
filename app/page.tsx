@@ -673,6 +673,14 @@ export default function Home() {
 
     // Use the override model if provided, otherwise use currentModel
     const modelToUse = overrideModel || currentModel;
+    
+    // Special handling for OpenRouter - ensure we're using the correct model ID
+    let finalModelToUse = modelToUse;
+    if (userSettings.openrouterEnabled) {
+      // Use the OpenRouter model name if available, otherwise use a default
+      finalModelToUse = userSettings.openrouterModelName || "anthropic/claude-3.7-sonnet";
+      console.log("[DEBUG] Using OpenRouter model:", finalModelToUse);
+    }
 
     // Create a conversation if none exists
     let activeConversationId = currentConversationId
@@ -688,7 +696,7 @@ export default function Home() {
       const newConversation: UIConversation = {
         id: Date.now().toString(),
         title: title,
-        model: modelToUse,
+        model: finalModelToUse,
         messages: [],
         user_id: user?.id || "local",
         project_id: shouldAssignToProject ? selectedProjectId : null,
@@ -763,7 +771,7 @@ export default function Home() {
       role: "user",
       timestamp: new Date(),
       attachments,
-      model: modelToUse
+      model: finalModelToUse
     }
 
     // Add user message to conversation (using cleaned conversations)
@@ -772,7 +780,7 @@ export default function Home() {
         ? {
             ...conv,
             messages: [...conv.messages, userMessage],
-            model: modelToUse,
+            model: finalModelToUse,
             updated_at: new Date().toISOString()
           }
         : conv
@@ -789,17 +797,26 @@ export default function Home() {
           content: message,
           role: 'user',
           conversation_id: activeConversationId,
-          model: modelToUse,
-          provider: getProviderFromModel(modelToUse),
+          model: finalModelToUse,
+          provider: getProviderFromModel(finalModelToUse),
           attachments: attachments || []
         })
       }
 
       // Get provider and API key for current model
-      const provider = getProviderFromModel(modelToUse)
-      const apiKey = getApiKeyForModel(modelToUse, userSettings)
-      
+      const provider = getProviderFromModel(finalModelToUse)
+      let apiKey = getApiKeyForModel(finalModelToUse, userSettings)
+
+      // Special handling for OpenRouter
+      if (userSettings.openrouterEnabled) {
+        console.log("[DEBUG] OpenRouter mode is enabled")
+        console.log("[DEBUG] Selected model:", finalModelToUse)
+        apiKey = userSettings.openrouterApiKey
+        console.log("[DEBUG] Using OpenRouter API key:", apiKey ? "Key exists" : "No key")
+      }
+
       if (!provider || !apiKey) {
+        console.error("[ERROR] Missing provider or API key:", { provider, hasApiKey: !!apiKey })
         throw new Error(`Please configure an API key for ${provider || 'this model'} in Settings → Models`)
       }
 
@@ -830,7 +847,7 @@ export default function Home() {
           messages: cleanMessages,
           provider: provider,
           apiKey: apiKey,
-          model: modelToUse,
+          model: finalModelToUse,
           temperature: userSettings.temperature,
           webSearchEnabled,
           codeGenerationEnabled: codeGenerationEnabled || false, // Ensure it's a boolean
@@ -859,7 +876,7 @@ export default function Home() {
         content: data.response || data.content || "No response content",
         role: "assistant",
         timestamp: new Date(),
-        model: modelToUse,
+        model: finalModelToUse,
         provider: provider,
         searchResults: data.searchResults
       }
@@ -870,7 +887,7 @@ export default function Home() {
           ? {
               ...conv,
               messages: [...conv.messages, assistantMessage],
-              model: modelToUse,
+              model: finalModelToUse,
               updated_at: new Date().toISOString()
             }
           : conv
@@ -885,8 +902,8 @@ export default function Home() {
           content: messageContent,
           role: 'assistant',
           conversation_id: activeConversationId,
-          model: modelToUse,
-          provider: getProviderFromModel(modelToUse),
+          model: finalModelToUse,
+          provider: getProviderFromModel(finalModelToUse),
           search_results: data.searchResults || []
         })
 
@@ -967,6 +984,22 @@ export default function Home() {
   }
 
   const getProviderFromModel = (modelId: string): string => {
+    console.log("[DEBUG] Getting provider for model:", modelId)
+    console.log("[DEBUG] OpenRouter enabled:", userSettings.openrouterEnabled)
+    
+    // Check if OpenRouter is enabled and we're using an OpenRouter model
+    if (userSettings.openrouterEnabled) {
+      console.log("[DEBUG] Using OpenRouter provider due to enabled flag")
+      return 'openrouter'
+    }
+    
+    // Special handling for OpenRouter format models (e.g. openai/gpt-4, anthropic/claude-3)
+    if (modelId.includes('/')) {
+      console.log("[DEBUG] Using OpenRouter provider due to model ID format")
+      return 'openrouter'
+    }
+    
+    // Standard provider detection
     if (modelId.includes('claude')) return 'claude'
     if (modelId.includes('gpt') || modelId.includes('o3')) return 'openai'
     if (modelId.includes('gemini')) return 'gemini'
@@ -975,6 +1008,8 @@ export default function Home() {
     if (modelId.includes('grok')) return 'grok'
     if (modelId.includes('mistral') || modelId.includes('codestral')) return 'mistral'
     if (modelId.includes('gen3') || modelId.includes('gen2') || modelId.includes('runway')) return 'runway'
+    
+    console.log("[DEBUG] Defaulting to openai provider")
     return 'openai'
   }
 

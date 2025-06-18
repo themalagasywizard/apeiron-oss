@@ -156,6 +156,64 @@ type MainUIProps = {
   onExpandedProjectsChange?: (expandedProjects: Record<string, boolean>) => void
 }
 
+// Define icon map for models
+const iconMap: { [key: string]: { [key: string]: string } } = {
+  openai: {
+    "o3": "O3",
+    "gpt-4.5": "45",
+    "gpt-4.1": "41",
+    "gpt-4o": "4O",
+    "gpt-4": "G4",
+    "gpt-3.5-turbo": "35"
+  },
+  claude: {
+    "claude-4-sonnet": "C4",
+    "claude-3.5-opus": "CO",
+    "claude-3.5-sonnet": "35"
+  },
+  gemini: {
+    "gemini-2.5-flash": "2F",
+    "gemini-2.5-pro": "2P",
+    "veo2": "V2"
+  },
+  deepseek: {
+    "deepseek-v3": "D3"
+  },
+  grok: {
+    "grok-3": "G3"
+  },
+  mistral: {
+    "mistral-large": "ML",
+    "mistral-medium": "MM",
+    "mistral-small": "MS",
+    "codestral": "CS"
+  },
+  openrouter: {
+    "openai/gpt-4o-mini": "4M",
+    "openai/gpt-4.1-2025-04-14": "41",
+    "openai/gpt-4-turbo": "4T",
+    "openai/gpt-4": "G4",
+    "openai/gpt-3.5-turbo": "35",
+    "anthropic/claude-4-sonnet-20250522": "C4",
+    "anthropic/claude-3.7-sonnet": "37",
+    "anthropic/claude-3-opus": "CO",
+    "anthropic/claude-3-sonnet": "CS",
+    "anthropic/claude-2.1": "C2",
+    "meta-llama/llama-3.3-70b-instruct": "L3",
+    "meta-llama/llama-3-70b-chat": "L3",
+    "meta-llama/llama-2-70b-chat": "L2",
+    "mistral/mistral-large": "ML",
+    "mistral/mistral-medium": "MM",
+    "mistral/mistral-small": "MS",
+    "google/gemini-2.5-flash-preview-05-20": "25",
+    "google/gemini-2.0-flash-001": "20",
+    "google/gemini-pro": "GP",
+    "deepseek/deepseek-r1:free": "DS",
+    "x-ai/grok-3-beta": "G3",
+    "custom": "CM"
+  }
+}
+
 export default function MainUI({
   conversations = [],
   projects = [],
@@ -243,7 +301,7 @@ export default function MainUI({
       ]
     },
     grok: {
-      name: "xAI (Grok)",
+      name: "Grok",
       models: [
         { id: "grok-3", name: "Grok 3", description: "Advanced reasoning with real-time data" }
       ]
@@ -264,44 +322,51 @@ export default function MainUI({
         { id: "gen3a", name: "Gen3 Alpha", description: "High-quality image and video generation" },
         { id: "gen2", name: "Gen2", description: "Previous generation model" }
       ]
+    },
+    openrouter: {
+      name: "OpenRouter",
+      models: [
+        // OpenAI Models via OpenRouter
+        { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", description: "Compact version of GPT-4o" },
+        { id: "openai/gpt-4.1-2025-04-14", name: "GPT-4.1", description: "Latest OpenAI flagship model" },
+        { id: "openai/gpt-4-turbo", name: "GPT-4 Turbo", description: "Powerful OpenAI model" },
+        { id: "openai/gpt-4", name: "GPT-4", description: "OpenAI's reliable model" },
+        { id: "openai/gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Fast and efficient OpenAI model" },
+        // Anthropic Models via OpenRouter
+        { id: "anthropic/claude-4-sonnet-20250522", name: "Claude 4 Sonnet", description: "Latest Claude model" },
+        { id: "anthropic/claude-3.7-sonnet", name: "Claude 3.7 Sonnet", description: "Advanced Claude model" },
+        { id: "anthropic/claude-3-opus", name: "Claude 3 Opus", description: "Powerful Claude model" },
+        { id: "anthropic/claude-3-sonnet", name: "Claude 3 Sonnet", description: "Balanced Claude model" },
+        { id: "anthropic/claude-2.1", name: "Claude 2.1", description: "Previous generation Claude" },
+        // Meta Models via OpenRouter
+        { id: "meta-llama/llama-3.3-70b-instruct", name: "Llama 3.3 70B", description: "Meta's latest open model" },
+        { id: "meta-llama/llama-3-70b-chat", name: "Llama 3 70B", description: "Meta's powerful open model" },
+        { id: "meta-llama/llama-2-70b-chat", name: "Llama 2 70B", description: "Previous generation Llama" },
+        // Mistral Models via OpenRouter
+        { id: "mistral/mistral-large", name: "Mistral Large", description: "Mistral's most capable model" },
+        { id: "mistral/mistral-medium", name: "Mistral Medium", description: "Balanced Mistral model" },
+        { id: "mistral/mistral-small", name: "Mistral Small", description: "Efficient Mistral model" },
+        // Google Models via OpenRouter
+        { id: "google/gemini-2.5-flash-preview-05-20", name: "Gemini 2.5 Flash Preview", description: "Latest Gemini model" },
+        { id: "google/gemini-2.0-flash-001", name: "Gemini 2.0 Flash", description: "Fast Gemini model" },
+        { id: "google/gemini-pro", name: "Gemini Pro", description: "Google's advanced model" },
+        // DeepSeek Models via OpenRouter
+        { id: "deepseek/deepseek-r1:free", name: "DeepSeek R1", description: "DeepSeek's advanced model" },
+        // xAI Models via OpenRouter
+        { id: "x-ai/grok-3-beta", name: "Grok 3 Beta", description: "xAI's advanced reasoning model" },
+        // Custom Model Placeholder
+        { id: "custom", name: "Custom Model", description: "Add your own model" }
+      ]
     }
   }
 
   // Helper function to get model icons
   const getModelIcon = (provider: string, modelId: string): string => {
-    const iconMap: { [key: string]: { [key: string]: string } } = {
-      openai: {
-        "o3": "O3",
-        "gpt-4.5": "45",
-        "gpt-4.1": "41",
-        "gpt-4o": "4O",
-        "gpt-4": "G4",
-        "gpt-3.5-turbo": "35"
-      },
-      claude: {
-        "claude-4-sonnet": "C4",
-        "claude-3.5-opus": "CO",
-        "claude-3.5-sonnet": "35"
-      },
-      gemini: {
-        "gemini-2.5-flash": "2F",
-        "gemini-2.5-pro": "2P",
-        "veo2": "V2"
-      },
-      deepseek: {
-        "deepseek-v3": "D3"
-      },
-      grok: {
-        "grok-3": "G3"
-      },
-      mistral: {
-        "mistral-large": "ML",
-        "mistral-medium": "MM",
-        "mistral-small": "MS",
-        "codestral": "CS"
-      }
+    if (provider === 'openrouter') {
+      return iconMap.openrouter[modelId] || 'AI'
     }
-    return iconMap[provider]?.[modelId] || "AI"
+    
+    return iconMap[provider]?.[modelId] || 'AI'
   }
 
   // Theme library - easily expandable for future themes
@@ -430,8 +495,45 @@ export default function MainUI({
   // Code generation state
   const [isListening, setIsListening] = useState(false)
 
+  // OpenRouter-specific state
+  const [openrouterSelectedModels, setOpenrouterSelectedModels] = useState<string[]>([])
+  const [openrouterCustomModels, setOpenrouterCustomModels] = useState<Array<{id: string, name: string}>>([])
+  const [newCustomModel, setNewCustomModel] = useState({ id: '', name: '' })
+
   // Use models from props (calculated in page.tsx with proper API key logic)
-  const availableModels = models
+  const availableModels = useMemo(() => {
+    if (userSettings.openrouterEnabled) {
+      // When OpenRouter is enabled, show only selected OpenRouter models
+      const selectedModels = openrouterSelectedModels.map(modelId => {
+        // Check if it's a custom model
+        const customModel = openrouterCustomModels.find(m => m?.id === modelId)
+        if (customModel) {
+          return {
+            id: customModel.id,
+            name: customModel.name,
+            provider: 'openrouter' as const,
+            icon: 'CM'
+          }
+        }
+        // Otherwise find it in the OpenRouter model library
+        const libraryModel = modelLibrary.openrouter.models.find(m => m?.id === modelId)
+        if (libraryModel) {
+          return {
+            id: libraryModel.id,
+            name: libraryModel.name,
+            provider: 'openrouter' as const,
+            icon: getModelIcon('openrouter', libraryModel.id)
+          }
+        }
+        return null
+      }).filter((model): model is NonNullable<typeof model> => model !== null)
+
+      return selectedModels
+    } else {
+      // When OpenRouter is disabled, show models based on API keys
+      return models
+    }
+  }, [userSettings.openrouterEnabled, openrouterSelectedModels, openrouterCustomModels, models])
 
   // Comprehensive model library for display purposes (includes all models, not just available ones)
   const allModelsLibrary: Model[] = [
@@ -937,13 +1039,29 @@ export default function MainUI({
     onSaveSettings(updatedSettings)
   }
 
-  // Toggle OpenRouter
+  // Update handleToggleOpenRouter function
   const handleToggleOpenRouter = (enabled: boolean) => {
+    console.log("[DEBUG UI] Toggling OpenRouter mode:", enabled);
+    
     const updatedSettings = {
       ...userSettings,
-      openrouterEnabled: enabled,
-      models: enabled ? [] : userSettings.models
+      openrouterEnabled: enabled
     }
+    
+    if (enabled) {
+      // When enabling OpenRouter, set a default model if none is selected
+      const defaultModel = "anthropic/claude-3.7-sonnet";
+      console.log("[DEBUG UI] Setting default OpenRouter model:", defaultModel);
+      updatedSettings.openrouterModelName = defaultModel;
+      
+      // Also select this model in the UI
+      setTimeout(() => {
+        console.log("[DEBUG UI] Auto-selecting default model after toggle");
+        onSelectModel(defaultModel);
+      }, 100);
+    }
+    
+    console.log("[DEBUG UI] Saving updated settings with OpenRouter", enabled ? "enabled" : "disabled");
     onSaveSettings(updatedSettings)
   }
 
@@ -951,7 +1069,8 @@ export default function MainUI({
   const handleSaveGeneralSettings = () => {
     const updatedSettings = {
       ...userSettings,
-      temperature: userSettings.temperature
+      temperature: userSettings.temperature,
+      openrouterModelName: openrouterSelectedModels[0] || userSettings.openrouterModelName
     }
     onSaveSettings(updatedSettings)
     setSettingsOpen(false)
@@ -1771,6 +1890,133 @@ export default function MainUI({
       )
     }
   }
+
+  // Add new function to handle OpenRouter model selection
+  const handleOpenrouterModelToggle = (modelId: string) => {
+    console.log("[DEBUG UI] Toggling OpenRouter model:", modelId);
+    
+    setOpenrouterSelectedModels(prev => {
+      if (prev.includes(modelId)) {
+        // If we're removing the currently selected model, we need to select another one
+        if (currentModel === modelId || userSettings.openrouterModelName === modelId) {
+          console.log("[DEBUG UI] Removing currently selected model");
+          // Find another model to select
+          const remainingModels = prev.filter(id => id !== modelId);
+          if (remainingModels.length > 0) {
+            const newModel = remainingModels[0];
+            console.log("[DEBUG UI] Auto-selecting new model:", newModel);
+            setTimeout(() => {
+              onSelectModel(newModel);
+              onSaveSettings({
+                ...userSettings,
+                openrouterModelName: newModel
+              });
+            }, 100);
+          }
+        }
+        return prev.filter(id => id !== modelId);
+      } else {
+        // If this is the first model being added or no model is currently selected, select this one
+        const newModels = [...prev, modelId];
+        if (!currentModel || !userSettings.openrouterModelName || prev.length === 0) {
+          console.log("[DEBUG UI] Auto-selecting newly added model:", modelId);
+          setTimeout(() => {
+            onSelectModel(modelId);
+            onSaveSettings({
+              ...userSettings,
+              openrouterModelName: modelId
+            });
+          }, 100);
+        }
+        return newModels;
+      }
+    });
+  }
+
+  // Add new function to handle custom model addition
+  const handleAddCustomModel = () => {
+    if (newCustomModel.id && newCustomModel.name) {
+      setOpenrouterCustomModels(prev => [...prev, newCustomModel])
+      setOpenrouterSelectedModels(prev => [...prev, newCustomModel.id])
+      setNewCustomModel({ id: '', name: '' })
+    }
+  }
+
+  // Update useEffect to initialize selected models from settings
+  useEffect(() => {
+    console.log("[DEBUG UI] OpenRouter enabled:", userSettings.openrouterEnabled);
+    console.log("[DEBUG UI] OpenRouter API key exists:", !!userSettings.openrouterApiKey);
+    console.log("[DEBUG UI] Current model:", currentModel);
+    
+    if (userSettings.openrouterEnabled) {
+      // If there's a saved model name, include it in the selected models
+      const defaultModels = [
+        "google/gemini-2.0-flash-001",
+        "anthropic/claude-4-sonnet-20250522",
+        "google/gemini-2.5-flash-preview-05-20",
+        "anthropic/claude-3.7-sonnet",
+        "openai/gpt-4.1-2025-04-14",
+        "openai/gpt-4o-mini",
+        "deepseek/deepseek-r1:free",
+        "x-ai/grok-3-beta",
+        "meta-llama/llama-3.3-70b-instruct"
+      ]
+      
+      console.log("[DEBUG UI] Default OpenRouter models:", defaultModels);
+      
+      // Start with the default models, and add the current model if it's not already included
+      const initialModels = new Set(defaultModels)
+      if (userSettings.openrouterModelName && !initialModels.has(userSettings.openrouterModelName)) {
+        initialModels.add(userSettings.openrouterModelName)
+        console.log("[DEBUG UI] Added saved model to selection:", userSettings.openrouterModelName);
+      }
+      
+      console.log("[DEBUG UI] Setting OpenRouter selected models:", Array.from(initialModels));
+      setOpenrouterSelectedModels(Array.from(initialModels))
+      
+      // If no model is currently selected, select the first one
+      if (!currentModel || !initialModels.has(currentModel)) {
+        const firstModel = Array.from(initialModels)[0]
+        if (firstModel) {
+          console.log("[DEBUG UI] Auto-selecting first model:", firstModel);
+          onSelectModel(firstModel)
+        }
+      }
+    }
+  }, [userSettings.openrouterEnabled, userSettings.openrouterModelName, userSettings.openrouterApiKey, currentModel, onSelectModel])
+
+  // Update model selection handler
+  const handleModelSelect = (modelId: string) => {
+    console.log("[DEBUG UI] Model selected:", modelId);
+    console.log("[DEBUG UI] OpenRouter enabled:", userSettings.openrouterEnabled);
+    
+    if (userSettings.openrouterEnabled) {
+      // When using OpenRouter, update both the model selection and the OpenRouter model name
+      console.log("[DEBUG UI] Updating OpenRouter model name in settings");
+      const updatedSettings = {
+        ...userSettings,
+        openrouterModelName: modelId
+      }
+      onSaveSettings(updatedSettings)
+    }
+    
+    // Call the parent component's onSelectModel function
+    console.log("[DEBUG UI] Calling onSelectModel");
+    onSelectModel(modelId)
+  }
+
+  // Update the OpenRouter API key handling
+  const handleOpenRouterApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const apiKey = e.target.value;
+    console.log("[DEBUG UI] Setting OpenRouter API key:", apiKey ? "Key provided" : "No key");
+    
+    const updatedSettings = {
+      ...userSettings,
+      openrouterApiKey: apiKey
+    };
+    
+    onSaveSettings(updatedSettings);
+  };
 
   return (
     <div
@@ -2681,12 +2927,16 @@ export default function MainUI({
                       <div className="relative">
                         <select
                           value={currentModel}
-                          onChange={(e) => onSelectModel(e.target.value)}
+                          onChange={(e) => handleModelSelect(e.target.value)}
                           className="h-[36px] px-2 pr-7 rounded-md bg-white/10 dark:bg-[#2b2b2b]/80 backdrop-blur-lg border border-gray-200/20 dark:border-gray-700/20 text-gray-800 dark:text-gray-200 text-xs appearance-none focus:outline-none focus:ring-1 focus:ring-purple-500/50 [&>option]:bg-white dark:[&>option]:bg-[#2b2b2b] dark:[&>option]:text-gray-200"
                           aria-label="Select AI model"
                         >
                           {availableModels.length === 0 ? (
-                            <option value="" disabled>No models</option>
+                            <option value="" disabled>
+                              {userSettings.openrouterEnabled 
+                                ? "No models selected. Go to Settings > Models to select models." 
+                                : "No models available"}
+                            </option>
                           ) : (
                             availableModels.map((model) => (
                               <option key={model.id} value={model.id}>
@@ -2933,27 +3183,114 @@ export default function MainUI({
                               type="password"
                               value={userSettings.openrouterApiKey}
                               onChange={(e) => {
-                                const updatedSettings = { ...userSettings, openrouterApiKey: e.target.value }
-                                onSaveSettings(updatedSettings)
+                                console.log("[DEBUG UI] Setting OpenRouter API key:", e.target.value ? "Key provided" : "No key");
+                                const updatedSettings = { 
+                                  ...userSettings, 
+                                  openrouterApiKey: e.target.value 
+                                };
+                                onSaveSettings(updatedSettings);
+                                
+                                // If OpenRouter is enabled and we have a key, make sure a model is selected
+                                if (userSettings.openrouterEnabled && e.target.value && !userSettings.openrouterModelName) {
+                                  const defaultModel = "anthropic/claude-3.7-sonnet";
+                                  console.log("[DEBUG UI] Auto-selecting default model after API key change:", defaultModel);
+                                  setTimeout(() => {
+                                    onSelectModel(defaultModel);
+                                    onSaveSettings({
+                                      ...updatedSettings,
+                                      openrouterModelName: defaultModel
+                                    });
+                                  }, 100);
+                                }
                               }}
                               className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                               placeholder="sk-or-..."
                             />
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                              Model Name
+                          <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Available Models
                             </label>
-                            <input
-                              type="text"
-                              value={userSettings.openrouterModelName}
-                              onChange={(e) => {
-                                const updatedSettings = { ...userSettings, openrouterModelName: e.target.value }
-                                onSaveSettings(updatedSettings)
-                              }}
-                              className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                              placeholder="anthropic/claude-3-opus"
-                            />
+                            <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
+                              {modelLibrary.openrouter.models.map((model) => (
+                                model.id !== 'custom' && (
+                                  <label
+                                    key={model.id}
+                                    className="flex items-start gap-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={openrouterSelectedModels.includes(model.id)}
+                                      onChange={() => handleOpenrouterModelToggle(model.id)}
+                                      className="mt-1 w-4 h-4 text-purple-500 border-gray-300 dark:border-gray-600 rounded focus:ring-purple-500"
+                                    />
+                                    <div className="flex-1">
+                                      <div className="font-medium text-gray-900 dark:text-gray-100">{model.name}</div>
+                                      <div className="text-sm text-gray-500 dark:text-gray-400">{model.description}</div>
+                                    </div>
+                                  </label>
+                                )
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                              Add Custom Model
+                            </label>
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={newCustomModel.id}
+                                onChange={(e) => setNewCustomModel(prev => ({ ...prev, id: e.target.value }))}
+                                placeholder="Model ID (e.g., anthropic/claude-3-opus)"
+                                className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                              />
+                              <input
+                                type="text"
+                                value={newCustomModel.name}
+                                onChange={(e) => setNewCustomModel(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="Display Name"
+                                className="w-full p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                              />
+                              <button
+                                onClick={handleAddCustomModel}
+                                disabled={!newCustomModel.id || !newCustomModel.name}
+                                className="w-full px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Add Custom Model
+                              </button>
+                            </div>
+
+                            {openrouterCustomModels.length > 0 && (
+                              <div className="mt-3">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                  Your Custom Models
+                                </label>
+                                <div className="space-y-2">
+                                  {openrouterCustomModels.map((model) => (
+                                    <div
+                                      key={model.id}
+                                      className="flex items-center justify-between p-2 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50"
+                                    >
+                                      <div>
+                                        <div className="font-medium text-gray-900 dark:text-gray-100">{model.name}</div>
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">{model.id}</div>
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          setOpenrouterCustomModels(prev => prev.filter(m => m.id !== model.id))
+                                          setOpenrouterSelectedModels(prev => prev.filter(id => id !== model.id))
+                                        }}
+                                        className="p-1 text-red-500 hover:text-red-600 transition-colors"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}

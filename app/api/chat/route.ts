@@ -30,6 +30,11 @@ type ChatRequestBody = {
 
 // Helper function to get provider from model ID
 function getModelProvider(modelId: string): string {
+  // Special handling for OpenRouter format models (e.g. openai/gpt-4, anthropic/claude-3)
+  if (modelId.includes('/')) {
+    return 'openrouter';
+  }
+
   if (modelId.includes('claude')) return 'claude';
   if (modelId.includes('gpt') || modelId.includes('o3')) return 'openai';
   if (modelId.includes('gemini')) return 'gemini';
@@ -1267,36 +1272,76 @@ Please provide a comprehensive response using the above search results.`;
         break;
 
       case "openrouter":
+        console.log("[DEBUG API] Processing OpenRouter request");
+        console.log("[DEBUG API] Model:", model);
+        console.log("[DEBUG API] API key exists:", !!apiKey);
+        
         const openrouterParams = getOptimizedParams(15000, 2500);
         const openrouterMessages = optimizeMessagesForCode(processedMessages.map((m: any) => ({ role: m.role, content: m.content })));
         
-        response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`,
-            "HTTP-Referer": request.headers.get("referer") || "",
-            "X-Title": "T3 Chat"
-          },
-          body: JSON.stringify({
-            model: customModelName || "meta-llama/llama-3.1-8b-instruct:free",
-            messages: openrouterMessages,
-            temperature: openrouterParams.temperature,
-            max_tokens: openrouterParams.maxTokens,
-            stream: false
-          })
-        }, openrouterParams.timeout);
-
-        if (!response.ok) {
-          const errorData = await response.text();
-          if (response.status === 504) {
-            throw new Error(`OpenRouter request timed out. Serverless time limit reached. Try a shorter request.`);
+        // For OpenRouter, use the model ID directly as it already includes the provider prefix
+        // Make sure we have a properly formatted model ID (should contain a slash)
+        let openrouterModelId = model;
+        if (!openrouterModelId.includes('/')) {
+          // If no slash, try to determine the provider and format it
+          if (openrouterModelId.includes('gpt')) {
+            openrouterModelId = `openai/${openrouterModelId}`;
+          } else if (openrouterModelId.includes('claude')) {
+            openrouterModelId = `anthropic/${openrouterModelId}`;
+          } else if (openrouterModelId.includes('gemini')) {
+            openrouterModelId = `google/${openrouterModelId}`;
+          } else if (openrouterModelId.includes('mistral')) {
+            openrouterModelId = `mistral/${openrouterModelId}`;
+          } else if (openrouterModelId.includes('llama')) {
+            openrouterModelId = `meta-llama/${openrouterModelId}`;
           }
-          throw new Error(`OpenRouter is currently unavailable (${response.status}). Please try again in a moment.`);
         }
+        
+        console.log("[DEBUG API] Using OpenRouter model ID:", openrouterModelId);
+        
+        try {
+          response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`,
+              "HTTP-Referer": request.headers.get("referer") || "",
+              "X-Title": "T3 Chat"
+            },
+            body: JSON.stringify({
+              model: openrouterModelId,
+              messages: openrouterMessages,
+              temperature: openrouterParams.temperature,
+              max_tokens: openrouterParams.maxTokens,
+              stream: false
+            })
+          }, openrouterParams.timeout);
 
-        const openrouterData = await safeJsonParse(response, "OpenRouter");
-        aiResponse = cleanAIResponse(openrouterData.choices[0]?.message?.content || "OpenRouter didn't provide a response. Please try again.", "OpenRouter");
+          console.log("[DEBUG API] OpenRouter response status:", response.status);
+          
+          if (!response.ok) {
+            const errorData = await response.text();
+            console.error("[ERROR API] OpenRouter error:", response.status, errorData);
+            
+            if (response.status === 504) {
+              throw new Error(`OpenRouter request timed out. Serverless time limit reached. Try a shorter request.`);
+            } else if (response.status === 401) {
+              throw new Error(`OpenRouter API key is invalid or expired. Please check your API key.`);
+            } else if (response.status === 404) {
+              throw new Error(`The selected OpenRouter model is not available. Please choose a different model.`);
+            } else if (response.status === 402) {
+              throw new Error(`OpenRouter credits exhausted. Please check your account balance.`);
+            }
+            throw new Error(`OpenRouter is currently unavailable (${response.status}). Please try again in a moment.`);
+          }
+
+          const openrouterData = await safeJsonParse(response, "OpenRouter");
+          console.log("[DEBUG API] OpenRouter response received successfully");
+          aiResponse = cleanAIResponse(openrouterData.choices[0]?.message?.content || "OpenRouter didn't provide a response. Please try again.", "OpenRouter");
+        } catch (error) {
+          console.error("[ERROR API] OpenRouter fetch error:", error);
+          throw error;
+        }
         break;
 
       case "mistral":

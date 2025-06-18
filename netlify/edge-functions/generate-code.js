@@ -385,6 +385,9 @@ Key requirements:
         break;
 
       case "openrouter":
+        // For OpenRouter, use the model ID directly as it already includes the provider prefix
+        const openrouterModelId = model;
+        
         response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -394,7 +397,7 @@ Key requirements:
             "X-Title": "T3 Chat"
           },
           body: JSON.stringify({
-            model: customModelName || "meta-llama/llama-3.1-8b-instruct:free",
+            model: openrouterModelId,
             messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
             temperature: codeParams.temperature,
             max_tokens: codeParams.maxTokens,
@@ -404,6 +407,15 @@ Key requirements:
 
         if (!response.ok) {
           const errorText = await response.text();
+          if (response.status === 504) {
+            throw new Error(`OpenRouter request timed out. Try a shorter request.`);
+          } else if (response.status === 401) {
+            throw new Error(`OpenRouter API key is invalid or expired. Please check your API key.`);
+          } else if (response.status === 404) {
+            throw new Error(`The selected OpenRouter model is not available. Please choose a different model.`);
+          } else if (response.status === 402) {
+            throw new Error(`OpenRouter credits exhausted. Please check your account balance.`);
+          }
           throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
         }
 
