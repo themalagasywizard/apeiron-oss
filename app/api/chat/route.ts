@@ -303,10 +303,18 @@ export async function POST(request: NextRequest) {
     // Handle code generation if enabled
     if (codeGenerationEnabled) {
       try {
-        // Call the edge function for code generation
-        const edgeFunctionUrl = process.env.VERCEL_URL 
-          ? `https://${process.env.VERCEL_URL}/api/generate-code`
-          : '/api/generate-code';
+        // Get the base URL for the edge function
+        const baseUrl = process.env.VERCEL_URL 
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.NEXT_PUBLIC_SITE_URL 
+          ? process.env.NEXT_PUBLIC_SITE_URL
+          : process.env.NODE_ENV === 'development'
+          ? 'http://localhost:3000'
+          : 'https://apeiron.app';
+
+        const edgeFunctionUrl = `${baseUrl}/api/generate-code`;
+        
+        console.log("[DEBUG API] Using edge function URL:", edgeFunctionUrl);
 
         const codeResponse = await fetch(edgeFunctionUrl, {
           method: 'POST',

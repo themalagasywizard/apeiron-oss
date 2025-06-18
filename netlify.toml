@@ -6,8 +6,9 @@
   package = "@netlify/plugin-nextjs"
 
 [[edge_functions]]
-  path = "/api/generate-code"
   function = "generate-code"
+  path = "/api/generate-code"
+  excluded_patterns = ["/_next/*", "/static/*"]
 
 [functions]
   external_node_modules = ["@supabase/supabase-js"]
@@ -17,13 +18,20 @@
   NEXT_USE_NETLIFY_EDGE = "true"
   NEXT_PRIVATE_TARGET = "server"
   NODE_VERSION = "18"
+  NEXT_PUBLIC_SITE_URL = "https://apeiron.app"
+
+[[redirects]]
+  from = "/api/generate-code"
+  to = "/.netlify/functions/generate-code"
+  status = 200
+  force = true
 
 [[headers]]
   for = "/*"
   [headers.values]
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, openai-api-key, claude-api-key, gemini-api-key, openrouter-api-key"
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
