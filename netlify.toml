@@ -5,30 +5,21 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
+
+[build.environment]
+  NEXT_USE_NETLIFY_EDGE = "true"
+
+# Define edge function handler
 [[edge_functions]]
   path = "/api/generate-code"
   function = "generate-code"
 
-[functions]
-  external_node_modules = ["@supabase/supabase-js"]
-  node_bundler = "esbuild"
-
-[build.environment]
-  NEXT_USE_NETLIFY_EDGE = "true"
-  NEXT_PRIVATE_TARGET = "server"
-  NODE_VERSION = "18"
-  NEXT_PUBLIC_SITE_URL = "https://apeiron.app"
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization, openai-api-key, claude-api-key, gemini-api-key, openrouter-api-key"
-    X-Frame-Options = "DENY"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+[[edge_functions]]
+  path = "/api/generate-code/*"
+  function = "generate-code"
 
 # Global edge functions configuration
 [edge_handlers_config]

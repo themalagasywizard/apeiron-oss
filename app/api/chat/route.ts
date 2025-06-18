@@ -1,5 +1,3 @@
-"use strict";
-
 import { NextRequest, NextResponse } from "next/server";
 
 // Define attachment type
@@ -79,49 +77,45 @@ function toBooleanStrict(value: string | boolean | undefined): boolean {
   return false;
 }
 
-// Helper function to get optimized parameters based on provider
-function getOptimizedParams(maxTokens = 4000, timeout = 25000) {
+// Helper function to optimize parameters for different request types
+const getOptimizedParams = (baseTimeout: number, baseTokens: number) => {
   return {
-    maxTokens,
-    temperature: 0.1, // Lower temperature for more focused responses
-    timeout
+    timeout: baseTimeout,
+    maxTokens: baseTokens,
+    temperature: 0.7
   };
-}
+};
 
-// Helper function to optimize messages for code generation
-function optimizeMessagesForCode(messages: any[]) {
+// Helper function to clean and optimize messages for API requests
+const optimizeMessagesForCode = (messages: any[]) => {
   try {
-    const optimizedMessages = [...messages];
-    const lastMessage = optimizedMessages[optimizedMessages.length - 1];
-    
-    if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
-      const codeInstructions = `Generate production-ready code for: "${lastMessage.content}"
-Key requirements:
-- Working code with all necessary imports
-- Modern best practices and patterns
-- Clear comments explaining the code
-- Security best practices
-- Error handling
-- Type safety where applicable`;
-
-      optimizedMessages[optimizedMessages.length - 1] = {
-        ...lastMessage,
-        content: codeInstructions
-      };
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return messages;
     }
     
-    // Add system message for code generation
-    optimizedMessages.unshift({
-      role: "system",
-      content: "You are an expert programmer. Focus on generating clean, efficient, and well-documented code. Include all necessary imports and dependencies. Follow modern best practices and security guidelines."
-    });
+    // Filter and clean messages
+    const cleanedMessages = messages
+      .filter((m: any) => {
+        // Remove messages with empty or invalid content
+        return m && m.role && m.content && typeof m.content === 'string' && m.content.trim().length > 0;
+      })
+      .map((m: any) => ({
+        role: m.role,
+        content: m.content.trim()
+      }));
     
-    return optimizedMessages;
+    // Ensure we have at least one message
+    if (cleanedMessages.length === 0) {
+      return [{ role: "user", content: "Hello" }];
+    }
+    
+    return cleanedMessages;
   } catch (error) {
-    console.error('Message optimization error:', error);
-    return messages;
+    console.error("[ERROR] Error in message optimization:", error);
+    // Return a safe fallback
+    return [{ role: "user", content: "Hello" }];
   }
-}
+};
 
 // Helper function to safely parse JSON with fallback
 const safeJsonParse = async (response: Response, providerName: string) => {
@@ -303,61 +297,14 @@ export async function POST(request: NextRequest) {
     // Handle code generation if enabled
     if (codeGenerationEnabled) {
       try {
-        // Get the base URL for the edge function
-        const baseUrl = process.env.VERCEL_URL 
-          ? `https://${process.env.VERCEL_URL}`
-          : process.env.NEXT_PUBLIC_SITE_URL 
-          ? process.env.NEXT_PUBLIC_SITE_URL
-          : process.env.NODE_ENV === 'development'
-          ? 'http://localhost:3000'
-          : 'https://apeiron.app';
-
-        const edgeFunctionUrl = `${baseUrl}/.netlify/functions/generate-code`;
-        
-        console.log("[DEBUG API] Using edge function URL:", edgeFunctionUrl);
-
-        const codeResponse = await fetch(edgeFunctionUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            messages: processedMessages,
-            provider,
-            model,
-            apiKey,
-            temperature,
-            customModelName
-          })
-        });
-
-        if (!codeResponse.ok) {
-          const errorText = await codeResponse.text();
-          console.error("[ERROR] Code generation failed:", codeResponse.status, errorText);
-          throw new Error(`Code generation failed: ${errorText}`);
-        }
-
-        // Parse the JSON response
-        const codeResult = await codeResponse.json();
-        console.log("[DEBUG API] Code generation result:", JSON.stringify(codeResult).substring(0, 100) + "...");
-        
-        if (!codeResult.success || !codeResult.response) {
-          console.error("[ERROR] Invalid code generation result:", codeResult);
-          throw new Error("Invalid response from code generation service");
-        }
-
-        return NextResponse.json({
-          success: true,
-          response: codeResult.response,
-          model: model
+        // Add system message to guide the model towards code generation
+        processedMessages.splice(0, 0, {
+          role: "system",
+          content: "You are an expert programmer. The user is asking you to generate code. Focus on providing clean, efficient, and well-commented code that solves their problem. Explain your approach briefly, but prioritize the code implementation."
         });
       } catch (error) {
-        console.error("[ERROR] Code generation error:", error);
-        return NextResponse.json(
-          { error: error instanceof Error ? error.message : "Unknown error during code generation" },
-          { status: 500 }
-        );
+        console.error("[ERROR] Error setting up code generation:", error);
+        // Continue without the system message rather than failing
       }
     }
 
