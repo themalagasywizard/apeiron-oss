@@ -34,4 +34,15 @@
 [functions.generate-code]
   included_files = ["netlify/edge-functions/**"]
   external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
-  timeout = 30 
+  timeout = 30
+
+# Add headers for CSS files
+[[headers]]
+  for = "/_next/*.css"
+  [headers.values]
+    Content-Type = "text/css"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Content-Type = "text/css" 
