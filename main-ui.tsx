@@ -3162,7 +3162,7 @@ export default function MainUI({
                     <button
                           onClick={() => handleToggleOpenRouter(!userSettings.openrouterEnabled)}
                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            userSettings.openrouterEnabled ? "bg-purple-500" : "bg-gray-200 dark:bg-gray-700"
+                            userSettings.openrouterEnabled ? "bg-purple-500" : "bg-gray-200 dark:bg-gray-600"
                           }`}
                         >
                           <span
