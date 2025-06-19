@@ -12,14 +12,18 @@
 [build.environment]
   NEXT_USE_NETLIFY_EDGE = "true"
 
-# Define edge function handler
+# Define edge function handler with increased timeout
 [[edge_functions]]
   path = "/api/generate-code"
   function = "generate-code"
+  included_files = ["netlify/edge-functions/**"]
+  timeout = 60 # Increased to 60 seconds for code generation
 
 [[edge_functions]]
   path = "/api/generate-code/*"
   function = "generate-code"
+  included_files = ["netlify/edge-functions/**"]
+  timeout = 60 # Increased to 60 seconds for code generation
 
 # Global edge functions configuration
 [edge_handlers_config]
@@ -34,7 +38,7 @@
 [functions.generate-code]
   included_files = ["netlify/edge-functions/**"]
   external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
-  timeout = 30
+  timeout = 60 # Increased to 60 seconds
 
 # Add headers for CSS files
 [[headers]]
