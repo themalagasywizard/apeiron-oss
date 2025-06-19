@@ -385,8 +385,8 @@ export default function MainUI({
       preview: "linear-gradient(135deg, #f8f6f4 0%, #e8e2db 100%)"
     },
     {
-      id: "t3",
-      name: "T3",
+      id: "apeiron",
+      name: "Apeiron",
       description: "Modern theme with OKLCH color system and refined UI elements",
       preview: "linear-gradient(135deg, oklch(0.9754 0.0084 325.6414) 0%, oklch(0.3257 0.1161 325.0372) 100%)"
     }
@@ -421,7 +421,7 @@ export default function MainUI({
         }
         
         // Check for saved light/dark preference
-        const savedThemeMode = localStorage.getItem('t3-chat-theme-mode')
+        const savedThemeMode = localStorage.getItem('apeiron-chat-theme-mode')
         let actualThemeMode = savedThemeMode
         
         if (savedThemeMode === 'light') {
@@ -432,18 +432,18 @@ export default function MainUI({
           // Default to dark mode
           setTheme('dark')
           actualThemeMode = 'dark'
-          localStorage.setItem('t3-chat-theme-mode', 'dark')
+          localStorage.setItem('apeiron-chat-theme-mode', 'dark')
         }
         
         // Apply the saved theme class
-        const themeClasses = ['theme-basic', 'theme-notebook', 'theme-t3']
+        const themeClasses = ['theme-basic', 'theme-notebook', 'theme-apeiron']
         document.documentElement.classList.remove(...themeClasses, 'light', 'dark')
         document.documentElement.classList.add(`theme-${savedTheme}`)
         
         // Apply light/dark mode class
         if (actualThemeMode === 'light') {
           document.documentElement.classList.add('light')
-        } else if (savedTheme === 'basic' || savedTheme === 't3') {
+        } else if (savedTheme === 'basic' || savedTheme === 'apeiron') {
           document.documentElement.classList.add('dark')
         }
         
@@ -1084,7 +1084,7 @@ export default function MainUI({
       onToggleTheme()
       
       // Save preference to localStorage
-      localStorage.setItem('t3-chat-theme-mode', newTheme)
+      localStorage.setItem('apeiron-chat-theme-mode', newTheme)
       
       // Remove both light and dark classes, then add the appropriate one
       document.documentElement.classList.remove("light", "dark")
@@ -1092,9 +1092,9 @@ export default function MainUI({
       if (newTheme === "light") {
         document.documentElement.classList.add("light")
       } else {
-        // For dark mode, add 'dark' class for basic and t3 themes
+        // For dark mode, add 'dark' class for basic and apeiron themes
         // Notebook theme uses .theme-notebook alone for dark mode
-        if (currentTheme === "basic" || currentTheme === "t3") {
+        if (currentTheme === "basic" || currentTheme === "apeiron") {
           document.documentElement.classList.add("dark")
         }
       }
@@ -1211,14 +1211,14 @@ export default function MainUI({
       }
       
       // Apply theme-specific classes to document
-      const themeClasses = ['theme-basic', 'theme-notebook', 'theme-t3']
+      const themeClasses = ['theme-basic', 'theme-notebook', 'theme-apeiron']
       document.documentElement.classList.remove(...themeClasses, 'light', 'dark')
       document.documentElement.classList.add(`theme-${themeId}`)
       
       // Re-apply the current light/dark mode
       if (theme === "light") {
         document.documentElement.classList.add("light")
-      } else if (themeId === "basic" || themeId === "t3") {
+      } else if (themeId === "basic" || themeId === "apeiron") {
         document.documentElement.classList.add("dark")
       }
       

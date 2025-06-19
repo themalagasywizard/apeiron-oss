@@ -6,7 +6,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'T3 Chat',
+  title: 'Apeiron Chat',
   description: 'AI Chat Application',
 }
 
@@ -30,7 +30,7 @@ export default function RootLayout({
                                      url.includes('#access_token=');
                 
                 if (hasAuthParams) {
-                  const redirectUrl = url.replace('http://localhost:3000', 'https://t3-oss.netlify.app');
+                  const redirectUrl = url.replace('http://localhost:3000', 'https://apeiron-oss.netlify.app');
                   console.log('IMMEDIATE REDIRECT to production:', redirectUrl);
                   window.location.replace(redirectUrl);
                 }

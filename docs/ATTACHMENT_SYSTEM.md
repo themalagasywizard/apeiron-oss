@@ -1,6 +1,6 @@
 # File Attachment System
 
-The T3 Chat application now includes comprehensive file attachment support with the following features:
+The Apeiron Chat application now includes comprehensive file attachment support with the following features:
 
 ## ✨ Features
 

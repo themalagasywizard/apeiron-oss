@@ -1,6 +1,6 @@
 # VEO 2 Video Generation Integration - Production Ready
 
-This document describes the complete integration of Google's VEO 2 video generation API into the T3 Chat application. This is a **production-ready implementation** that makes real API calls to Google's VEO 2 service.
+This document describes the complete integration of Google's VEO 2 video generation API into the Apeiron Chat application. This is a **production-ready implementation** that makes real API calls to Google's VEO 2 service.
 
 ## Overview
 

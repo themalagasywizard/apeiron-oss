@@ -394,7 +394,7 @@ Key requirements:
             "Content-Type": "application/json",
             "Authorization": `Bearer ${apiKey}`,
             "HTTP-Referer": request.headers.get("referer") || "",
-            "X-Title": "T3 Chat"
+            "X-Title": "Apeiron Chat"
           },
           body: JSON.stringify({
             model: openrouterModelId,

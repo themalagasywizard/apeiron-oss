@@ -674,8 +674,8 @@ html.theme-notebook.light {
   }
 }
 
-/* T3 Theme */
-html.theme-t3 {
+/* Apeiron Theme */
+html.theme-apeiron {
   --background: oklch(0.9754 0.0084 325.6414);
   --foreground: oklch(0.3257 0.1161 325.0372);
   --card: oklch(0.9754 0.0084 325.6414);
@@ -724,8 +724,8 @@ html.theme-t3 {
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
 }
 
-/* T3 Theme - Dark Mode */
-html.theme-t3.dark {
+/* Apeiron Theme - Dark Mode */
+html.theme-apeiron.dark {
   --background: #221d27;
   --foreground: oklch(0.8398 0.0387 309.5391);
   --card: oklch(0.2803 0.0232 307.5413);
@@ -829,8 +829,8 @@ html.theme-t3.dark {
   }
 }
 
-/* Additional T3 Theme Sidebar Overrides */
-html.theme-t3:not(.light) {
+/* Additional Apeiron Theme Sidebar Overrides */
+html.theme-apeiron:not(.light) {
   /* Force the main sidebar area to use the correct color */
   & aside[class*="w-full"],
   & aside[class*="w-full"] > div,
@@ -848,29 +848,29 @@ html.theme-t3:not(.light) {
   }
 }
 
-/* Force T3 theme styles */
-html.theme-t3,
-html.theme-t3 body {
+/* Force Apeiron theme styles */
+html.theme-apeiron,
+html.theme-apeiron body {
   background-color: var(--background) !important;
   color: var(--foreground) !important;
   font-family: var(--font-sans) !important;
 }
 
-/* T3 theme sidebar */
-html.theme-t3 .w-64,
-html.theme-t3 [style*="width: 16rem"] {
+/* Apeiron theme sidebar */
+html.theme-apeiron .w-64,
+html.theme-apeiron [style*="width: 16rem"] {
   background-color: var(--sidebar-bg) !important;
 }
 
-/* T3 theme chat area */
-html.theme-t3 main,
-html.theme-t3 .flex-1,
-html.theme-t3 .min-h-screen > div:last-child {
+/* Apeiron theme chat area */
+html.theme-apeiron main,
+html.theme-apeiron .flex-1,
+html.theme-apeiron .min-h-screen > div:last-child {
   background-color: var(--chat-bg) !important;
 }
 
-/* T3 Theme Sidebar Specific Styles - Dark Mode */
-html.theme-t3:not(.light) {
+/* Apeiron Theme Sidebar Specific Styles - Dark Mode */
+html.theme-apeiron:not(.light) {
   /* Force sidebar background in dark mode */
   & [data-sidebar],
   & .w-64,
@@ -1068,27 +1068,27 @@ html.theme-t3:not(.light) {
   }
 }
 
-/* T3 Theme cards and containers */
-html.theme-t3 .card,
-html.theme-t3 [class*="card"] {
+/* Apeiron Theme cards and containers */
+html.theme-apeiron .card,
+html.theme-apeiron [class*="card"] {
   background-color: var(--card) !important;
   color: var(--card-foreground) !important;
   border-color: var(--border) !important;
 }
 
-/* T3 theme text colors */
-html.theme-t3 .text-muted,
-html.theme-t3 [class*="text-gray"] {
+/* Apeiron theme text colors */
+html.theme-apeiron .text-muted,
+html.theme-apeiron [class*="text-gray"] {
   color: var(--muted-foreground) !important;
 }
 
-html.theme-t3 .text-primary,
-html.theme-t3 [class*="text-purple"] {
+html.theme-apeiron .text-primary,
+html.theme-apeiron [class*="text-purple"] {
   color: var(--primary) !important;
 }
 
-/* T3 Theme - Universal Sidebar Color Override */
-html.theme-t3:not(.light) {
+/* Apeiron Theme - Universal Sidebar Color Override */
+html.theme-apeiron:not(.light) {
   /* Universal override for ALL elements within sidebar */
   & .w-64 *,
   & [style*="width: 16rem"] * {
@@ -1164,7 +1164,7 @@ html.theme-t3:not(.light) {
   }
 }
 
-/* T3 Theme Sidebar Component Overrides */
+/* Apeiron Theme Sidebar Component Overrides */
 html.theme-t3:not(.light) {
   /* Sidebar container */
   & aside[class*="w-full max-w-[280px]"],
@@ -1211,7 +1211,7 @@ html.theme-t3:not(.light) {
   }
 }
 
-/* T3 Theme Project List Overrides */
+/* Apeiron Theme Project List Overrides */
 html.theme-t3:not(.light) {
   /* Project list container */
   & aside[class*="w-full max-w-[280px]"] div[class*="space-y-1"] {
@@ -1254,7 +1254,7 @@ html.theme-t3:not(.light) {
   }
 }
 
-/* T3 Theme Conversation List and Settings Overrides */
+/* Apeiron Theme Conversation List and Settings Overrides */
 html.theme-t3:not(.light) {
   /* Conversation list container */
   & aside[class*="w-full max-w-[280px]"] div[class*="flex-1 overflow-y-auto"] {
@@ -1303,7 +1303,7 @@ html.theme-t3:not(.light) {
   }
 }
 
-/* T3 Theme Sidebar Menu Section Overrides */
+/* Apeiron Theme Sidebar Menu Section Overrides */
 html.theme-t3:not(.light) {
   /* Target section headings in sidebar */
   & aside[class*="w-full max-w-[280px]"] h2,
@@ -1433,8 +1433,8 @@ html.theme-t3:not(.light) aside[class*="w-full max-w-[280px]"] {
   }
 }
 
-/* T3 Theme Light Mode Sidebar Specific Styles */
-html.theme-t3.light {
+/* Apeiron Theme Light Mode Sidebar Specific Styles */
+html.theme-apeiron.light {
   /* Force the main sidebar container and ALL its children */
   & aside[class*="w-full"],
   & aside[class*="w-full"] > div,

@@ -20,7 +20,7 @@ interface ThemeProviderProps {
 export function ThemeProvider({ 
   children, 
   defaultTheme = "system", 
-  storageKey = "t3-chat-theme" 
+  storageKey = "apeiron-chat-theme" 
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== "undefined") {
