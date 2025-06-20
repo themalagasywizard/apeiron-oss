@@ -94,48 +94,38 @@ export default async (request, context) => {
   try {
     const { messages, provider, apiKey, model, temperature = 0.1, customModelName } = requestBody;
 
+    // Get authorization from header or body
+    const authHeader = request.headers.get('Authorization');
+    const effectiveApiKey = authHeader?.replace('Bearer ', '') || apiKey;
+
+    if (!effectiveApiKey) {
+      log('Missing API key');
+      return new Response(JSON.stringify({ error: 'API key is required' }), {
+        status: 401,
+        headers: corsHeaders
+      });
+    }
+
     // Validate required inputs with detailed error messages
-    if (!messages) {
-      log('Validation error: missing messages');
-      return new Response(JSON.stringify({ error: 'Messages array is required' }), {
-        status: 400,
-        headers: corsHeaders
-      });
-    }
-
-    if (!Array.isArray(messages)) {
-      log('Validation error: messages not an array', { type: typeof messages });
-      return new Response(JSON.stringify({ 
-        error: 'Messages must be an array',
-        received: typeof messages
-      }), {
-        status: 400,
-        headers: corsHeaders
-      });
-    }
-
-    if (messages.length === 0) {
-      log('Validation error: empty messages array');
-      return new Response(JSON.stringify({ error: 'Messages array must not be empty' }), {
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      log('Invalid messages array');
+      return new Response(JSON.stringify({ error: 'Valid messages array is required' }), {
         status: 400,
         headers: corsHeaders
       });
     }
 
     if (!provider || typeof provider !== 'string') {
-      log('Validation error: invalid provider', { provider });
-      return new Response(JSON.stringify({ 
-        error: 'Valid provider is required',
-        received: provider
-      }), {
+      log('Invalid provider');
+      return new Response(JSON.stringify({ error: 'Valid provider is required' }), {
         status: 400,
         headers: corsHeaders
       });
     }
 
-    if (!apiKey || typeof apiKey !== 'string') {
-      log('Validation error: missing or invalid API key');
-      return new Response(JSON.stringify({ error: 'Valid API key is required' }), {
+    if (!model || typeof model !== 'string') {
+      log('Invalid model');
+      return new Response(JSON.stringify({ error: 'Valid model is required' }), {
         status: 400,
         headers: corsHeaders
       });
@@ -145,16 +135,8 @@ export default async (request, context) => {
     log('Processing code generation request', {
       provider,
       model,
-      messagesCount: messages.length,
-      hasApiKey: !!apiKey
+      messagesCount: messages.length
     });
-
-    // Optimized parameters for edge function environment
-    const codeParams = {
-      maxTokens: 2000,
-      temperature: temperature || 0.1,
-      timeout: 25000
-    };
 
     // Special parameters for OpenRouter code generation
     const openRouterCodeParams = {
@@ -175,13 +157,9 @@ export default async (request, context) => {
         const lastMessage = optimizedMessages[optimizedMessages.length - 1];
         
         if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
-          let codeInstructions = `${lastMessage.content}\n\nRequirements:\n- Complete, runnable code only\n- Include imports\n- Minimal text explanation\n- Focus on implementation`;
-
           // OpenRouter-specific optimization
-          if (provider === 'openrouter') {
-            codeInstructions = `[INST] Generate code only. No explanations.\n${lastMessage.content}\n[/INST]`;
-          }
-
+          const codeInstructions = `[INST] Generate code only. No explanations.\n${lastMessage.content}\n[/INST]`;
+          
           optimizedMessages[optimizedMessages.length - 1] = {
             ...lastMessage,
             content: codeInstructions
@@ -198,13 +176,17 @@ export default async (request, context) => {
     const codeOptimizedMessages = optimizeMessagesForCode(messages);
 
     // Enhanced fetch with better timeout handling
-    const fetchWithTimeout = async (url, options, timeoutMs = 25000) => {
+    const fetchWithTimeout = async (url, options, timeoutMs = 55000) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
         const startTime = Date.now();
-        log(`Starting request to ${url}`);
+        log(`Starting request to ${url}`, {
+          timeout: timeoutMs,
+          provider,
+          model
+        });
         
         const response = await fetch(url, {
           ...options,
@@ -212,13 +194,22 @@ export default async (request, context) => {
         });
         
         const endTime = Date.now();
-        log(`Request completed in ${endTime - startTime}ms`);
+        log(`Request completed in ${endTime - startTime}ms`, {
+          status: response.status,
+          provider,
+          model
+        });
         
         clearTimeout(timeoutId);
         return response;
       } catch (error) {
         clearTimeout(timeoutId);
-        log('Fetch error', { error: error.message });
+        log('Fetch error', { 
+          error: error.message,
+          provider,
+          model,
+          timeout: timeoutMs
+        });
         
         if (error.name === 'AbortError') {
           throw new Error(`Request timed out after ${timeoutMs / 1000} seconds`);
@@ -243,11 +234,11 @@ export default async (request, context) => {
             body: JSON.stringify({
               model: model || "gpt-3.5-turbo",
               messages: codeOptimizedMessages,
-              temperature: codeParams.temperature,
-              max_tokens: codeParams.maxTokens,
+              temperature: temperature || 0.1,
+              max_tokens: 2000,
               stream: false
             })
-          }, codeParams.timeout);
+          }, 25000);
 
           if (!response.ok) {
             const errorText = await response.text();
@@ -280,11 +271,11 @@ export default async (request, context) => {
             },
             body: JSON.stringify({
               model: claudeModel,
-              max_tokens: codeParams.maxTokens,
-              temperature: codeParams.temperature,
+              max_tokens: 2000,
+              temperature: temperature || 0.1,
               messages: codeOptimizedMessages
             })
-          }, codeParams.timeout);
+          }, 25000);
 
           if (!response.ok) {
             const errorText = await response.text();
@@ -321,13 +312,13 @@ export default async (request, context) => {
               parts: [{ text: m.content }]
             })),
             generationConfig: {
-              temperature: codeParams.temperature,
-              maxOutputTokens: codeParams.maxTokens,
+              temperature: temperature || 0.1,
+              maxOutputTokens: 2000,
               topP: 0.95,
               topK: 40
             }
           })
-        }, codeParams.timeout);
+        }, 25000);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -424,11 +415,11 @@ export default async (request, context) => {
           body: JSON.stringify({
             model: "grok-beta",
             messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
-            temperature: codeParams.temperature,
-            max_tokens: codeParams.maxTokens,
+            temperature: temperature || 0.1,
+            max_tokens: 2000,
             stream: false
           })
-        }, codeParams.timeout);
+        }, 25000);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -447,7 +438,7 @@ export default async (request, context) => {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${apiKey}`,
+              "Authorization": `Bearer ${effectiveApiKey}`,
               "HTTP-Referer": request.headers.get("referer") || "https://localhost:3000",
               "X-Title": "T3-OSS Code Generation"
             },
@@ -465,7 +456,9 @@ export default async (request, context) => {
             const errorText = await response.text();
             log('OpenRouter API error', { 
               status: response.status,
-              error: errorText
+              error: errorText,
+              model,
+              provider
             });
             throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
           }
@@ -474,7 +467,9 @@ export default async (request, context) => {
           log('OpenRouter response received', {
             status: response.status,
             hasChoices: !!data.choices,
-            messageLength: data.choices?.[0]?.message?.content?.length
+            messageLength: data.choices?.[0]?.message?.content?.length,
+            model,
+            provider
           });
 
           aiResponse = data.choices?.[0]?.message?.content || "";
@@ -492,7 +487,11 @@ export default async (request, context) => {
           
           break;
         } catch (error) {
-          log('OpenRouter processing error', { error: error.message });
+          log('OpenRouter processing error', { 
+            error: error.message,
+            model,
+            provider
+          });
           throw error;
         }
 

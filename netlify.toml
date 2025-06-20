@@ -11,6 +11,7 @@
 
 [build.environment]
   NEXT_USE_NETLIFY_EDGE = "true"
+  NODE_VERSION = "18"
 
 # Define edge function handler
 [[edge_functions]]
@@ -27,6 +28,7 @@
 [edge_handlers_config]
   included_files = ["netlify/edge-functions/**"]
   external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
+  node_bundler = "esbuild"
 
 # Headers for CORS and caching optimization
 [[headers]]
@@ -38,6 +40,7 @@
     Cache-Control = "no-cache"
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
 
 [[headers]]
   for = "*.css"
