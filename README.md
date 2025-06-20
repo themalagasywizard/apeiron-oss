@@ -1,4 +1,4 @@
-# Apeiron - Advanced AI Chat & Code Generation Platform
+# Apeiron - Advanced multi-model AI Chat
 
 Apeiron is a sophisticated AI chat platform that combines multiple language models and providers into a unified interface. Built with Next.js and hosted on Netlify, it offers advanced features for code generation, web browsing, image generation, and more.
 
