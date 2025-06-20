@@ -1,7 +1,24 @@
 // Netlify Edge Function for AI Code Generation
 // Runs on Deno runtime at the network edge with higher execution time limits
 
+// Enhanced logging function that ensures visibility in Netlify logs
+const log = (message, data = {}) => {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    source: 'edge-function',
+    message,
+    ...data
+  };
+  
+  // Use console.log for Netlify Edge logging
+  console.log(JSON.stringify(logEntry));
+};
+
 export default async (request, context) => {
+  const requestStartTime = Date.now();
+  log('Edge function started', { path: request.url });
+
   // Add CORS headers for all responses
   const corsHeaders = {
     'Content-Type': 'application/json',
@@ -12,11 +29,13 @@ export default async (request, context) => {
 
   // Handle preflight requests
   if (request.method === 'OPTIONS') {
+    log('Handling OPTIONS request');
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   // Only allow POST requests
   if (request.method !== 'POST') {
+    log('Invalid method', { method: request.method });
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
       headers: corsHeaders
@@ -28,7 +47,13 @@ export default async (request, context) => {
   try {
     // Parse request body with error handling
     const bodyText = await request.text();
+    log('Request body received', { 
+      size: bodyText.length,
+      preview: bodyText.substring(0, 100) + '...'
+    });
+
     if (!bodyText) {
+      log('Empty request body');
       return new Response(JSON.stringify({ error: 'Empty request body' }), {
         status: 400,
         headers: corsHeaders
@@ -37,19 +62,26 @@ export default async (request, context) => {
     
     try {
       requestBody = JSON.parse(bodyText);
+      log('Request body parsed', { 
+        provider: requestBody.provider,
+        model: requestBody.model,
+        messageCount: requestBody.messages?.length
+      });
     } catch (parseError) {
-      console.error('JSON parse error:', parseError);
+      log('JSON parse error', { 
+        error: parseError.message,
+        bodyPreview: bodyText.substring(0, 100)
+      });
       return new Response(JSON.stringify({ 
         error: 'Invalid JSON in request body',
-        details: parseError.message,
-        receivedBody: bodyText.substring(0, 100) + '...' // Log first 100 chars for debugging
+        details: parseError.message
       }), {
         status: 400,
         headers: corsHeaders
       });
     }
   } catch (error) {
-    console.error('Request body read error:', error);
+    log('Request body read error', { error: error.message });
     return new Response(JSON.stringify({ 
       error: 'Failed to read request body',
       details: error.message 
@@ -64,6 +96,7 @@ export default async (request, context) => {
 
     // Validate required inputs with detailed error messages
     if (!messages) {
+      log('Validation error: missing messages');
       return new Response(JSON.stringify({ error: 'Messages array is required' }), {
         status: 400,
         headers: corsHeaders
@@ -71,6 +104,7 @@ export default async (request, context) => {
     }
 
     if (!Array.isArray(messages)) {
+      log('Validation error: messages not an array', { type: typeof messages });
       return new Response(JSON.stringify({ 
         error: 'Messages must be an array',
         received: typeof messages
@@ -81,6 +115,7 @@ export default async (request, context) => {
     }
 
     if (messages.length === 0) {
+      log('Validation error: empty messages array');
       return new Response(JSON.stringify({ error: 'Messages array must not be empty' }), {
         status: 400,
         headers: corsHeaders
@@ -88,6 +123,7 @@ export default async (request, context) => {
     }
 
     if (!provider || typeof provider !== 'string') {
+      log('Validation error: invalid provider', { provider });
       return new Response(JSON.stringify({ 
         error: 'Valid provider is required',
         received: provider
@@ -98,15 +134,15 @@ export default async (request, context) => {
     }
 
     if (!apiKey || typeof apiKey !== 'string') {
+      log('Validation error: missing or invalid API key');
       return new Response(JSON.stringify({ error: 'Valid API key is required' }), {
         status: 400,
         headers: corsHeaders
       });
     }
 
-    // Log request info for debugging (Netlify Edge compatible)
-    context.log(`Edge Function: Code generation request for provider: ${provider}`);
-    context.log('Request details:', {
+    // Log request info
+    log('Processing code generation request', {
       provider,
       model,
       messagesCount: messages.length,
@@ -154,7 +190,7 @@ export default async (request, context) => {
         
         return optimizedMessages;
       } catch (error) {
-        context.log('Message optimization error:', error);
+        log('Message optimization error', { error: error.message });
         return messages;
       }
     };
@@ -168,7 +204,7 @@ export default async (request, context) => {
 
       try {
         const startTime = Date.now();
-        context.log(`Starting request to ${url}`);
+        log(`Starting request to ${url}`);
         
         const response = await fetch(url, {
           ...options,
@@ -176,13 +212,13 @@ export default async (request, context) => {
         });
         
         const endTime = Date.now();
-        context.log(`Request completed in ${endTime - startTime}ms`);
+        log(`Request completed in ${endTime - startTime}ms`);
         
         clearTimeout(timeoutId);
         return response;
       } catch (error) {
         clearTimeout(timeoutId);
-        context.log('Fetch error:', error);
+        log('Fetch error', { error: error.message });
         
         if (error.name === 'AbortError') {
           throw new Error(`Request timed out after ${timeoutMs / 1000} seconds`);
@@ -221,7 +257,7 @@ export default async (request, context) => {
           const openaiData = await response.json();
           aiResponse = openaiData.choices?.[0]?.message?.content || "No response generated";
         } catch (error) {
-          console.error('OpenAI API error:', error);
+          log('OpenAI API error', { error: error.message });
           throw new Error(`OpenAI API error: ${error.message}`);
         }
         break;
@@ -258,7 +294,7 @@ export default async (request, context) => {
           const claudeData = await response.json();
           aiResponse = claudeData.content || "No response generated";
         } catch (error) {
-          console.error('Claude API error:', error);
+          log('Claude API error', { error: error.message });
           throw new Error(`Claude API error: ${error.message}`);
         }
         break;
@@ -332,11 +368,11 @@ export default async (request, context) => {
 
           if (!deepseekResponse.ok) {
             const errorText = await deepseekResponse.text();
-            console.error(`DeepSeek ${deepseekModel} failed:`, deepseekResponse.status, errorText);
+            log(`DeepSeek ${deepseekModel} failed`, { status: deepseekResponse.status, error: errorText });
             
             // Try fallback to deepseek-chat if we were using deepseek-v3
             if (deepseekModel === "deepseek-v3") {
-              console.log("Trying fallback to deepseek-chat...");
+              log("Trying fallback to deepseek-chat...");
               deepseekModel = "deepseek-chat";
               
               deepseekResponse = await fetchWithTimeout("https://api.deepseek.com/v1/chat/completions", {
@@ -367,7 +403,7 @@ export default async (request, context) => {
           aiResponse = deepseekData.choices?.[0]?.message?.content || "No response generated";
           
         } catch (deepseekError) {
-          console.error("DeepSeek Edge Function error:", deepseekError);
+          log('DeepSeek Edge Function error', { error: deepseekError.message });
           
           // Provide helpful error message
           if (deepseekError.message.includes("timeout") || deepseekError.message.includes("504")) {
@@ -406,7 +442,10 @@ export default async (request, context) => {
       case "openrouter":
         try {
           const openrouterModelId = model;
-          context.log(`OpenRouter request starting for model: ${openrouterModelId}`);
+          log('OpenRouter request starting', { 
+            model: openrouterModelId,
+            messageCount: codeOptimizedMessages.length
+          });
           
           const startTime = Date.now();
           
@@ -424,7 +463,11 @@ export default async (request, context) => {
             content: "You are a code-only assistant. You MUST ONLY output code within code blocks. NEVER include explanations or text outside code blocks."
           });
           
-          context.log('Sending request to OpenRouter...');
+          log('Sending OpenRouter request', {
+            url: "https://openrouter.ai/api/v1/chat/completions",
+            modelId: openrouterModelId,
+            messageCount: optimizedMessages.length
+          });
           
           response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
@@ -447,7 +490,11 @@ export default async (request, context) => {
 
           if (!response.ok) {
             const errorText = await response.text();
-            context.log('OpenRouter error response:', errorText);
+            log('OpenRouter error response', {
+              status: response.status,
+              error: errorText,
+              duration: Date.now() - startTime
+            });
             
             if (response.status === 504) {
               throw new Error(`OpenRouter timeout (${response.status}): Request exceeded time limit. Try a different model or reduce code complexity.`);
@@ -458,7 +505,11 @@ export default async (request, context) => {
 
           const openrouterData = await response.json();
           const endTime = Date.now();
-          context.log(`OpenRouter response received in ${endTime - startTime}ms`);
+          log('OpenRouter response received', {
+            duration: endTime - startTime,
+            status: response.status,
+            hasContent: !!openrouterData.choices?.[0]?.message?.content
+          });
           
           // Extract and clean code blocks
           let content = openrouterData.choices?.[0]?.message?.content || "";
@@ -466,6 +517,7 @@ export default async (request, context) => {
             // First try to extract code blocks
             const codeBlocks = content.match(/```[\s\S]*?```/g);
             if (codeBlocks) {
+              log('Code blocks found', { count: codeBlocks.length });
               // Clean code blocks by removing markdown and language specifiers
               content = codeBlocks
                 .map(block => block
@@ -476,6 +528,7 @@ export default async (request, context) => {
                 .filter(block => block.length > 0) // Remove empty blocks
                 .join('\n\n');
             } else {
+              log('No code blocks found, treating entire response as code');
               // If no code blocks found, treat entire response as code
               // but clean up any instruction tags or markdown
               content = content
@@ -494,7 +547,7 @@ export default async (request, context) => {
           aiResponse = content || "// No code generated";
           
           // Log success metrics
-          context.log({
+          log('OpenRouter request completed', {
             status: 'success',
             model: openrouterModelId,
             responseTime: endTime - startTime,
@@ -503,7 +556,10 @@ export default async (request, context) => {
           });
           
         } catch (error) {
-          context.log('OpenRouter error:', error);
+          log('OpenRouter error', {
+            error: error.message,
+            duration: Date.now() - startTime
+          });
           
           if (error.message.includes('timeout') || error.message.includes('504')) {
             throw new Error('OpenRouter request timed out. Try: 1) Using a faster model 2) Reducing code complexity 3) Splitting into smaller parts');
@@ -546,7 +602,7 @@ export default async (request, context) => {
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error(`Mistral ${mistralModel} failed:`, response.status, errorText);
+            log(`Mistral ${mistralModel} failed`, { status: response.status, error: errorText });
             throw new Error(`Mistral API error (${response.status}): ${errorText}`);
           }
 
@@ -554,7 +610,7 @@ export default async (request, context) => {
           aiResponse = mistralData.choices?.[0]?.message?.content || "No response generated";
           
         } catch (mistralError) {
-          console.error("Mistral Edge Function error:", mistralError);
+          log('Mistral Edge Function error', { error: mistralError.message });
           
           // Provide helpful error message
           if (mistralError.message.includes("timeout") || mistralError.message.includes("504")) {
@@ -571,7 +627,7 @@ export default async (request, context) => {
 
     // Ensure we have a valid response with proper validation
     if (!aiResponse || typeof aiResponse !== 'string' || aiResponse.trim().length === 0) {
-      console.error('Edge function received invalid AI response:', aiResponse);
+      log('Edge function received invalid AI response', { aiResponse });
       aiResponse = "I apologize, but I couldn't generate a proper code response. This might be due to the request being too complex or the AI service being temporarily unavailable. Please try with a simpler request or try again later.";
     }
 
@@ -589,13 +645,24 @@ export default async (request, context) => {
       timestamp: new Date().toISOString()
     };
 
+    // Log final response
+    const totalDuration = Date.now() - requestStartTime;
+    log('Edge function completed', {
+      duration: totalDuration,
+      status: 'success',
+      responseLength: cleanedResponse.length
+    });
+
     return new Response(JSON.stringify(responseData), {
       status: 200,
       headers: corsHeaders
     });
 
   } catch (error) {
-    console.error('Edge function error:', error);
+    log('Edge function error', { 
+      error: error.message,
+      duration: Date.now() - requestStartTime
+    });
     
     // Determine appropriate status code
     let statusCode = 500;
