@@ -8,50 +8,34 @@
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
-  included_files = ["netlify/edge-functions/**"]
 
 [build.environment]
   NEXT_USE_NETLIFY_EDGE = "true"
 
-# Define edge function handler
+# Define edge function handler with increased timeout
 [[edge_functions]]
   path = "/api/generate-code"
   function = "generate-code"
+  cache = "manual"
 
 [[edge_functions]]
   path = "/api/generate-code/*"
   function = "generate-code"
+  cache = "manual"
 
 # Global edge functions configuration
 [edge_handlers_config]
   included_files = ["netlify/edge-functions/**"]
   external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
 
-# Increase timeouts for edge functions
-[build.processing]
-  skip_processing = false
-[build.processing.html]
-  pretty_urls = true
-
+# Increase timeouts for functions
 [functions.generate-code]
   included_files = ["netlify/edge-functions/**"]
   external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
-  timeout = 120
+  timeout = 120 # 120 seconds for code generation
 
 # Add headers for CSS files
 [[headers]]
-  for = "/_next/*.css"
+  for = "*.css"
   [headers.values]
-    Content-Type = "text/css"
-
-[[headers]]
-  for = "/*.css"
-  [headers.values]
-    Content-Type = "text/css"
-
-# Add specific edge function configuration for code generation
-[edge_functions.generate-code]
-  function = "generate-code"
-  path = "/api/generate-code"
-  cache = "manual"
-  timeout = 120000 # 120 seconds in milliseconds 
+    Content-Type = "text/css" 
