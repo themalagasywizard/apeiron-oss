@@ -494,18 +494,51 @@ export async function POST(request: NextRequest) {
     // If this is a code generation request, redirect to the edge function
     if (isCodeRequest && !retryCount) {
       console.log('Redirecting code generation request to edge function');
-      const edgeFunctionUrl = process.env.NEXT_PUBLIC_SITE_URL 
-        ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/generate-code` 
-        : '/api/generate-code';
-        
-      return await fetch(edgeFunctionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(requestBody)
-      });
+      
+      // Get the base URL from the request
+      const protocol = request.headers.get('x-forwarded-proto') || 'http';
+      const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
+      const baseUrl = `${protocol}://${host}`;
+      
+      // Construct the edge function URL
+      const edgeFunctionUrl = `${baseUrl}/api/generate-code`;
+      
+      console.log('Edge function URL:', edgeFunctionUrl);
+      
+      try {
+        const edgeResponse = await fetch(edgeFunctionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'x-forwarded-host': host,
+            'x-forwarded-proto': protocol
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!edgeResponse.ok) {
+          const errorText = await edgeResponse.text();
+          console.error('Edge function error:', {
+            status: edgeResponse.status,
+            error: errorText,
+            url: edgeFunctionUrl
+          });
+          throw new Error(`Edge function error (${edgeResponse.status}): ${errorText}`);
+        }
+
+        return edgeResponse;
+      } catch (error) {
+        console.error('Edge function request failed:', error);
+        return NextResponse.json(
+          { 
+            error: `Failed to process code generation request: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            model,
+            provider
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Route image generation requests to dedicated image API
