@@ -104,9 +104,9 @@ export default async (request, context) => {
       });
     }
 
-    // Log request info for debugging
-    console.log(`Edge Function: Code generation request for provider: ${provider}`);
-    console.log('Request details:', {
+    // Log request info for debugging (Netlify Edge compatible)
+    context.log(`Edge Function: Code generation request for provider: ${provider}`);
+    context.log('Request details:', {
       provider,
       model,
       messagesCount: messages.length,
@@ -115,16 +115,21 @@ export default async (request, context) => {
 
     // Optimized parameters for edge function environment
     const codeParams = {
-      maxTokens: 2000, // Reduced to prevent timeouts
+      maxTokens: 2000,
       temperature: temperature || 0.1,
-      timeout: 25000  // 25 second timeout (Netlify limit is 30s)
+      timeout: 25000
     };
 
     // Special parameters for OpenRouter code generation
     const openRouterCodeParams = {
-      maxTokens: 4000, // Increased for code generation
-      temperature: 0.1, // Lower temperature for more focused code generation
-      timeout: 120000  // 2 minute timeout for code generation
+      maxTokens: 4000,
+      temperature: 0.1,
+      timeout: 120000,
+      prompt_prefix: "Generate only code with minimal explanation. Focus on implementation. Format response as code blocks only.",
+      response_format: {
+        type: "text",
+        structure: "code_focused"
+      }
     };
 
     // Optimize messages for code generation
@@ -134,24 +139,11 @@ export default async (request, context) => {
         const lastMessage = optimizedMessages[optimizedMessages.length - 1];
         
         if (lastMessage && lastMessage.role === "user" && lastMessage.content) {
-          let codeInstructions = `Generate production-ready code for: "${lastMessage.content}"
+          let codeInstructions = `${lastMessage.content}\n\nRequirements:\n- Complete, runnable code only\n- Include imports\n- Minimal text explanation\n- Focus on implementation`;
 
-Key requirements:
-- Working, complete code with all necessary imports and dependencies
-- Modern best practices and patterns
-- Clear, descriptive comments explaining complex logic
-- Security-focused implementation
-- Error handling and input validation
-- Proper type definitions (if applicable)
-- Follow language-specific conventions`;
-
-          // Add OpenRouter-specific instructions if needed
+          // OpenRouter-specific optimization
           if (provider === 'openrouter') {
-            codeInstructions += `\n\nAdditional requirements:
-- Ensure code is complete and can run immediately
-- Include all necessary setup/configuration
-- Add any required environment variables
-- Specify exact package versions if needed`;
+            codeInstructions = `[INST] Generate code only. No explanations.\n${lastMessage.content}\n[/INST]`;
           }
 
           optimizedMessages[optimizedMessages.length - 1] = {
@@ -162,28 +154,35 @@ Key requirements:
         
         return optimizedMessages;
       } catch (error) {
-        console.error('Message optimization error:', error);
+        context.log('Message optimization error:', error);
         return messages;
       }
     };
 
     const codeOptimizedMessages = optimizeMessagesForCode(messages);
 
-    // Fetch with timeout and automatic retry
+    // Enhanced fetch with better timeout handling
     const fetchWithTimeout = async (url, options, timeoutMs = 25000) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
+        const startTime = Date.now();
+        context.log(`Starting request to ${url}`);
+        
         const response = await fetch(url, {
           ...options,
           signal: controller.signal
         });
+        
+        const endTime = Date.now();
+        context.log(`Request completed in ${endTime - startTime}ms`);
+        
         clearTimeout(timeoutId);
         return response;
       } catch (error) {
         clearTimeout(timeoutId);
-        console.error('Fetch error:', error);
+        context.log('Fetch error:', error);
         
         if (error.name === 'AbortError') {
           throw new Error(`Request timed out after ${timeoutMs / 1000} seconds`);
@@ -405,52 +404,52 @@ Key requirements:
         break;
 
       case "openrouter":
-        // For OpenRouter, use the model ID directly as it already includes the provider prefix
-        const openrouterModelId = model;
-        
-        response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`,
-            "HTTP-Referer": request.headers.get("referer") || "",
-            "X-Title": "Apeiron"
-          },
-          body: JSON.stringify({
-            model: openrouterModelId,
-            messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
-            temperature: openRouterCodeParams.temperature,
-            max_tokens: openRouterCodeParams.maxTokens,
-            stream: false
-          })
-        }, openRouterCodeParams.timeout);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[ERROR] OpenRouter error: ${response.status} - ${errorText}`);
+        try {
+          const openrouterModelId = model;
+          context.log(`OpenRouter request starting for model: ${openrouterModelId}`);
           
-          if (response.status === 504) {
-            throw new Error(`OpenRouter request timed out. Try breaking your request into smaller parts.`);
-          } else if (response.status === 401) {
-            throw new Error(`OpenRouter API key is invalid or expired. Please check your API key.`);
-          } else if (response.status === 404) {
-            throw new Error(`The selected OpenRouter model (${openrouterModelId}) is not available. Please choose a different model.`);
-          } else if (response.status === 402) {
-            throw new Error(`OpenRouter credits exhausted. Please check your account balance.`);
-          } else if (response.status === 429) {
-            throw new Error(`OpenRouter rate limit exceeded. Please try again in a moment.`);
-          }
-          throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
-        }
+          response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`,
+              "HTTP-Referer": request.headers.get("referer") || "https://github.com/themalagasywizard/apeiron-oss",
+              "X-Title": "Apeiron Code Generation"
+            },
+            body: JSON.stringify({
+              model: openrouterModelId,
+              messages: codeOptimizedMessages,
+              temperature: openRouterCodeParams.temperature,
+              max_tokens: openRouterCodeParams.maxTokens,
+              prompt_prefix: openRouterCodeParams.prompt_prefix,
+              response_format: openRouterCodeParams.response_format
+            })
+          }, openRouterCodeParams.timeout);
 
-        const openrouterData = await response.json();
-        if (!openrouterData.choices?.[0]?.message?.content) {
-          console.error('[ERROR] Invalid OpenRouter response:', openrouterData);
-          throw new Error('OpenRouter returned an invalid response format');
+          if (!response.ok) {
+            const errorText = await response.text();
+            context.log('OpenRouter error response:', errorText);
+            throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
+          }
+
+          const openrouterData = await response.json();
+          context.log('OpenRouter response received');
+          
+          // Extract only code blocks from the response
+          let content = openrouterData.choices?.[0]?.message?.content || "";
+          if (content) {
+            // Extract code blocks if present, otherwise use raw content
+            const codeBlocks = content.match(/```[\s\S]*?```/g);
+            if (codeBlocks) {
+              content = codeBlocks.map(block => block.replace(/```\w*\n?|\n?```/g, '')).join('\n\n');
+            }
+          }
+          
+          aiResponse = content || "No code generated";
+        } catch (error) {
+          context.log('OpenRouter error:', error);
+          throw new Error(`OpenRouter API error: ${error.message}`);
         }
-        
-        aiResponse = openrouterData.choices[0].message.content;
-        console.log('[DEBUG] OpenRouter code generation successful');
         break;
 
       case "mistral":
