@@ -441,133 +441,60 @@ export default async (request, context) => {
 
       case "openrouter":
         try {
-          const openrouterModelId = model;
-          log('OpenRouter request starting', { 
-            model: openrouterModelId,
-            messageCount: codeOptimizedMessages.length
-          });
-          
-          const startTime = Date.now();
-          
-          // Optimize messages for code-only output
-          const optimizedMessages = codeOptimizedMessages.map(m => ({
-            ...m,
-            content: m.role === "user" ? 
-              `[INST] Generate ONLY code. NO explanations or text.\n\n${m.content}\n\nOutput ONLY code blocks. [/INST]` : 
-              m.content
-          }));
-          
-          // Add a system message to enforce code-only output
-          optimizedMessages.unshift({
-            role: "system",
-            content: "You are a code-only assistant. You MUST ONLY output code within code blocks. NEVER include explanations or text outside code blocks."
-          });
-          
-          log('Sending OpenRouter request', {
-            url: "https://openrouter.ai/api/v1/chat/completions",
-            modelId: openrouterModelId,
-            messageCount: optimizedMessages.length
-          });
+          log('Processing OpenRouter code generation request', { model });
           
           response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${apiKey}`,
-              "HTTP-Referer": request.headers.get("referer") || "https://github.com/themalagasywizard/apeiron-oss",
-              "X-Title": "Apeiron Code Generation"
+              "HTTP-Referer": request.headers.get("referer") || "https://localhost:3000",
+              "X-Title": "T3-OSS Code Generation"
             },
             body: JSON.stringify({
-              model: openrouterModelId,
-              messages: optimizedMessages,
+              model: model,
+              messages: codeOptimizedMessages,
               temperature: openRouterCodeParams.temperature,
               max_tokens: openRouterCodeParams.maxTokens,
               prompt_prefix: openRouterCodeParams.prompt_prefix,
-              response_format: openRouterCodeParams.response_format,
-              stream: false
+              response_format: openRouterCodeParams.response_format
             })
           }, openRouterCodeParams.timeout);
 
           if (!response.ok) {
             const errorText = await response.text();
-            log('OpenRouter error response', {
+            log('OpenRouter API error', { 
               status: response.status,
-              error: errorText,
-              duration: Date.now() - startTime
+              error: errorText
             });
-            
-            if (response.status === 504) {
-              throw new Error(`OpenRouter timeout (${response.status}): Request exceeded time limit. Try a different model or reduce code complexity.`);
-            } else {
-              throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
-            }
+            throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
           }
 
-          const openrouterData = await response.json();
-          const endTime = Date.now();
+          const data = await response.json();
           log('OpenRouter response received', {
-            duration: endTime - startTime,
             status: response.status,
-            hasContent: !!openrouterData.choices?.[0]?.message?.content
+            hasChoices: !!data.choices,
+            messageLength: data.choices?.[0]?.message?.content?.length
           });
+
+          aiResponse = data.choices?.[0]?.message?.content || "";
           
-          // Extract and clean code blocks
-          let content = openrouterData.choices?.[0]?.message?.content || "";
-          if (content) {
-            // First try to extract code blocks
-            const codeBlocks = content.match(/```[\s\S]*?```/g);
-            if (codeBlocks) {
-              log('Code blocks found', { count: codeBlocks.length });
-              // Clean code blocks by removing markdown and language specifiers
-              content = codeBlocks
-                .map(block => block
-                  .replace(/```\w*\n?/, '') // Remove opening ```language
-                  .replace(/\n?```$/, '')   // Remove closing ```
-                  .trim()
-                )
-                .filter(block => block.length > 0) // Remove empty blocks
-                .join('\n\n');
-            } else {
-              log('No code blocks found, treating entire response as code');
-              // If no code blocks found, treat entire response as code
-              // but clean up any instruction tags or markdown
-              content = content
-                .replace(/\[INST\]|\[\/INST\]/g, '')
-                .replace(/^[^a-zA-Z0-9]*/, '') // Remove leading non-code characters
-                .trim();
-            }
-            
-            // Final cleanup of any remaining non-code elements
-            content = content
-              .replace(/^[\s\r\n]*/, '')     // Remove leading whitespace/newlines
-              .replace(/[\s\r\n]*$/, '')     // Remove trailing whitespace/newlines
-              .replace(/\n{3,}/g, '\n\n');   // Normalize multiple newlines
+          // Extract code blocks only
+          const codeBlockRegex = /```[\s\S]*?```/g;
+          const codeBlocks = aiResponse.match(codeBlockRegex);
+          
+          if (codeBlocks && codeBlocks.length > 0) {
+            // Remove markdown code block syntax and join blocks
+            aiResponse = codeBlocks
+              .map(block => block.replace(/```[\w]*\n?|\n?```/g, ''))
+              .join('\n\n');
           }
           
-          aiResponse = content || "// No code generated";
-          
-          // Log success metrics
-          log('OpenRouter request completed', {
-            status: 'success',
-            model: openrouterModelId,
-            responseTime: endTime - startTime,
-            contentLength: content.length,
-            hasCodeBlocks: content.includes('```')
-          });
-          
+          break;
         } catch (error) {
-          log('OpenRouter error', {
-            error: error.message,
-            duration: Date.now() - startTime
-          });
-          
-          if (error.message.includes('timeout') || error.message.includes('504')) {
-            throw new Error('OpenRouter request timed out. Try: 1) Using a faster model 2) Reducing code complexity 3) Splitting into smaller parts');
-          } else {
-            throw new Error(`OpenRouter API error: ${error.message}`);
-          }
+          log('OpenRouter processing error', { error: error.message });
+          throw error;
         }
-        break;
 
       case "mistral":
         // Enhanced parameters for Mistral code generation

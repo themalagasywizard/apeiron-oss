@@ -471,146 +471,41 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // Detect if this is a code generation request
-    try {
-      const lastMessageContent = typeof processedMessages[processedMessages.length - 1]?.content === 'string' 
-        ? processedMessages[processedMessages.length - 1]?.content?.toLowerCase() || ""
-        : "";
-      
-      // Check if this is a retry by looking at message history
-      isRetry = processedMessages.length > 1 && processedMessages.some(m => 
-        m.role === 'assistant' && 
-        typeof m.content === 'string' && 
-        m.content.includes('Try Again')
-      );
+    // Check if this is a code generation request
+    const lastMessage = messages[messages.length - 1];
+    isCodeRequest = isCodeGenerationEnabled && 
+      lastMessage?.role === 'user' && 
+      typeof lastMessage?.content === 'string' &&
+      !hasImageAttachments;
 
-      // If there are image attachments, disable code generation detection
-      if (hasImageAttachments === true) {
-        isCodeRequest = false;
-        console.log("Image attachments detected - disabling code generation detection");
-      }
-      // Only check for code patterns if codeGenerationEnabled is EXPLICITLY true and no image attachments
-      else if (toBooleanStrict(codeGenerationEnabled) === true && !isRetry) {
-        // Enhanced code detection patterns
-        const codePatterns = [
-          /create.*(?:website|web.*page|html.*page|landing.*page)/i,
-          /build.*(?:app|application|website|component)/i,
-          /generate.*(?:code|script|function|class|component)/i,
-          /write.*(?:code|script|function|program)/i,
-          /make.*(?:website|app|component|function)/i,
-          /develop.*(?:website|app|application)/i,
-          /code.*(?:for|to|that)/i,
-          /html.*css/i,
-          /javascript.*function/i,
-          /react.*component/i,
-          /vue.*component/i,
-          /angular.*component/i,
-          /python.*script/i,
-          /node.*js/i,
-          /create.*api/i,
-          /build.*dashboard/i,
-          /design.*interface/i
-        ];
+    console.log('Code generation disabled or retry request');
+    
+    // Log request analysis
+    console.log('Request analysis:', {
+      isCodeRequest,
+      isImageRequest,
+      isImageModel: model.toLowerCase().includes('vision'),
+      model,
+      codeGenerationEnabled: isCodeGenerationEnabled,
+      hasImageAttachments,
+      lastMessage: typeof lastMessage?.content === 'string' ? lastMessage.content.substring(0, 50) : 'non-string content'
+    });
+
+    // If this is a code generation request, redirect to the edge function
+    if (isCodeRequest && !retryCount) {
+      console.log('Redirecting code generation request to edge function');
+      const edgeFunctionUrl = process.env.NEXT_PUBLIC_SITE_URL 
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/generate-code` 
+        : '/api/generate-code';
         
-        isCodeRequest = Boolean(codePatterns.some(pattern => pattern.test(lastMessageContent)));
-        console.log("Code generation enabled and patterns matched:", isCodeRequest);
-      } else {
-        isCodeRequest = false;
-        console.log("Code generation disabled or retry request");
-      }
-      
-      // Enhanced image detection patterns
-      const imagePatterns = [
-        /generate.*(?:image|picture|photo|artwork|illustration)/i,
-        /create.*(?:image|picture|photo|artwork|illustration|visual)/i,
-        /draw.*(?:image|picture|illustration)/i,
-        /make.*(?:image|picture|photo|artwork)/i,
-        /design.*(?:image|logo|icon|graphic)/i,
-        /paint.*(?:image|picture|artwork)/i,
-        /sketch.*(?:image|drawing)/i,
-        /render.*(?:image|artwork)/i,
-        /visualize.*(?:image|concept)/i,
-        /show.*me.*(?:image|picture|visual)/i,
-        /can.*you.*(?:draw|create|generate|make).*(?:image|picture)/i
-      ];
-      
-      // Check if model is an image/video generation model
-      const isImageModel = Boolean(model && (model.includes('gen3') || model.includes('gen2')));
-      
-      // Check for image generation request
-      isImageRequest = Boolean(imagePatterns.some(pattern => pattern.test(lastMessageContent)) || isImageModel);
-      
-      // If image attachments are present, prioritize vision model handling for all providers
-      if (hasImageAttachments === true) {
-        console.log("Image attachments detected - prioritizing vision model handling for all providers");
-      }
-      
-      console.log("Request analysis:", { 
-        isCodeRequest: toBooleanStrict(isCodeRequest), 
-        isImageRequest: toBooleanStrict(isImageRequest), 
-        isImageModel: toBooleanStrict(isImageModel), 
-        model, 
-        codeGenerationEnabled: toBooleanStrict(isCodeGenerationEnabled),
-        hasImageAttachments,
-        lastMessage: lastMessageContent?.substring(0, 100) 
+      return await fetch(edgeFunctionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody)
       });
-    } catch (error) {
-      console.error("Error in request detection:", error);
-      isCodeRequest = false;
-      isImageRequest = false;
-    }
-
-    // Route code generation requests to Edge Function for better performance (both dev and production)
-    if (isCodeRequest === true) {
-      try {
-        console.log('Routing code generation request to edge function for optimal performance');
-        const edgeFunctionUrl = `${new URL(request.url).origin}/api/generate-code`;
-        
-        const edgeResponse = await fetchWithTimeout(edgeFunctionUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            messages: processedMessages,
-            provider,
-            apiKey,
-            model,
-            temperature,
-            customModelName
-          })
-        }, 120000); // 2 minute timeout for edge function (allows more time for quality code generation)
-
-        if (!edgeResponse.ok) {
-          const errorText = await edgeResponse.text().catch(() => 'Unknown error');
-          console.error(`Edge function failed with status ${edgeResponse.status}:`, errorText);
-          throw new Error(`Edge function error (${edgeResponse.status}): ${errorText}`);
-        }
-
-        const edgeResult = await edgeResponse.json();
-        
-        // Validate edge function response has content
-        if (!edgeResult.response && !edgeResult.content) {
-          throw new Error('Edge function returned empty response');
-        }
-        
-        clearTimeout(emergencyTimeout);
-        
-        // Ensure we have a consistent response format
-        return NextResponse.json({
-          content: edgeResult.response || edgeResult.content,
-          response: edgeResult.response || edgeResult.content,
-          model: edgeResult.model || model,
-          provider: edgeResult.provider || provider,
-          codeGeneration: true,
-          edgeFunction: true,
-          searchResults: null
-        });
-        
-      } catch (edgeError) {
-        console.error('Edge function failed, falling back to serverless:', edgeError);
-        // Continue with regular serverless processing as fallback
-      }
     }
 
     // Route image generation requests to dedicated image API
