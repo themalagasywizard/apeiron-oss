@@ -120,6 +120,13 @@ export default async (request, context) => {
       timeout: 25000  // 25 second timeout (Netlify limit is 30s)
     };
 
+    // Special parameters for OpenRouter code generation
+    const openRouterCodeParams = {
+      maxTokens: 4000, // Increased for code generation
+      temperature: 0.1, // Lower temperature for more focused code generation
+      timeout: 120000  // 2 minute timeout for code generation
+    };
+
     // Optimize messages for code generation
     const optimizeMessagesForCode = (messages) => {
       try {
@@ -398,85 +405,52 @@ Key requirements:
         break;
 
       case "openrouter":
-        // Enhanced parameters for OpenRouter code generation
-        const openrouterCodeParams = {
-          maxTokens: 4000, // Increased for code generation
-          temperature: 0.1, // Very low for consistent code
-          timeout: 60000  // 1 minute timeout for Edge Function
-        };
-        
         // For OpenRouter, use the model ID directly as it already includes the provider prefix
-        // Make sure we have a properly formatted model ID (should contain a slash)
-        let openrouterModelId = model;
-        if (!openrouterModelId.includes('/')) {
-          // If no slash, try to determine the provider and format it
-          if (openrouterModelId.includes('gpt')) {
-            openrouterModelId = `openai/${openrouterModelId}`;
-          } else if (openrouterModelId.includes('claude')) {
-            openrouterModelId = `anthropic/${openrouterModelId}`;
-          } else if (openrouterModelId.includes('gemini')) {
-            openrouterModelId = `google/${openrouterModelId}`;
-          } else if (openrouterModelId.includes('mistral')) {
-            openrouterModelId = `mistral/${openrouterModelId}`;
-          } else if (openrouterModelId.includes('llama')) {
-            openrouterModelId = `meta-llama/${openrouterModelId}`;
-          }
-        }
-
-        console.log(`[DEBUG] Using OpenRouter model: ${openrouterModelId}`);
+        const openrouterModelId = model;
         
-        try {
-          response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${apiKey}`,
-              "HTTP-Referer": request.headers.get("referer") || "",
-              "X-Title": "Apeiron Chat"
-            },
-            body: JSON.stringify({
-              model: openrouterModelId,
-              messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
-              temperature: openrouterCodeParams.temperature,
-              max_tokens: openrouterCodeParams.maxTokens,
-              stream: false,
-              tools: [{
-                type: "code_interpreter",
-                enabled: true
-              }]
-            })
-          }, openrouterCodeParams.timeout);
+        response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+            "HTTP-Referer": request.headers.get("referer") || "",
+            "X-Title": "Apeiron"
+          },
+          body: JSON.stringify({
+            model: openrouterModelId,
+            messages: codeOptimizedMessages.map(m => ({ role: m.role, content: m.content })),
+            temperature: openRouterCodeParams.temperature,
+            max_tokens: openRouterCodeParams.maxTokens,
+            stream: false
+          })
+        }, openRouterCodeParams.timeout);
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[ERROR] OpenRouter error: ${response.status} - ${errorText}`);
-            
-            if (response.status === 504) {
-              throw new Error(`OpenRouter request timed out. Try breaking your request into smaller parts.`);
-            } else if (response.status === 401) {
-              throw new Error(`OpenRouter API key is invalid or expired. Please check your API key.`);
-            } else if (response.status === 404) {
-              throw new Error(`The selected OpenRouter model (${openrouterModelId}) is not available. Please choose a different model.`);
-            } else if (response.status === 402) {
-              throw new Error(`OpenRouter credits exhausted. Please check your account balance.`);
-            } else if (response.status === 429) {
-              throw new Error(`OpenRouter rate limit exceeded. Please try again in a moment.`);
-            }
-            throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
-          }
-
-          const openrouterData = await response.json();
-          if (!openrouterData.choices?.[0]?.message?.content) {
-            console.error('[ERROR] Invalid OpenRouter response:', openrouterData);
-            throw new Error('OpenRouter returned an invalid response format');
-          }
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[ERROR] OpenRouter error: ${response.status} - ${errorText}`);
           
-          aiResponse = openrouterData.choices[0].message.content;
-          console.log('[DEBUG] OpenRouter code generation successful');
-        } catch (openrouterError) {
-          console.error('[ERROR] OpenRouter processing error:', openrouterError);
-          throw openrouterError;
+          if (response.status === 504) {
+            throw new Error(`OpenRouter request timed out. Try breaking your request into smaller parts.`);
+          } else if (response.status === 401) {
+            throw new Error(`OpenRouter API key is invalid or expired. Please check your API key.`);
+          } else if (response.status === 404) {
+            throw new Error(`The selected OpenRouter model (${openrouterModelId}) is not available. Please choose a different model.`);
+          } else if (response.status === 402) {
+            throw new Error(`OpenRouter credits exhausted. Please check your account balance.`);
+          } else if (response.status === 429) {
+            throw new Error(`OpenRouter rate limit exceeded. Please try again in a moment.`);
+          }
+          throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
         }
+
+        const openrouterData = await response.json();
+        if (!openrouterData.choices?.[0]?.message?.content) {
+          console.error('[ERROR] Invalid OpenRouter response:', openrouterData);
+          throw new Error('OpenRouter returned an invalid response format');
+        }
+        
+        aiResponse = openrouterData.choices[0].message.content;
+        console.log('[DEBUG] OpenRouter code generation successful');
         break;
 
       case "mistral":
