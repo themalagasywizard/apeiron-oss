@@ -12,19 +12,16 @@
 [build.environment]
   NEXT_USE_NETLIFY_EDGE = "true"
 
-# Define edge function handler with optimized settings
+# Define edge function handler
 [[edge_functions]]
   path = "/api/generate-code"
   function = "generate-code"
   cache = "manual"
-  # Edge functions have a hard limit of 60 seconds
-  timeout = 55
 
 [[edge_functions]]
   path = "/api/generate-code/*"
   function = "generate-code"
   cache = "manual"
-  timeout = 55
 
 # Global edge functions configuration
 [edge_handlers_config]
