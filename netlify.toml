@@ -12,30 +12,38 @@
 [build.environment]
   NEXT_USE_NETLIFY_EDGE = "true"
 
-# Define edge function handler with increased timeout
+# Define edge function handler with optimized settings
 [[edge_functions]]
   path = "/api/generate-code"
   function = "generate-code"
   cache = "manual"
+  # Edge functions have a hard limit of 60 seconds
+  timeout = 55
 
 [[edge_functions]]
   path = "/api/generate-code/*"
   function = "generate-code"
   cache = "manual"
+  timeout = 55
 
 # Global edge functions configuration
 [edge_handlers_config]
   included_files = ["netlify/edge-functions/**"]
   external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
 
-# Increase timeouts for functions
-[functions.generate-code]
-  included_files = ["netlify/edge-functions/**"]
-  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
-  timeout = 120 # 120 seconds for code generation
+# Headers for CORS and caching optimization
+[[headers]]
+  for = "/api/generate-code"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
+    Cache-Control = "no-cache"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
 
-# Add headers for CSS files
 [[headers]]
   for = "*.css"
   [headers.values]
-    Content-Type = "text/css" 
+    Content-Type = "text/css"
+    Cache-Control = "public, max-age=31536000, immutable" 
