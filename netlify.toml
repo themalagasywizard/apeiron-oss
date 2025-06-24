@@ -21,6 +21,14 @@
   path = "/api/generate-code/*"
   function = "generate-code"
 
+[[edge_functions]]
+  path = "/api/chat-with-images"
+  function = "chat-with-images"
+
+[[edge_functions]]
+  path = "/api/chat-with-images/*"
+  function = "chat-with-images"
+
 # Global edge functions configuration
 [edge_handlers_config]
   included_files = ["netlify/edge-functions/**"]
@@ -35,6 +43,10 @@
   included_files = ["netlify/edge-functions/**"]
   external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
   timeout = 30
+[functions.chat-with-images]
+  included_files = ["netlify/edge-functions/**"]
+  external_node_modules = ["@anthropic-ai/sdk", "@google/generative-ai"]
+  timeout = 60
 
 # Add headers for CSS files
 [[headers]]

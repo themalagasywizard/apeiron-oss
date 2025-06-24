@@ -39,6 +39,7 @@ import {
   Save,
   ExternalLink,
 } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 // Types
 type Message = {
@@ -993,7 +994,26 @@ export default function MainUI({
       }
     }
 
-    onSaveSettings(updatedSettings)
+    // Auto-select the first model for this provider if it has models
+    if (!newModelProvider.includes("openrouter")) {
+      const providerModels = modelLibrary[newModelProvider]?.models || []
+      if (providerModels.length > 0) {
+        const firstModel = providerModels[0].id
+        console.log("[DEBUG UI] Auto-selecting first model after adding provider:", firstModel)
+        
+        // Save settings first, then select model
+        onSaveSettings(updatedSettings)
+        
+        // Add a small delay to ensure settings are saved before selecting model
+        setTimeout(() => {
+          onSelectModel(firstModel)
+        }, 100)
+      } else {
+        onSaveSettings(updatedSettings)
+      }
+    } else {
+      onSaveSettings(updatedSettings)
+    }
 
     // Reset form
     setNewModelApiKey("")
@@ -1059,6 +1079,43 @@ export default function MainUI({
         console.log("[DEBUG UI] Auto-selecting default model after toggle");
         onSelectModel(defaultModel);
       }, 100);
+    } else {
+      // When disabling OpenRouter, select the first available provider model
+      console.log("[DEBUG UI] OpenRouter disabled, switching to provider models");
+      
+      // Save the settings first to update openrouterEnabled to false
+      onSaveSettings(updatedSettings);
+      
+      // Get available models based on API keys
+      const availableProviderModels = [];
+      
+      if (updatedSettings.openaiApiKey) {
+        availableProviderModels.push({ id: "gpt-4", provider: "openai" });
+      }
+      if (updatedSettings.claudeApiKey) {
+        availableProviderModels.push({ id: "claude-3.5-sonnet", provider: "claude" });
+      }
+      if (updatedSettings.geminiApiKey) {
+        availableProviderModels.push({ id: "gemini-2.5-flash", provider: "gemini" });
+      }
+      if (updatedSettings.deepseekApiKey) {
+        availableProviderModels.push({ id: "deepseek-v3", provider: "deepseek" });
+      }
+      if (updatedSettings.mistralApiKey) {
+        availableProviderModels.push({ id: "mistral-large", provider: "mistral" });
+      }
+      
+      if (availableProviderModels.length > 0) {
+        const firstProviderModel = availableProviderModels[0].id;
+        console.log("[DEBUG UI] Auto-selecting first provider model:", firstProviderModel);
+        
+        // Add a small delay to ensure settings are saved before selecting model
+        setTimeout(() => {
+          onSelectModel(firstProviderModel);
+        }, 100);
+        
+        return; // Return early as we've already saved settings
+      }
     }
     
     console.log("[DEBUG UI] Saving updated settings with OpenRouter", enabled ? "enabled" : "disabled");
@@ -1958,8 +2015,8 @@ export default function MainUI({
         "openai/gpt-4.1-2025-04-14",
         "openai/gpt-4o-mini",
         "deepseek/deepseek-r1:free",
-        "x-ai/grok-3-beta",
         "meta-llama/llama-3.3-70b-instruct"
+        // Removed x-ai/grok-3-beta as it doesn't support images
       ]
       
       console.log("[DEBUG UI] Default OpenRouter models:", defaultModels);
@@ -2639,7 +2696,7 @@ export default function MainUI({
                     <div className="flex items-center gap-2 mt-1.5">
                       <ModelLogo 
                         provider={(() => {
-                          // First try to use the message provider
+                          // First try to use the provider from the message
                           if (message.provider) {
                             return message.provider as "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral" | "runway";
                           }
@@ -2659,8 +2716,8 @@ export default function MainUI({
                         modelId={message.model || 'unknown'}
                         size="sm"
                       />
-                      <div className="relative group">
-                        <div className="flex items-center gap-2 cursor-pointer">
+                      <div className="relative">
+                        <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-600 dark:text-gray-400">
                             {(() => {
                               // First try to use the exact model name from the message
@@ -2696,55 +2753,63 @@ export default function MainUI({
                               return 'AI';
                             })()}
                           </span>
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              // First update the model selection if needed
-                              if (message.model !== currentModel) {
-                                await onSelectModel(currentModel);
-                                // Wait for model selection to complete
-                                await new Promise(resolve => setTimeout(resolve, 50));
-                              }
-                              onRetryMessage(message.id, currentModel);
-                            }}
-                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-                            title="Retry original message with this model"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 dark:text-gray-400">
-                              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                              <path d="M21 3v5h-5" />
-                            </svg>
-                          </button>
-                        </div>
-                        
-                        {/* Model Selection Dropdown */}
-                        <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block">
-                          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[200px]">
-                            <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                              Retry original message with:
-                            </div>
-                            {availableModels.map((model) => (
+                          
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
                               <button
-                                key={model.id}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  
-                                  // First update the model selection
-                                  onSelectModel(model.id);
-                                  
-                                  // Then retry the message with the explicitly selected model
-                                  // Pass the model.id directly instead of relying on currentModel state
-                                  onRetryMessage(message.id, model.id);
-                                }}
-                                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                                title="Retry original message with this model"
                               >
-                                <ModelLogo provider={model.provider} modelId={model.id} size="sm" />
-                                <span className="text-gray-700 dark:text-gray-300">{model.name}</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 dark:text-gray-400">
+                                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                                  <path d="M21 3v5h-5" />
+                                </svg>
                               </button>
-                            ))}
-                          </div>
+                            </DropdownMenuTrigger>
+                            
+                            <DropdownMenuContent align="start" className="min-w-[200px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                              <DropdownMenuLabel className="text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800">
+                                Retry original message with:
+                              </DropdownMenuLabel>
+                              <DropdownMenuSeparator className="bg-gray-200 dark:bg-gray-700" />
+                              
+                              {availableModels.map((model) => (
+                                <DropdownMenuItem
+                                  key={model.id}
+                                  onSelect={async () => {
+                                    // For OpenRouter models, make sure we update both the model selection
+                                    // and the settings to ensure the correct model is used
+                                    if (model.provider === 'openrouter') {
+                                      console.log("[DEBUG UI] Retrying with OpenRouter model:", model.id);
+                                      
+                                      // Update the OpenRouter model name in settings first
+                                      const updatedSettings = {
+                                        ...userSettings,
+                                        openrouterModelName: model.id
+                                      };
+                                      onSaveSettings(updatedSettings);
+                                      
+                                      // Wait for settings to update
+                                      await new Promise(resolve => setTimeout(resolve, 50));
+                                    }
+                                    
+                                    // First update the model selection
+                                    onSelectModel(model.id);
+                                    
+                                    // Wait for model selection to complete
+                                    await new Promise(resolve => setTimeout(resolve, 50));
+                                    
+                                    // Then retry the message with the explicitly selected model
+                                    onRetryMessage(message.id, model.id);
+                                  }}
+                                  className="flex items-center gap-2 bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
+                                >
+                                  <ModelLogo provider={model.provider} modelId={model.id} size="sm" />
+                                  <span className="text-gray-700 dark:text-gray-300">{model.name}</span>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </div>
