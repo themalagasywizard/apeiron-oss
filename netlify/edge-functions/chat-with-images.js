@@ -239,22 +239,74 @@ export default async (request, context) => {
 
         try {
           // Format Gemini request body
-          const geminiBody = {
-            contents: messages.map(msg => {
-              if (msg.role === 'user') {
-                return { role: 'user', parts: Array.isArray(msg.content) ? msg.content : [{ text: msg.content }] };
-              } else if (msg.role === 'assistant') {
-                return { role: 'model', parts: [{ text: msg.content }] };
-              } else if (msg.role === 'system') {
-                return { role: 'user', parts: [{ text: msg.content }] };
+          const geminiContents = [];
+          
+          // Process messages for Gemini format
+          for (const msg of messages) {
+            if (msg.role === 'user') {
+              if (Array.isArray(msg.content)) {
+                // Handle multimodal content (text + images)
+                const parts = [];
+                
+                for (const contentPart of msg.content) {
+                  if (contentPart.type === 'text') {
+                    parts.push({ text: contentPart.text });
+                  } else if (contentPart.type === 'image_url' && contentPart.image_url) {
+                    // Extract base64 data from image URL
+                    const imgUrl = contentPart.image_url.url || contentPart.image_url;
+                    if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
+                      const base64Data = imgUrl.split(',')[1];
+                      if (base64Data) {
+                        const mimeType = imgUrl.split(';')[0].split(':')[1];
+                        parts.push({
+                          inline_data: {
+                            data: base64Data,
+                            mime_type: mimeType
+                          }
+                        });
+                      }
+                    }
+                  }
+                }
+                
+                geminiContents.push({
+                  role: 'user',
+                  parts: parts
+                });
+              } else {
+                // Simple text message
+                geminiContents.push({
+                  role: 'user',
+                  parts: [{ text: msg.content }]
+                });
               }
-              return null;
-            }).filter(Boolean),
+            } else if (msg.role === 'assistant') {
+              geminiContents.push({
+                role: 'model',
+                parts: [{ text: msg.content }]
+              });
+            } else if (msg.role === 'system') {
+              geminiContents.push({
+                role: 'user',
+                parts: [{ text: msg.content }]
+              });
+            }
+          }
+
+          const geminiBody = {
+            contents: geminiContents,
             generationConfig: {
               temperature: chatParams.temperature,
               maxOutputTokens: hasImageAttachments ? 4096 : 2048,
             }
           };
+
+          console.log("Formatted Gemini request with contents:", JSON.stringify(geminiContents.map(c => ({
+            role: c.role,
+            parts_count: c.parts.length,
+            has_text: c.parts.some(p => p.text),
+            has_image: c.parts.some(p => p.inline_data)
+          }))));
 
           response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
             method: "POST",
