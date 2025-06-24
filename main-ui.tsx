@@ -2082,13 +2082,24 @@ export default function MainUI({
       <div className="flex flex-1 overflow-hidden">
         {/* Mobile Menu Button (only visible when sidebar is closed) */}
         {isMobile && !sidebarOpen && (
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
-            aria-label="Open sidebar"
-          >
-            <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
-          </button>
+          <>
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
+              aria-label="Open sidebar"
+            >
+              <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
+            </button>
+            
+            {/* Mobile Settings Button (always visible when sidebar is closed) */}
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="fixed top-4 right-4 z-30 p-2 rounded-full bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
+              aria-label="Open settings"
+            >
+              <Settings className="w-6 h-6 text-gray-700 dark:text-gray-200" />
+            </button>
+          </>
         )}
 
         {/* Sidebar */}
@@ -2397,12 +2408,12 @@ export default function MainUI({
               </div>
 
               {/* Profile and Settings Section */}
-              <div className="px-4 py-3 h-[72px] flex items-center gap-3">
+              <div className="px-4 py-3 h-[72px] flex items-center gap-3 sticky bottom-0 bg-white dark:bg-[#2b2b2b] border-t border-gray-200/20 dark:border-gray-600/20 z-10">
                 {isAuthenticated ? (
                   <div ref={profileDropdownRef} className="relative flex-1">
                     <button
                       onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                      className="w-full h-12 flex items-center gap-3 px-3 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 transition-colors text-gray-800 dark:text-gray-200"
+                      className="w-full h-12 flex items-center gap-3 px-3 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 transition-colors text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200/20 dark:border-gray-600/20"
                     >
                       {/* Avatar */}
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium text-sm">
@@ -2427,11 +2438,11 @@ export default function MainUI({
                     <AnimatePresence>
                       {profileDropdownOpen && (
                         <motion.div
-                          initial={{ opacity: 0, y: -10 }}
+                          initial={{ opacity: 0, y: isMobile ? 10 : -10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
+                          exit={{ opacity: 0, y: isMobile ? 10 : -10 }}
                           transition={{ duration: 0.2 }}
-                          className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#2b2b2b] rounded-xl border border-gray-200/20 dark:border-gray-600/20 shadow-lg backdrop-blur-sm overflow-hidden"
+                          className={`absolute ${isMobile ? 'top-full mt-2' : 'bottom-full mb-2'} left-0 right-0 bg-white dark:bg-[#2b2b2b] rounded-xl border border-gray-200/20 dark:border-gray-600/20 shadow-lg backdrop-blur-sm overflow-hidden z-50`}
                         >
                           <button
                             onClick={() => {
@@ -2475,7 +2486,7 @@ export default function MainUI({
                     {/* Settings Button for Non-Authenticated Users */}
                     <button
                       onClick={() => setSettingsOpen(true)}
-                      className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 transition-colors text-gray-800 dark:text-gray-200"
+                      className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 transition-colors text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200/20 dark:border-gray-600/20"
                       aria-label="Open settings"
                     >
                       <Settings className="w-4 h-4" />
