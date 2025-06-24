@@ -624,8 +624,24 @@ export default function MainUI({
   // Close profile dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Handle sidebar profile dropdown
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
         setProfileDropdownOpen(false)
+      }
+      
+      // Handle mobile profile dropdown when sidebar is closed
+      if (isMobile && !sidebarOpen && profileDropdownOpen) {
+        const mobileProfileButton = document.querySelector('[aria-label="User profile"]');
+        const mobileProfileDropdown = document.querySelector('.fixed.top-16.right-4.z-40');
+        
+        if (
+          mobileProfileButton && 
+          mobileProfileDropdown && 
+          !mobileProfileButton.contains(event.target as Node) && 
+          !mobileProfileDropdown.contains(event.target as Node)
+        ) {
+          setProfileDropdownOpen(false)
+        }
       }
     }
 
@@ -633,7 +649,7 @@ export default function MainUI({
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [profileDropdownOpen])
+  }, [profileDropdownOpen, isMobile, sidebarOpen])
 
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -2091,6 +2107,33 @@ export default function MainUI({
               <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
             </button>
             
+            {/* Mobile Login Button (when not authenticated) */}
+            {!isAuthenticated && (
+              <button
+                onClick={onLogin}
+                className="fixed top-4 right-16 z-30 p-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 border border-purple-400 hover:from-purple-600 hover:to-pink-600 transition-colors shadow-lg"
+                aria-label="Sign in"
+                title="Sign in to save conversations"
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </button>
+            )}
+            
+            {/* Mobile Profile Button (when authenticated) */}
+            {isAuthenticated && (
+              <button
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                className="fixed top-4 right-16 z-30 p-1 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 border border-purple-400 hover:from-purple-600 hover:to-pink-600 transition-colors shadow-lg flex items-center justify-center w-10 h-10"
+                aria-label="User profile"
+              >
+                <span className="text-white font-medium text-sm">
+                  {user?.email?.charAt(0).toUpperCase() || 'U'}
+                </span>
+              </button>
+            )}
+            
             {/* Mobile Settings Button (always visible when sidebar is closed) */}
             <button
               onClick={() => setSettingsOpen(true)}
@@ -2099,6 +2142,40 @@ export default function MainUI({
             >
               <Settings className="w-6 h-6 text-gray-700 dark:text-gray-200" />
             </button>
+            
+            {/* Mobile Profile Dropdown */}
+            {isAuthenticated && profileDropdownOpen && (
+              <div className="fixed top-16 right-4 z-40 bg-white dark:bg-[#2b2b2b] rounded-xl border border-gray-200/20 dark:border-gray-600/20 shadow-lg overflow-hidden min-w-[200px]">
+                <div className="px-4 py-3 border-b border-gray-200/20 dark:border-gray-600/20">
+                  <div className="font-medium text-gray-800 dark:text-[#f0f0f0]">
+                    {user?.user_metadata?.full_name || user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'User'}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {user?.email || 'Online'}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setSettingsOpen(true)
+                    setProfileDropdownOpen(false)
+                  }}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors flex items-center gap-3 text-gray-800 dark:text-gray-200"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onLogout?.()
+                    setProfileDropdownOpen(false)
+                  }}
+                  className="w-full px-4 py-3 text-left hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 text-red-600 dark:text-red-400"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
           </>
         )}
 
