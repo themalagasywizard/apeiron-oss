@@ -993,7 +993,26 @@ export default function MainUI({
       }
     }
 
-    onSaveSettings(updatedSettings)
+    // Auto-select the first model for this provider if it has models
+    if (!newModelProvider.includes("openrouter")) {
+      const providerModels = modelLibrary[newModelProvider]?.models || []
+      if (providerModels.length > 0) {
+        const firstModel = providerModels[0].id
+        console.log("[DEBUG UI] Auto-selecting first model after adding provider:", firstModel)
+        
+        // Save settings first, then select model
+        onSaveSettings(updatedSettings)
+        
+        // Add a small delay to ensure settings are saved before selecting model
+        setTimeout(() => {
+          onSelectModel(firstModel)
+        }, 100)
+      } else {
+        onSaveSettings(updatedSettings)
+      }
+    } else {
+      onSaveSettings(updatedSettings)
+    }
 
     // Reset form
     setNewModelApiKey("")
@@ -1059,6 +1078,43 @@ export default function MainUI({
         console.log("[DEBUG UI] Auto-selecting default model after toggle");
         onSelectModel(defaultModel);
       }, 100);
+    } else {
+      // When disabling OpenRouter, select the first available provider model
+      console.log("[DEBUG UI] OpenRouter disabled, switching to provider models");
+      
+      // Save the settings first to update openrouterEnabled to false
+      onSaveSettings(updatedSettings);
+      
+      // Get available models based on API keys
+      const availableProviderModels = [];
+      
+      if (updatedSettings.openaiApiKey) {
+        availableProviderModels.push({ id: "gpt-4", provider: "openai" });
+      }
+      if (updatedSettings.claudeApiKey) {
+        availableProviderModels.push({ id: "claude-3.5-sonnet", provider: "claude" });
+      }
+      if (updatedSettings.geminiApiKey) {
+        availableProviderModels.push({ id: "gemini-2.5-flash", provider: "gemini" });
+      }
+      if (updatedSettings.deepseekApiKey) {
+        availableProviderModels.push({ id: "deepseek-v3", provider: "deepseek" });
+      }
+      if (updatedSettings.mistralApiKey) {
+        availableProviderModels.push({ id: "mistral-large", provider: "mistral" });
+      }
+      
+      if (availableProviderModels.length > 0) {
+        const firstProviderModel = availableProviderModels[0].id;
+        console.log("[DEBUG UI] Auto-selecting first provider model:", firstProviderModel);
+        
+        // Add a small delay to ensure settings are saved before selecting model
+        setTimeout(() => {
+          onSelectModel(firstProviderModel);
+        }, 100);
+        
+        return; // Return early as we've already saved settings
+      }
     }
     
     console.log("[DEBUG UI] Saving updated settings with OpenRouter", enabled ? "enabled" : "disabled");
@@ -1958,8 +2014,8 @@ export default function MainUI({
         "openai/gpt-4.1-2025-04-14",
         "openai/gpt-4o-mini",
         "deepseek/deepseek-r1:free",
-        "x-ai/grok-3-beta",
         "meta-llama/llama-3.3-70b-instruct"
+        // Removed x-ai/grok-3-beta as it doesn't support images
       ]
       
       console.log("[DEBUG UI] Default OpenRouter models:", defaultModels);
@@ -2700,8 +2756,21 @@ export default function MainUI({
                             onClick={async (e) => {
                               e.stopPropagation();
                               e.preventDefault();
+                              
                               // First update the model selection if needed
                               if (message.model !== currentModel) {
+                                // For OpenRouter models, update settings first
+                                const currentModelObj = availableModels.find(m => m.id === currentModel);
+                                if (currentModelObj?.provider === 'openrouter') {
+                                  console.log("[DEBUG UI] Retrying with OpenRouter model:", currentModel);
+                                  const updatedSettings = {
+                                    ...userSettings,
+                                    openrouterModelName: currentModel
+                                  };
+                                  onSaveSettings(updatedSettings);
+                                  await new Promise(resolve => setTimeout(resolve, 50));
+                                }
+                                
                                 await onSelectModel(currentModel);
                                 // Wait for model selection to complete
                                 await new Promise(resolve => setTimeout(resolve, 50));
@@ -2731,11 +2800,29 @@ export default function MainUI({
                                   e.stopPropagation();
                                   e.preventDefault();
                                   
+                                  // For OpenRouter models, make sure we update both the model selection
+                                  // and the settings to ensure the correct model is used
+                                  if (model.provider === 'openrouter') {
+                                    console.log("[DEBUG UI] Retrying with OpenRouter model:", model.id);
+                                    
+                                    // Update the OpenRouter model name in settings first
+                                    const updatedSettings = {
+                                      ...userSettings,
+                                      openrouterModelName: model.id
+                                    };
+                                    onSaveSettings(updatedSettings);
+                                    
+                                    // Wait for settings to update
+                                    await new Promise(resolve => setTimeout(resolve, 50));
+                                  }
+                                  
                                   // First update the model selection
                                   onSelectModel(model.id);
                                   
+                                  // Wait for model selection to complete
+                                  await new Promise(resolve => setTimeout(resolve, 50));
+                                  
                                   // Then retry the message with the explicitly selected model
-                                  // Pass the model.id directly instead of relying on currentModel state
                                   onRetryMessage(message.id, model.id);
                                 }}
                                 className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"

@@ -331,9 +331,11 @@ export default function Home() {
       // Get available models and return the first one
       const availableModels = getAvailableModelsForSettings(settings)
       if (availableModels.length > 0) {
+        console.log("[DEBUG PAGE] Selecting first available model:", availableModels[0].id);
         return availableModels[0].id
       }
       // If no API keys are configured, return a default that will show setup message
+      console.log("[DEBUG PAGE] No models configured, using default");
       return "no-models-configured"
     }
 
@@ -740,9 +742,28 @@ export default function Home() {
       let finalModelToUse = modelToUse;
       let providerToUse = getProviderFromModel(finalModelToUse);
       
+      // Check if we're using an OpenRouter model format (with slash) but OpenRouter is disabled
+      if (!userSettings.openrouterEnabled && finalModelToUse.includes('/')) {
+        console.log("[DEBUG] Detected OpenRouter model format while OpenRouter is disabled");
+        // Get the first available provider model instead
+        const availableModels = getAvailableModelsForSettings(userSettings);
+        if (availableModels.length > 0) {
+          finalModelToUse = availableModels[0].id;
+          providerToUse = getProviderFromModel(finalModelToUse);
+          console.log("[DEBUG] Switched to provider model:", finalModelToUse);
+        }
+      }
+      
       if (userSettings.openrouterEnabled) {
-        // Use the OpenRouter model name if available, otherwise use a default
-        finalModelToUse = userSettings.openrouterModelName || "anthropic/claude-3-sonnet";
+        // If we have an explicit override model, use that (for retries with specific models)
+        // Otherwise use the OpenRouter model name from settings
+        if (overrideModel) {
+          finalModelToUse = overrideModel;
+          console.log("[DEBUG] Using override model for OpenRouter:", finalModelToUse);
+        } else {
+          finalModelToUse = userSettings.openrouterModelName || "anthropic/claude-3-sonnet";
+          console.log("[DEBUG] Using default OpenRouter model from settings:", finalModelToUse);
+        }
         
         // If the model doesn't have a provider prefix, add it
         if (!finalModelToUse.includes('/')) {
@@ -756,9 +777,11 @@ export default function Home() {
             finalModelToUse = `mistral/${finalModelToUse}`;
           } else if (finalModelToUse.includes('llama')) {
             finalModelToUse = `meta-llama/${finalModelToUse}`;
+          } else if (finalModelToUse.includes('deepseek')) {
+            finalModelToUse = `deepseek/${finalModelToUse}`;
           }
         }
-        console.log("[DEBUG] Using OpenRouter model:", finalModelToUse);
+        console.log("[DEBUG] Final OpenRouter model to use:", finalModelToUse);
         
         // Force provider to be openrouter when in OpenRouter mode
         providerToUse = "openrouter";
@@ -1200,6 +1223,9 @@ export default function Home() {
       )
     }
     
+    // Log available models for debugging
+    console.log("[DEBUG PAGE] Available models:", models.map(m => `${m.provider}/${m.id}`));
+    
     return models
   }
 
@@ -1207,6 +1233,7 @@ export default function Home() {
   const getAvailableModels = () => {
     // If OpenRouter is enabled and API key exists, consider it as an available model
     if (userSettings.openrouterEnabled && userSettings.openrouterApiKey) {
+      console.log("[DEBUG PAGE] Using OpenRouter models");
       return [{
         id: userSettings.openrouterModelName || "anthropic/claude-3-sonnet",
         name: userSettings.openrouterModelName || "Claude 3 Sonnet",
@@ -1215,7 +1242,20 @@ export default function Home() {
         enabled: true
       }];
     }
-    return getAvailableModelsForSettings(userSettings);
+    
+    console.log("[DEBUG PAGE] Using provider models");
+    const providerModels = getAvailableModelsForSettings(userSettings);
+    
+    // If we just switched from OpenRouter to provider mode, ensure we have a valid model selected
+    if (currentModel && currentModel.includes('/') && providerModels.length > 0) {
+      console.log("[DEBUG PAGE] Detected OpenRouter model selected while in provider mode, will auto-select first provider model");
+      setTimeout(() => {
+        console.log("[DEBUG PAGE] Auto-selecting first provider model:", providerModels[0].id);
+        setCurrentModel(providerModels[0].id);
+      }, 50);
+    }
+    
+    return providerModels;
   }
 
   const handleRetryMessage = async (messageId: string, selectedModelId?: string) => {
@@ -1297,6 +1337,17 @@ export default function Home() {
       });
       
       try {
+        console.log("[DEBUG PAGE] Explicitly setting model for retry:", modelToUse);
+        
+        // For OpenRouter models, update the settings first to ensure consistency
+        if (userSettings.openrouterEnabled && modelToUse.includes('/')) {
+          console.log("[DEBUG PAGE] Updating OpenRouter model name in settings for retry:", modelToUse);
+          setUserSettings({
+            ...userSettings,
+            openrouterModelName: modelToUse
+          });
+        }
+        
         // Retry the message with the selected model and original settings
         // Force codeGenerationEnabled to false for retries
         await handleSendMessage(
@@ -1445,9 +1496,23 @@ export default function Home() {
           authLoading={authLoading || dataLoading}
           selectedProjectId={selectedProjectId}
           onSaveSettings={(settings) => {
+            // Check if we need to update the current model
+            const oldSettings = userSettings;
+            const oldModels = getAvailableModelsForSettings(oldSettings);
+            
+            // Save the settings
             setUserSettings(settings)
             if (typeof window !== 'undefined') {
               localStorage.setItem('apeiron-chat-user-settings', JSON.stringify(settings))
+            }
+            
+            // Check if a new API key was added
+            const newModels = getAvailableModelsForSettings(settings);
+            
+            // If we went from no models to having models, select the first one
+            if (oldModels.length === 0 && newModels.length > 0) {
+              console.log("[DEBUG PAGE] New API key detected, selecting first model:", newModels[0].id);
+              setCurrentModel(newModels[0].id);
             }
           }}
           onRenameConversation={handleRenameConversation}

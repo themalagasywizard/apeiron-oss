@@ -222,21 +222,12 @@ export async function POST(request: NextRequest) {
                 // Add image attachments
                 imageAttachments.forEach((img: any) => {
                   if (img.url) {
-                    try {
-                      console.log('Processing image for OpenAI:', img.type, img.url.substring(0, 50));
-                      
-                      // OpenAI supports both data URLs and external URLs
-                      contentParts.push({
-                        type: "image_url",
-                        image_url: {
-                          url: img.url
-                        }
-                      });
-                      
-                      console.log('Successfully added image to OpenAI message');
-                    } catch (e) {
-                      console.error('Failed to process image for OpenAI:', e);
-                    }
+                    contentParts.push({ 
+                      type: "image_url",
+                      image_url: {
+                        url: img.url
+                      }
+                    });
                   }
                 });
                 
@@ -248,6 +239,49 @@ export async function POST(request: NextRequest) {
               return msg;
             });
             console.log('Processed messages for OpenAI vision');
+            break;
+            
+          case 'openrouter':
+            // Format for OpenRouter's vision models - using same format as OpenAI
+            processedMessages = messages.map((msg, i) => {
+              if (i === lastUserMessageIndex) {
+                // Convert to OpenAI-compatible vision format for OpenRouter
+                const contentParts = [];
+                
+                // Add text content if it exists
+                if (msg.content && typeof msg.content === 'string') {
+                  contentParts.push({ 
+                    type: "text", 
+                    text: msg.content 
+                  });
+                }
+                
+                // Add image attachments
+                imageAttachments.forEach((img: any) => {
+                  if (img.url) {
+                    try {
+                      console.log('Processing image for OpenRouter:', img.type, img.url.substring(0, 50));
+                      contentParts.push({ 
+                        type: "image_url",
+                        image_url: {
+                          url: img.url
+                        }
+                      });
+                      console.log('Successfully added image to OpenRouter message');
+                    } catch (e) {
+                      console.error('Failed to process image for OpenRouter:', e);
+                    }
+                  }
+                });
+                
+                return {
+                  ...msg,
+                  content: contentParts
+                };
+              }
+              return msg;
+            });
+            console.log('Processed messages for OpenRouter vision');
             break;
             
           case 'claude':
@@ -441,12 +475,15 @@ export async function POST(request: NextRequest) {
       // Allow longer timeouts for edge functions (up to 90s), and increase timeout for code generation
       const isEdgeFunction = url.includes('/.netlify/edge-functions/');
       const isGemini25Pro = model.includes('2.5-pro') && provider === 'gemini';
+      const isImageRequest = hasImageAttachments === true;
+      
       const maxTimeout = isEdgeFunction ? 90000 : 
                          isGemini25Pro ? 50000 :
+                         isImageRequest ? 45000 :
                          (isCodeRequest && !isRetry) ? 40000 : 30000;
       const safeTimeout = Math.min(timeoutMs, maxTimeout);
       
-      console.log(`Setting timeout for request: ${safeTimeout}ms (${isGemini25Pro ? 'Gemini 2.5 Pro' : isEdgeFunction ? 'Edge Function' : 'Standard'})`);
+      console.log(`Setting timeout for request: ${safeTimeout}ms (${isGemini25Pro ? 'Gemini 2.5 Pro' : isImageRequest ? 'Image Request' : isEdgeFunction ? 'Edge Function' : 'Standard'})`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), safeTimeout);
@@ -983,7 +1020,7 @@ Please provide a comprehensive response using the above search results.`;
         }
         // Increase timeout for image processing for other models
         else if (hasImageAttachments === true) {
-          geminiBaseTimeout = 20000; // 20s for other models with images
+          geminiBaseTimeout = 30000; // Increased from 20s to 30s for models with images
           console.log(`Increased timeout for Gemini image processing: ${geminiBaseTimeout}ms`);
         }
         const geminiParams = getOptimizedParams(geminiBaseTimeout, 3000);
@@ -1276,27 +1313,34 @@ Please provide a comprehensive response using the above search results.`;
         console.log("[DEBUG API] Model:", model);
         console.log("[DEBUG API] API key exists:", !!apiKey);
         
-        const openrouterParams = getOptimizedParams(15000, 2500);
-        const openrouterMessages = optimizeMessagesForCode(processedMessages.map((m: any) => ({ role: m.role, content: m.content })));
+        // Increase timeout for image requests
+        const openrouterBaseTimeout = hasImageAttachments ? 45000 : 15000;
+        const openrouterParams = getOptimizedParams(openrouterBaseTimeout, 2500);
         
-        // For OpenRouter, use the model ID directly as it already includes the provider prefix
-        // Make sure we have a properly formatted model ID (should contain a slash)
-        let openrouterModelId = model;
-        if (!openrouterModelId.includes('/')) {
-          // If no slash, try to determine the provider and format it
-          if (openrouterModelId.includes('gpt')) {
-            openrouterModelId = `openai/${openrouterModelId}`;
-          } else if (openrouterModelId.includes('claude')) {
-            openrouterModelId = `anthropic/${openrouterModelId}`;
-          } else if (openrouterModelId.includes('gemini')) {
-            openrouterModelId = `google/${openrouterModelId}`;
-          } else if (openrouterModelId.includes('mistral')) {
-            openrouterModelId = `mistral/${openrouterModelId}`;
-          } else if (openrouterModelId.includes('llama')) {
-            openrouterModelId = `meta-llama/${openrouterModelId}`;
+        // Skip message optimization if we have image attachments to preserve the image format
+        const openrouterMessages = hasImageAttachments 
+          ? processedMessages 
+          : optimizeMessagesForCode(processedMessages.map((m: any) => ({ role: m.role, content: m.content })));
+        
+        // Log the message structure for debugging
+        if (hasImageAttachments) {
+          console.log("[DEBUG API] OpenRouter has image attachments, using processed messages format");
+          // Log the structure of the first message with images (without the full image data)
+          const lastMsg = processedMessages[processedMessages.length - 1];
+          if (lastMsg && Array.isArray(lastMsg.content)) {
+            console.log("[DEBUG API] OpenRouter message structure:", 
+              lastMsg.content.map((part: any) => ({
+                type: part.type,
+                hasImageUrl: !!part.image_url,
+                textPreview: part.type === 'text' ? part.text : null
+              }))
+            );
           }
         }
         
+        // For OpenRouter, use the model ID directly as it already includes the provider prefix
+        // Make sure we have a properly formatted model ID (should contain a slash)
+        const openrouterModelId = model.includes('/') ? model : `openai/${model}`;
         console.log("[DEBUG API] Using OpenRouter model ID:", openrouterModelId);
         
         try {
