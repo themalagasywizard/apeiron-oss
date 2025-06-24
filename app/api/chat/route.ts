@@ -473,7 +473,7 @@ export async function POST(request: NextRequest) {
     // Helper function to add timeout to fetch requests
     const fetchWithTimeout = async (url: string, options: any, timeoutMs: number = 18000): Promise<Response> => {
       // Allow longer timeouts for edge functions (up to 90s), and increase timeout for code generation
-      const isEdgeFunction = url.includes('/.netlify/edge-functions/');
+      const isEdgeFunction = url.includes('/.netlify/edge-functions/') || url.includes('/api/generate-code') || url.includes('/api/chat-with-images');
       const isGemini25Pro = model.includes('2.5-pro') && provider === 'gemini';
       const isImageRequest = hasImageAttachments === true;
       
@@ -483,20 +483,20 @@ export async function POST(request: NextRequest) {
                          (isCodeRequest && !isRetry) ? 40000 : 30000;
       const safeTimeout = Math.min(timeoutMs, maxTimeout);
       
-      console.log(`Setting timeout for request: ${safeTimeout}ms (${isGemini25Pro ? 'Gemini 2.5 Pro' : isImageRequest ? 'Image Request' : isEdgeFunction ? 'Edge Function' : 'Standard'})`);
+      console.log(`Setting timeout for request: ${safeTimeout}ms (${isEdgeFunction ? 'Edge Function' : isImageRequest ? 'Image Request' : 'Standard'})`);
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), safeTimeout);
-
+      const emergencyTimeout = setTimeout(() => controller.abort(), safeTimeout);
+      
       try {
         const response = await fetch(url, {
           ...options,
           signal: controller.signal
         });
-        clearTimeout(timeoutId);
+        clearTimeout(emergencyTimeout);
         return response;
-      } catch (error) {
-        clearTimeout(timeoutId);
+      } catch (error: any) {
+        clearTimeout(emergencyTimeout);
         if (error instanceof Error && error.name === 'AbortError') {
           const errorMsg = isEdgeFunction 
             ? `Edge function timed out after ${safeTimeout / 1000} seconds. Try a shorter request.`
@@ -646,6 +646,59 @@ export async function POST(request: NextRequest) {
         
       } catch (edgeError) {
         console.error('Edge function failed, falling back to serverless:', edgeError);
+        // Continue with regular serverless processing as fallback
+      }
+    }
+
+    // Route image processing requests to Edge Function for better performance and longer timeouts
+    if (hasImageAttachments === true) {
+      try {
+        console.log('Routing image processing request to edge function for optimal performance');
+        const edgeFunctionUrl = `${new URL(request.url).origin}/api/chat-with-images`;
+        
+        const edgeResponse = await fetchWithTimeout(edgeFunctionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: processedMessages,
+            provider,
+            apiKey,
+            model,
+            temperature,
+            hasImageAttachments: true
+          })
+        }, 90000); // 90 second timeout for edge function with images
+
+        if (!edgeResponse.ok) {
+          const errorText = await edgeResponse.text().catch(() => 'Unknown error');
+          console.error(`Image processing edge function failed with status ${edgeResponse.status}:`, errorText);
+          throw new Error(`Edge function error (${edgeResponse.status}): ${errorText}`);
+        }
+
+        const edgeResult = await edgeResponse.json();
+        
+        // Validate edge function response has content
+        if (!edgeResult.response && !edgeResult.content) {
+          throw new Error('Edge function returned empty response');
+        }
+        
+        clearTimeout(emergencyTimeout);
+        
+        // Ensure we have a consistent response format
+        return NextResponse.json({
+          content: edgeResult.response || edgeResult.content,
+          response: edgeResult.response || edgeResult.content,
+          model: edgeResult.model || model,
+          provider: edgeResult.provider || provider,
+          imageProcessing: true,
+          edgeFunction: true,
+          searchResults: null
+        });
+        
+      } catch (edgeError) {
+        console.error('Image processing edge function failed, falling back to serverless:', edgeError);
         // Continue with regular serverless processing as fallback
       }
     }
@@ -1020,8 +1073,19 @@ Please provide a comprehensive response using the above search results.`;
         }
         // Increase timeout for image processing for other models
         else if (hasImageAttachments === true) {
-          geminiBaseTimeout = 30000; // Increased from 20s to 30s for models with images
+          geminiBaseTimeout = 45000; // Increased from 30s to 45s for models with images
           console.log(`Increased timeout for Gemini image processing: ${geminiBaseTimeout}ms`);
+        }
+        // Increase timeout for code generation
+        else if (isCodeRequest || isCodeGenerationEnabled) {
+          geminiBaseTimeout = 30000; // 30s for code generation
+          console.log(`Increased timeout for Gemini code generation: ${geminiBaseTimeout}ms`);
+        }
+
+        // If this is a retry, add extra time
+        if (isRetry) {
+          geminiBaseTimeout += 10000; // Add 10s for retries
+          console.log(`Added retry buffer to Gemini timeout: ${geminiBaseTimeout}ms`);
         }
         const geminiParams = getOptimizedParams(geminiBaseTimeout, 3000);
         
