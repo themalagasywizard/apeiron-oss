@@ -2767,11 +2767,11 @@ export default function MainUI({
                               </button>
                             </DropdownMenuTrigger>
                             
-                            <DropdownMenuContent align="start" className="min-w-[200px]">
-                              <DropdownMenuLabel className="text-xs text-gray-500 dark:text-gray-400">
+                            <DropdownMenuContent align="start" className="min-w-[200px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                              <DropdownMenuLabel className="text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800">
                                 Retry original message with:
                               </DropdownMenuLabel>
-                              <DropdownMenuSeparator />
+                              <DropdownMenuSeparator className="bg-gray-200 dark:bg-gray-700" />
                               
                               {availableModels.map((model) => (
                                 <DropdownMenuItem
@@ -2802,7 +2802,7 @@ export default function MainUI({
                                     // Then retry the message with the explicitly selected model
                                     onRetryMessage(message.id, model.id);
                                   }}
-                                  className="flex items-center gap-2"
+                                  className="flex items-center gap-2 bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700"
                                 >
                                   <ModelLogo provider={model.provider} modelId={model.id} size="sm" />
                                   <span className="text-gray-700 dark:text-gray-300">{model.name}</span>
