@@ -39,6 +39,7 @@ import {
   Save,
   ExternalLink,
 } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 // Types
 type Message = {
@@ -2695,7 +2696,7 @@ export default function MainUI({
                     <div className="flex items-center gap-2 mt-1.5">
                       <ModelLogo 
                         provider={(() => {
-                          // First try to use the message provider
+                          // First try to use the provider from the message
                           if (message.provider) {
                             return message.provider as "openai" | "claude" | "gemini" | "deepseek" | "grok" | "openrouter" | "veo2" | "mistral" | "runway";
                           }
@@ -2715,8 +2716,8 @@ export default function MainUI({
                         modelId={message.model || 'unknown'}
                         size="sm"
                       />
-                      <div className="relative group">
-                        <div className="flex items-center gap-2 cursor-pointer">
+                      <div className="relative">
+                        <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-600 dark:text-gray-400">
                             {(() => {
                               // First try to use the exact model name from the message
@@ -2752,86 +2753,63 @@ export default function MainUI({
                               return 'AI';
                             })()}
                           </span>
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              e.preventDefault();
-                              
-                              // First update the model selection if needed
-                              if (message.model !== currentModel) {
-                                // For OpenRouter models, update settings first
-                                const currentModelObj = availableModels.find(m => m.id === currentModel);
-                                if (currentModelObj?.provider === 'openrouter') {
-                                  console.log("[DEBUG UI] Retrying with OpenRouter model:", currentModel);
-                                  const updatedSettings = {
-                                    ...userSettings,
-                                    openrouterModelName: currentModel
-                                  };
-                                  onSaveSettings(updatedSettings);
-                                  await new Promise(resolve => setTimeout(resolve, 50));
-                                }
-                                
-                                await onSelectModel(currentModel);
-                                // Wait for model selection to complete
-                                await new Promise(resolve => setTimeout(resolve, 50));
-                              }
-                              onRetryMessage(message.id, currentModel);
-                            }}
-                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-                            title="Retry original message with this model"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 dark:text-gray-400">
-                              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                              <path d="M21 3v5h-5" />
-                            </svg>
-                          </button>
-                        </div>
-                        
-                        {/* Model Selection Dropdown */}
-                        <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block">
-                          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[200px]">
-                            <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                              Retry original message with:
-                            </div>
-                            {availableModels.map((model) => (
+                          
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
                               <button
-                                key={model.id}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  
-                                  // For OpenRouter models, make sure we update both the model selection
-                                  // and the settings to ensure the correct model is used
-                                  if (model.provider === 'openrouter') {
-                                    console.log("[DEBUG UI] Retrying with OpenRouter model:", model.id);
-                                    
-                                    // Update the OpenRouter model name in settings first
-                                    const updatedSettings = {
-                                      ...userSettings,
-                                      openrouterModelName: model.id
-                                    };
-                                    onSaveSettings(updatedSettings);
-                                    
-                                    // Wait for settings to update
-                                    await new Promise(resolve => setTimeout(resolve, 50));
-                                  }
-                                  
-                                  // First update the model selection
-                                  onSelectModel(model.id);
-                                  
-                                  // Wait for model selection to complete
-                                  await new Promise(resolve => setTimeout(resolve, 50));
-                                  
-                                  // Then retry the message with the explicitly selected model
-                                  onRetryMessage(message.id, model.id);
-                                }}
-                                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                                title="Retry original message with this model"
                               >
-                                <ModelLogo provider={model.provider} modelId={model.id} size="sm" />
-                                <span className="text-gray-700 dark:text-gray-300">{model.name}</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 dark:text-gray-400">
+                                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                                  <path d="M21 3v5h-5" />
+                                </svg>
                               </button>
-                            ))}
-                          </div>
+                            </DropdownMenuTrigger>
+                            
+                            <DropdownMenuContent align="start" className="min-w-[200px]">
+                              <DropdownMenuLabel className="text-xs text-gray-500 dark:text-gray-400">
+                                Retry original message with:
+                              </DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              
+                              {availableModels.map((model) => (
+                                <DropdownMenuItem
+                                  key={model.id}
+                                  onSelect={async () => {
+                                    // For OpenRouter models, make sure we update both the model selection
+                                    // and the settings to ensure the correct model is used
+                                    if (model.provider === 'openrouter') {
+                                      console.log("[DEBUG UI] Retrying with OpenRouter model:", model.id);
+                                      
+                                      // Update the OpenRouter model name in settings first
+                                      const updatedSettings = {
+                                        ...userSettings,
+                                        openrouterModelName: model.id
+                                      };
+                                      onSaveSettings(updatedSettings);
+                                      
+                                      // Wait for settings to update
+                                      await new Promise(resolve => setTimeout(resolve, 50));
+                                    }
+                                    
+                                    // First update the model selection
+                                    onSelectModel(model.id);
+                                    
+                                    // Wait for model selection to complete
+                                    await new Promise(resolve => setTimeout(resolve, 50));
+                                    
+                                    // Then retry the message with the explicitly selected model
+                                    onRetryMessage(message.id, model.id);
+                                  }}
+                                  className="flex items-center gap-2"
+                                >
+                                  <ModelLogo provider={model.provider} modelId={model.id} size="sm" />
+                                  <span className="text-gray-700 dark:text-gray-300">{model.name}</span>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </div>
