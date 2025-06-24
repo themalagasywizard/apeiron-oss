@@ -2084,7 +2084,7 @@ export default function MainUI({
         {isMobile && !sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-[#2b2b2b]/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
+            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
             aria-label="Open sidebar"
           >
             <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
@@ -2102,8 +2102,8 @@ export default function MainUI({
               className={`
                 w-full max-w-[280px] h-full flex flex-col
                 ${isMobile ? "fixed z-20 top-0 left-0 h-screen" : ""}
-                bg-background
-                                 border-r border-gray-300 dark:border-gray-600/20
+                bg-white dark:bg-[#2b2b2b]
+                border-r border-gray-300 dark:border-gray-600/20
               `}
             >
               {/* Sidebar Header with Title and Controls */}
@@ -2174,8 +2174,8 @@ export default function MainUI({
                           `}
                           onClick={() => onSelectConversation(conversation.id)}
                         >
-                        <div className="flex items-center justify-between bg-white dark:bg-[#2b2b2b]">
-                          <div className="flex-1 min-w-0 bg-white dark:bg-[#2b2b2b]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
                             {editingConversationId === conversation.id ? (
                               <input
                                 type="text"
@@ -2189,7 +2189,7 @@ export default function MainUI({
                               />
                             ) : (
                               <div 
-                                className="font-medium text-gray-800 dark:text-[#f0f0f0] truncate cursor-pointer bg-white dark:bg-[#2b2b2b]"
+                                className="font-medium text-gray-800 dark:text-[#f0f0f0] truncate cursor-pointer"
                                 title="Double-click to rename conversation"
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
@@ -2199,7 +2199,7 @@ export default function MainUI({
                                 {conversation.title}
                               </div>
                             )}
-                            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 bg-white dark:bg-[#2b2b2b]">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                               <span>{new Date(conversation.timestamp).toLocaleDateString()}</span>
                             </div>
                           </div>
@@ -2227,11 +2227,11 @@ export default function MainUI({
                 {/* Projects */}
                 <div>
                   {/* Project header with count */}
-                  <div className="flex items-center justify-between px-2 py-1 bg-white dark:bg-[#2b2b2b]">
+                  <div className="flex items-center justify-between px-2 py-1">
                     <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">Projects</h2>
                     <button
                       onClick={onCreateProject}
-                      className="p-1 rounded hover:bg-gray-200/20 dark:hover:bg-[#2b2b2b]/90 transition-colors"
+                      className="p-1 rounded hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
                       aria-label="New project"
                     >
                       <Folder className="w-4 h-4 text-gray-600 dark:text-gray-400" />
@@ -2240,7 +2240,7 @@ export default function MainUI({
 
                   {/* Unorganized conversations drop zone */}
                   <div 
-                    className={`mt-2 mb-2 p-2 rounded-lg border-2 border-dashed transition-colors dark:bg-[#2b2b2b] ${
+                    className={`mt-2 mb-2 p-2 rounded-lg border-2 border-dashed transition-colors ${
                       dragOverProjectId === null && draggedConversationId
                         ? 'border-purple-400 bg-purple-50/10 dark:bg-purple-900/10'
                         : 'border-gray-300/30 dark:border-gray-600/30'
@@ -2258,14 +2258,14 @@ export default function MainUI({
                     {projects.map((project) => (
                       <div key={project.id}>
                         <div 
-                          className={`group relative rounded-lg transition-all duration-200 dark:bg-[#2b2b2b] ${
+                          className={`group relative rounded-lg transition-all duration-200 ${
                             dragOverProjectId === project.id 
-                              ? 'bg-purple-50/20 dark:bg-[#2b2b2b] border-2 border-purple-400 border-dashed' 
+                              ? 'bg-purple-50/20 dark:bg-purple-900/10 border-2 border-purple-400 border-dashed' 
                               : 'border-2 border-transparent'
                           } ${
                             selectedProjectId === project.id
-                              ? 'bg-white/30 dark:bg-[#2b2b2b] shadow-sm'
-                              : 'hover:bg-white/20 dark:hover:bg-[#2b2b2b]/90'
+                              ? 'bg-white/30 dark:bg-gray-800/60 shadow-sm'
+                              : 'hover:bg-white/20 dark:hover:bg-gray-800/40'
                           }`}
                           onDragOver={(e) => handleProjectDragOver(e, project.id)}
                           onDragLeave={handleProjectDragLeave}
@@ -2492,7 +2492,7 @@ export default function MainUI({
               {!isMobile && !sidebarOpen && (
                 <button
                   onClick={() => setSidebarOpen(true)}
-            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-[#2b2b2b]/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
+            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
                   aria-label="Open sidebar"
                 >
             <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
