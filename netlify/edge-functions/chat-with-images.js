@@ -238,58 +238,126 @@ export default async (request, context) => {
         }
 
         try {
+          console.log("Original messages structure:", JSON.stringify(messages.map(m => ({
+            role: m.role,
+            content_type: typeof m.content,
+            has_array_content: Array.isArray(m.content),
+            content_preview: typeof m.content === 'string' ? m.content.substring(0, 30) : 'non-string content'
+          }))));
+          
           // Format Gemini request body
           const geminiContents = [];
           
           // Process messages for Gemini format
           for (const msg of messages) {
+            console.log(`Processing message with role: ${msg.role}, content type: ${typeof msg.content}, is array: ${Array.isArray(msg.content)}`);
+            
             if (msg.role === 'user') {
               if (Array.isArray(msg.content)) {
                 // Handle multimodal content (text + images)
                 const parts = [];
                 
                 for (const contentPart of msg.content) {
+                  console.log(`Processing content part: ${JSON.stringify({
+                    type: contentPart.type,
+                    has_text: !!contentPart.text,
+                    has_image_url: !!contentPart.image_url
+                  })}`);
+                  
                   if (contentPart.type === 'text') {
                     parts.push({ text: contentPart.text });
-                  } else if (contentPart.type === 'image_url' && contentPart.image_url) {
+                    console.log(`Added text part: ${contentPart.text.substring(0, 30)}`);
+                  } else if (contentPart.type === 'image_url') {
                     // Extract base64 data from image URL
-                    const imgUrl = contentPart.image_url.url || contentPart.image_url;
+                    const imgUrl = contentPart.image_url?.url || contentPart.image_url;
+                    console.log(`Processing image URL: ${typeof imgUrl}, starts with data: ${typeof imgUrl === 'string' && imgUrl.startsWith('data:')}`);
+                    
                     if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
-                      const base64Data = imgUrl.split(',')[1];
-                      if (base64Data) {
-                        const mimeType = imgUrl.split(';')[0].split(':')[1];
-                        parts.push({
-                          inline_data: {
-                            data: base64Data,
-                            mime_type: mimeType
-                          }
-                        });
+                      const parts = imgUrl.split(',');
+                      if (parts.length !== 2) {
+                        console.error(`Invalid data URL format: ${imgUrl.substring(0, 50)}...`);
+                        continue;
                       }
+                      
+                      const base64Data = parts[1];
+                      if (!base64Data) {
+                        console.error('No base64 data found in URL');
+                        continue;
+                      }
+                      
+                      const mimeTypeMatch = parts[0].match(/data:([^;]+);/);
+                      const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg';
+                      
+                      console.log(`Extracted image data: mimeType=${mimeType}, base64Length=${base64Data.length}`);
+                      
+                      parts.push({
+                        inline_data: {
+                          mime_type: mimeType,
+                          data: base64Data
+                        }
+                      });
+                      console.log('Added image part with inline_data');
+                    } else {
+                      console.error('Image URL is not in data: format', imgUrl?.substring(0, 30));
                     }
                   }
+                }
+                
+                if (parts.length === 0) {
+                  console.error('No valid parts created from array content');
+                  // Add a default text part to avoid empty parts
+                  parts.push({ text: "Image processing failed. Please try again." });
                 }
                 
                 geminiContents.push({
                   role: 'user',
                   parts: parts
                 });
-              } else {
+                console.log(`Added user message with ${parts.length} parts`);
+              } else if (typeof msg.content === 'string') {
                 // Simple text message
                 geminiContents.push({
                   role: 'user',
                   parts: [{ text: msg.content }]
                 });
+                console.log(`Added simple text user message: ${msg.content.substring(0, 30)}`);
+              } else {
+                console.error(`Unsupported content type for user message: ${typeof msg.content}`);
+                // Add a default message to avoid errors
+                geminiContents.push({
+                  role: 'user',
+                  parts: [{ text: "Content format not supported" }]
+                });
               }
             } else if (msg.role === 'assistant') {
               geminiContents.push({
                 role: 'model',
-                parts: [{ text: msg.content }]
+                parts: [{ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }]
               });
+              console.log(`Added assistant message`);
             } else if (msg.role === 'system') {
               geminiContents.push({
                 role: 'user',
-                parts: [{ text: msg.content }]
+                parts: [{ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }]
               });
+              console.log(`Added system message as user`);
+            }
+          }
+
+          // Validate that we have at least one message with valid parts
+          if (geminiContents.length === 0) {
+            throw new Error('No valid messages to send to Gemini API');
+          }
+          
+          // Check if any message has empty parts
+          const emptyPartMessages = geminiContents.filter(msg => !msg.parts || msg.parts.length === 0);
+          if (emptyPartMessages.length > 0) {
+            console.error(`Found ${emptyPartMessages.length} messages with empty parts`);
+            // Fix messages with empty parts
+            for (const msg of geminiContents) {
+              if (!msg.parts || msg.parts.length === 0) {
+                msg.parts = [{ text: "Content unavailable" }];
+              }
             }
           }
 
@@ -305,7 +373,8 @@ export default async (request, context) => {
             role: c.role,
             parts_count: c.parts.length,
             has_text: c.parts.some(p => p.text),
-            has_image: c.parts.some(p => p.inline_data)
+            has_image: c.parts.some(p => p.inline_data),
+            parts_preview: c.parts.map(p => p.text ? { text_preview: p.text.substring(0, 20) } : (p.inline_data ? { mime: p.inline_data.mime_type, data_length: p.inline_data.data?.length || 0 } : 'unknown'))
           }))));
 
           response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
