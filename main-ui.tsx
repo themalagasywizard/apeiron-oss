@@ -624,8 +624,24 @@ export default function MainUI({
   // Close profile dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Handle sidebar profile dropdown
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
         setProfileDropdownOpen(false)
+      }
+      
+      // Handle mobile profile dropdown when sidebar is closed
+      if (isMobile && !sidebarOpen && profileDropdownOpen) {
+        const mobileProfileButton = document.querySelector('[aria-label="User profile"]');
+        const mobileProfileDropdown = document.querySelector('.fixed.top-16.right-4.z-40');
+        
+        if (
+          mobileProfileButton && 
+          mobileProfileDropdown && 
+          !mobileProfileButton.contains(event.target as Node) && 
+          !mobileProfileDropdown.contains(event.target as Node)
+        ) {
+          setProfileDropdownOpen(false)
+        }
       }
     }
 
@@ -633,7 +649,7 @@ export default function MainUI({
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [profileDropdownOpen])
+  }, [profileDropdownOpen, isMobile, sidebarOpen])
 
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -2082,13 +2098,85 @@ export default function MainUI({
       <div className="flex flex-1 overflow-hidden">
         {/* Mobile Menu Button (only visible when sidebar is closed) */}
         {isMobile && !sidebarOpen && (
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-[#2b2b2b]/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
-            aria-label="Open sidebar"
-          >
-            <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
-          </button>
+          <>
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
+              aria-label="Open sidebar"
+            >
+              <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
+            </button>
+            
+            {/* Mobile Login Button (when not authenticated) */}
+            {!isAuthenticated && (
+              <button
+                onClick={onLogin}
+                className="fixed top-4 right-16 z-30 p-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 border border-purple-400 hover:from-purple-600 hover:to-pink-600 transition-colors shadow-lg"
+                aria-label="Sign in"
+                title="Sign in to save conversations"
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </button>
+            )}
+            
+            {/* Mobile Profile Button (when authenticated) */}
+            {isAuthenticated && (
+              <button
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                className="fixed top-4 right-16 z-30 p-1 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 border border-purple-400 hover:from-purple-600 hover:to-pink-600 transition-colors shadow-lg flex items-center justify-center w-10 h-10"
+                aria-label="User profile"
+              >
+                <span className="text-white font-medium text-sm">
+                  {user?.email?.charAt(0).toUpperCase() || 'U'}
+                </span>
+              </button>
+            )}
+            
+            {/* Mobile Settings Button (always visible when sidebar is closed) */}
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="fixed top-4 right-4 z-30 p-2 rounded-full bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
+              aria-label="Open settings"
+            >
+              <Settings className="w-6 h-6 text-gray-700 dark:text-gray-200" />
+            </button>
+            
+            {/* Mobile Profile Dropdown */}
+            {isAuthenticated && profileDropdownOpen && (
+              <div className="fixed top-16 right-4 z-40 bg-white dark:bg-[#2b2b2b] rounded-xl border border-gray-200/20 dark:border-gray-600/20 shadow-lg overflow-hidden min-w-[200px]">
+                <div className="px-4 py-3 border-b border-gray-200/20 dark:border-gray-600/20">
+                  <div className="font-medium text-gray-800 dark:text-[#f0f0f0]">
+                    {user?.user_metadata?.full_name || user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'User'}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {user?.email || 'Online'}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setSettingsOpen(true)
+                    setProfileDropdownOpen(false)
+                  }}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors flex items-center gap-3 text-gray-800 dark:text-gray-200"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onLogout?.()
+                    setProfileDropdownOpen(false)
+                  }}
+                  className="w-full px-4 py-3 text-left hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 text-red-600 dark:text-red-400"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* Sidebar */}
@@ -2102,8 +2190,8 @@ export default function MainUI({
               className={`
                 w-full max-w-[280px] h-full flex flex-col
                 ${isMobile ? "fixed z-20 top-0 left-0 h-screen" : ""}
-                bg-background
-                                 border-r border-gray-300 dark:border-gray-600/20
+                bg-white dark:bg-[#2b2b2b]
+                border-r border-gray-300 dark:border-gray-600/20
               `}
             >
               {/* Sidebar Header with Title and Controls */}
@@ -2174,8 +2262,8 @@ export default function MainUI({
                           `}
                           onClick={() => onSelectConversation(conversation.id)}
                         >
-                        <div className="flex items-center justify-between bg-white dark:bg-[#2b2b2b]">
-                          <div className="flex-1 min-w-0 bg-white dark:bg-[#2b2b2b]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
                             {editingConversationId === conversation.id ? (
                               <input
                                 type="text"
@@ -2189,7 +2277,7 @@ export default function MainUI({
                               />
                             ) : (
                               <div 
-                                className="font-medium text-gray-800 dark:text-[#f0f0f0] truncate cursor-pointer bg-white dark:bg-[#2b2b2b]"
+                                className="font-medium text-gray-800 dark:text-[#f0f0f0] truncate cursor-pointer"
                                 title="Double-click to rename conversation"
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
@@ -2199,7 +2287,7 @@ export default function MainUI({
                                 {conversation.title}
                               </div>
                             )}
-                            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 bg-white dark:bg-[#2b2b2b]">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                               <span>{new Date(conversation.timestamp).toLocaleDateString()}</span>
                             </div>
                           </div>
@@ -2227,11 +2315,11 @@ export default function MainUI({
                 {/* Projects */}
                 <div>
                   {/* Project header with count */}
-                  <div className="flex items-center justify-between px-2 py-1 bg-white dark:bg-[#2b2b2b]">
+                  <div className="flex items-center justify-between px-2 py-1">
                     <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">Projects</h2>
                     <button
                       onClick={onCreateProject}
-                      className="p-1 rounded hover:bg-gray-200/20 dark:hover:bg-[#2b2b2b]/90 transition-colors"
+                      className="p-1 rounded hover:bg-gray-200/20 dark:hover:bg-gray-700/20 transition-colors"
                       aria-label="New project"
                     >
                       <Folder className="w-4 h-4 text-gray-600 dark:text-gray-400" />
@@ -2240,7 +2328,7 @@ export default function MainUI({
 
                   {/* Unorganized conversations drop zone */}
                   <div 
-                    className={`mt-2 mb-2 p-2 rounded-lg border-2 border-dashed transition-colors dark:bg-[#2b2b2b] ${
+                    className={`mt-2 mb-2 p-2 rounded-lg border-2 border-dashed transition-colors ${
                       dragOverProjectId === null && draggedConversationId
                         ? 'border-purple-400 bg-purple-50/10 dark:bg-purple-900/10'
                         : 'border-gray-300/30 dark:border-gray-600/30'
@@ -2258,14 +2346,14 @@ export default function MainUI({
                     {projects.map((project) => (
                       <div key={project.id}>
                         <div 
-                          className={`group relative rounded-lg transition-all duration-200 dark:bg-[#2b2b2b] ${
+                          className={`group relative rounded-lg transition-all duration-200 ${
                             dragOverProjectId === project.id 
-                              ? 'bg-purple-50/20 dark:bg-[#2b2b2b] border-2 border-purple-400 border-dashed' 
+                              ? 'bg-purple-50/20 dark:bg-purple-900/10 border-2 border-purple-400 border-dashed' 
                               : 'border-2 border-transparent'
                           } ${
                             selectedProjectId === project.id
-                              ? 'bg-white/30 dark:bg-[#2b2b2b] shadow-sm'
-                              : 'hover:bg-white/20 dark:hover:bg-[#2b2b2b]/90'
+                              ? 'bg-white/30 dark:bg-gray-800/60 shadow-sm'
+                              : 'hover:bg-white/20 dark:hover:bg-gray-800/40'
                           }`}
                           onDragOver={(e) => handleProjectDragOver(e, project.id)}
                           onDragLeave={handleProjectDragLeave}
@@ -2397,12 +2485,12 @@ export default function MainUI({
               </div>
 
               {/* Profile and Settings Section */}
-              <div className="px-4 py-3 h-[72px] flex items-center gap-3">
+              <div className="px-4 py-3 h-[72px] flex items-center gap-3 sticky bottom-0 bg-white dark:bg-[#2b2b2b] border-t border-gray-200/20 dark:border-gray-600/20 z-10">
                 {isAuthenticated ? (
                   <div ref={profileDropdownRef} className="relative flex-1">
                     <button
                       onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                      className="w-full h-12 flex items-center gap-3 px-3 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 transition-colors text-gray-800 dark:text-gray-200"
+                      className="w-full h-12 flex items-center gap-3 px-3 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 transition-colors text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200/20 dark:border-gray-600/20"
                     >
                       {/* Avatar */}
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium text-sm">
@@ -2427,11 +2515,11 @@ export default function MainUI({
                     <AnimatePresence>
                       {profileDropdownOpen && (
                         <motion.div
-                          initial={{ opacity: 0, y: -10 }}
+                          initial={{ opacity: 0, y: isMobile ? 10 : -10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
+                          exit={{ opacity: 0, y: isMobile ? 10 : -10 }}
                           transition={{ duration: 0.2 }}
-                          className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-[#2b2b2b] rounded-xl border border-gray-200/20 dark:border-gray-600/20 shadow-lg backdrop-blur-sm overflow-hidden"
+                          className={`absolute ${isMobile ? 'top-full mt-2' : 'bottom-full mb-2'} left-0 right-0 bg-white dark:bg-[#2b2b2b] rounded-xl border border-gray-200/20 dark:border-gray-600/20 shadow-lg backdrop-blur-sm overflow-hidden z-50`}
                         >
                           <button
                             onClick={() => {
@@ -2475,7 +2563,7 @@ export default function MainUI({
                     {/* Settings Button for Non-Authenticated Users */}
                     <button
                       onClick={() => setSettingsOpen(true)}
-                      className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 transition-colors text-gray-800 dark:text-gray-200"
+                      className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl bg-white/20 dark:bg-[#2b2b2b] hover:bg-white/30 dark:hover:bg-[#2b2b2b]/90 transition-colors text-gray-800 dark:text-gray-200 shadow-sm border border-gray-200/20 dark:border-gray-600/20"
                       aria-label="Open settings"
                     >
                       <Settings className="w-4 h-4" />
@@ -2492,7 +2580,7 @@ export default function MainUI({
               {!isMobile && !sidebarOpen && (
                 <button
                   onClick={() => setSidebarOpen(true)}
-            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white/80 dark:bg-[#2b2b2b]/80 backdrop-blur-sm border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
+            className="fixed top-4 left-4 z-30 p-2 rounded-full bg-white dark:bg-[#2b2b2b] border border-gray-200/20 dark:border-gray-700/20 hover:bg-white/90 dark:hover:bg-[#2b2b2b]/90 transition-colors shadow-lg"
                   aria-label="Open sidebar"
                 >
             <Menu className="w-6 h-6 text-gray-700 dark:text-gray-200" />
